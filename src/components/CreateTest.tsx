@@ -31,8 +31,11 @@ import {
   Filter as FilterIcon,
   SortAsc,
   Grid,
-  List
+  List,
+  Calendar,
+  Timer
 } from 'lucide-react';
+import { neon } from '@netlify/neon';
 import { dummyQuestions } from '../data/dummyQuestions';
 import type { Question, Test } from '../types';
 import './CreateTest.css';
@@ -46,6 +49,17 @@ type ViewMode = 'grid' | 'list';
 type SortBy = 'default' | 'topic' | 'difficulty';
 type DifficultyLevel = 'easy' | 'medium' | 'hard';
 
+// Generate 4-letter random key function
+const generateTestKey = (): string => {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 4; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    result += characters.charAt(randomIndex);
+  }
+  return result;
+};
+
 export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCreateTest }) => {
   const [testName, setTestName] = useState('');
   const [testDescription, setTestDescription] = useState('');
@@ -57,13 +71,21 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [sortBy, setSortBy] = useState<SortBy>('default');
   const [showPreview, setShowPreview] = useState(false);
-  const [timeLimit, setTimeLimit] = useState(60);
+  const [timeLimit, setTimeLimit] = useState(2);
   const [isCreating, setIsCreating] = useState(false);
   const [selectedDifficulties, setSelectedDifficulties] = useState<DifficultyLevel[]>([]);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [randomizeQuestions, setRandomizeQuestions] = useState(false);
   const [allowReview, setAllowReview] = useState(true);
   const [showCorrectAnswers, setShowCorrectAnswers] = useState(true);
+
+  // New state for scheduling
+  const [startDate, setStartDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [duration, setDuration] = useState(90); // Test duration in minutes
+
+  // Initialize database connection
+  const sql = neon(); // Uses NETLIFY_DATABASE_URL automatically
 
   useEffect(() => {
     setIsLoaded(true);
@@ -136,37 +158,121 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
     }
   };
 
+  // Function to save questions to database
+  const saveQuestionsToDb = async (questions: Question[]) => {
+    const savedQuestions = [];
+    
+    for (const question of questions) {
+      // Check if question already exists
+      const [existingQuestion] = await sql`
+        SELECT id FROM questions 
+        WHERE text = ${question.text} AND topic = ${question.topic}
+      `;
+      
+      if (existingQuestion) {
+        savedQuestions.push(existingQuestion);
+      } else {
+        // Insert new question
+        const [newQuestion] = await sql`
+          INSERT INTO questions (text, topic, options, correct_answer)
+          VALUES (${question.text}, ${question.topic}, ${JSON.stringify(question.options)}, ${question.correctAnswer})
+          RETURNING id
+        `;
+        savedQuestions.push(newQuestion);
+      }
+    }
+    
+    return savedQuestions;
+  };
+
+  // Modified handleCreateTest function
   const handleCreateTest = async () => {
     if (!testName.trim() || selectedQuestions.length === 0) {
       alert('Please enter a test name and select at least one question.');
       return;
     }
 
+    if (!startDate || !startTime) {
+      alert('Please select start date and time for the test.');
+      return;
+    }
+
     setIsCreating(true);
     
-    // Simulate creation process
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const newTest: Test = {
-      id: Date.now().toString(),
-      name: testName.trim(),
-      description: testDescription.trim(),
-      questions: randomizeQuestions ? shuffleArray([...selectedQuestions]) : selectedQuestions,
-      createdAt: new Date(),
-      timeLimit,
-      settings: {
-        randomizeQuestions,
-        allowReview,
-        showCorrectAnswers
+    try {
+      // Generate unique test key
+      let testKey = generateTestKey();
+      
+      // Ensure key is unique
+      let [existingTest] = await sql`SELECT test_key FROM tests WHERE test_key = ${testKey}`;
+      while (existingTest) {
+        testKey = generateTestKey();
+        [existingTest] = await sql`SELECT test_key FROM tests WHERE test_key = ${testKey}`;
       }
-    };
-    
-    onCreateTest(newTest);
-    setTestName('');
-    setTestDescription('');
-    setSelectedQuestions([]);
-    setIsCreating(false);
-    onBackToDashboard();
+
+      // Save questions to database
+      const savedQuestions = await saveQuestionsToDb(selectedQuestions);
+
+      // Create start datetime
+      const startDateTime = new Date(`${startDate}T${startTime}`);
+
+      // Insert test into database
+      const [newTest] = await sql`
+        INSERT INTO tests (
+          test_key, name, description, start_date, start_time, 
+          duration, time_limit, randomize_questions, allow_review, show_correct_answers
+        )
+        VALUES (
+          ${testKey}, ${testName.trim()}, ${testDescription.trim()}, 
+          ${startDate}, ${startTime}, ${duration}, ${timeLimit}, 
+          ${randomizeQuestions}, ${allowReview}, ${showCorrectAnswers}
+        )
+        RETURNING id, test_key
+      `;
+
+      // Link questions to test
+      for (let i = 0; i < savedQuestions.length; i++) {
+        await sql`
+          INSERT INTO test_questions (test_id, question_id, order_index)
+          VALUES (${newTest.id}, ${savedQuestions[i].id}, ${i})
+        `;
+      }
+
+      // Create test object for local state
+      const testData: Test = {
+        id: newTest.id.toString(),
+        testKey: newTest.test_key,
+        name: testName.trim(),
+        description: testDescription.trim(),
+        questions: randomizeQuestions ? shuffleArray([...selectedQuestions]) : selectedQuestions,
+        createdAt: new Date(),
+        startDate: startDateTime,
+        duration,
+        timeLimit,
+        settings: {
+          randomizeQuestions,
+          allowReview,
+          showCorrectAnswers
+        }
+      };
+      
+      alert(`Test created successfully! Test Key: ${testKey}`);
+      onCreateTest(testData);
+      
+      // Reset form
+      setTestName('');
+      setTestDescription('');
+      setSelectedQuestions([]);
+      setStartDate('');
+      setStartTime('');
+      setIsCreating(false);
+      onBackToDashboard();
+      
+    } catch (error) {
+      console.error('Error creating test:', error);
+      alert('Failed to create test. Please try again.');
+      setIsCreating(false);
+    }
   };
 
   const shuffleArray = <T,>(array: T[]): T[] => {
@@ -218,7 +324,7 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
   };
 
   const selectedTopicCounts = getSelectedQuestionsByTopic();
-  const estimatedDuration = selectedQuestions.length * 2;
+  const estimatedDuration = selectedQuestions.length * timeLimit;
   const averageDifficulty = selectedQuestions.length > 0 
     ? Math.round(selectedQuestions.reduce((sum, q) => {
         const difficultyScore = { easy: 1, medium: 2, hard: 3 }[getDifficulty(q)];
@@ -326,17 +432,64 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
                     />
                   </div>
                   
+                  {/* New Date Input */}
+                  <div className="form-field">
+                    <label className="field-label">
+                      <Calendar className="label-icon" />
+                      Start Date <span className="required">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]} // Prevent past dates
+                      className="field-input"
+                      required
+                    />
+                  </div>
+
+                  {/* New Time Input */}
                   <div className="form-field">
                     <label className="field-label">
                       <Clock className="label-icon" />
-                      Time Limit (minutes)
+                      Start Time <span className="required">*</span>
+                    </label>
+                    <input
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="field-input"
+                      required
+                    />
+                  </div>
+
+                  {/* Test Duration */}
+                  <div className="form-field">
+                    <label className="field-label">
+                      <Timer className="label-icon" />
+                      Test Duration (minutes)
+                    </label>
+                    <input
+                      type="number"
+                      value={duration}
+                      onChange={(e) => setDuration(Number(e.target.value))}
+                      min="15"
+                      max="300"
+                      className="field-input"
+                    />
+                  </div>
+                  
+                  <div className="form-field">
+                    <label className="field-label">
+                      <Clock className="label-icon" />
+                      Time per Question (minutes)
                     </label>
                     <input
                       type="number"
                       value={timeLimit}
                       onChange={(e) => setTimeLimit(Number(e.target.value))}
-                      min="5"
-                      max="180"
+                      min="1"
+                      max="10"
                       className="field-input"
                     />
                   </div>
@@ -730,7 +883,7 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
             
             <button
               onClick={handleCreateTest}
-              disabled={!testName.trim() || isCreating}
+              disabled={!testName.trim() || isCreating || !startDate || !startTime}
               className={`create-test-fab ${isCreating ? 'creating' : ''}`}
             >
               {isCreating ? (
