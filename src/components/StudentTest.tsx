@@ -1,6 +1,32 @@
 import React, { useState, useEffect } from 'react';
+import { 
+  Clock, 
+  User, 
+  CheckCircle, 
+  AlertTriangle, 
+  ArrowLeft, 
+  ArrowRight, 
+  Send, 
+  Eye,
+  BookOpen,
+  Target,
+  Timer,
+  FileText,
+  ChevronLeft,
+  ChevronRight,
+  Flag,
+  Award,
+  Brain,
+  Zap,
+  BarChart3,
+  Shield,
+  Coffee,
+  Lightbulb,
+  Star,
+  Activity
+} from 'lucide-react';
 import type { StudentAnswer, Test } from '../types';
-
+import './StudentTest.css';
 
 interface StudentTestProps {
   test: Test;
@@ -11,28 +37,55 @@ interface StudentTestProps {
 export const StudentTest: React.FC<StudentTestProps> = ({ test, studentName, onSubmitTest }) => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<StudentAnswer[]>([]);
-  const [timeLeft, setTimeLeft] = useState(test.duration * 60); // Convert minutes to seconds
+  const [timeLeft, setTimeLeft] = useState((test.timeLimit || test.duration || 30) * 60);
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [showReviewMode, setShowReviewMode] = useState(false);
+  const [warningShown, setWarningShown] = useState(false);
+
+  useEffect(() => {
+    setIsLoaded(true);
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
-          // Auto-submit when time runs out
           handleSubmitTest();
           return 0;
         }
+        
+        // Show warning at 5 minutes
+        if (prev === 300 && !warningShown) {
+          setWarningShown(true);
+          // You could add a toast notification here
+        }
+        
         return prev - 1;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [warningShown]);
 
   const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
     const remainingSeconds = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    }
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  const getTimeStatus = () => {
+    const totalTime = (test.timeLimit || test.duration || 30) * 60;
+    const percentage = (timeLeft / totalTime) * 100;
+    
+    if (percentage > 50) return 'safe';
+    if (percentage > 25) return 'warning';
+    return 'critical';
   };
 
   const handleAnswerSelect = (questionId: string, selectedOption: number) => {
@@ -78,169 +131,349 @@ export const StudentTest: React.FC<StudentTestProps> = ({ test, studentName, onS
     return answers.length;
   };
 
+  const getProgressPercentage = () => {
+    return Math.round((getAnsweredQuestionsCount() / test.questions.length) * 100);
+  };
+
   const currentQ = test.questions[currentQuestion];
   const selectedAnswer = getSelectedAnswer(currentQ.id);
+  const timeStatus = getTimeStatus();
+  const progressPercentage = getProgressPercentage();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow-sm border-b sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-gray-800">{test.title}</h1>
-              <p className="text-sm text-gray-600">Student: {studentName}</p>
-            </div>
-            <div className="flex items-center gap-4 mt-2 md:mt-0">
-              <div className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                timeLeft > 300 ? 'bg-green-100 text-green-800' :
-                timeLeft > 120 ? 'bg-yellow-100 text-yellow-800' :
-                'bg-red-100 text-red-800'
-              }`}>
-                ⏱️ {formatTime(timeLeft)}
+    <div className={`student-test-wrapper ${isLoaded ? 'loaded' : ''}`}>
+      {/* Floating Background Elements */}
+      <div className="floating-bg-elements">
+        <div className="bg-element bg-element-1"></div>
+        <div className="bg-element bg-element-2"></div>
+        <div className="bg-element bg-element-3"></div>
+      </div>
+
+      {/* Test Header */}
+      <header className="test-header">
+        <div className="header-content">
+          <div className="header-main">
+            <div className="test-info">
+              <div className="test-brand">
+                <div className="brand-icon">
+                  <Brain className="icon" />
+                </div>
+                <div className="brand-text">
+                  <h1 className="test-title">{test.name || test.title}</h1>
+                  <p className="student-name">
+                    <User className="student-icon" />
+                    {studentName}
+                  </p>
+                </div>
               </div>
-              <div className="text-sm text-gray-600">
-                {getAnsweredQuestionsCount()}/{test.questions.length} answered
+            </div>
+            
+            <div className="header-stats">
+              <div className={`timer-display ${timeStatus}`}>
+                <div className="timer-icon-container">
+                  <Timer className="timer-icon" />
+                </div>
+                <div className="timer-content">
+                  <span className="timer-value">{formatTime(timeLeft)}</span>
+                  <span className="timer-label">Time Left</span>
+                </div>
+                <div className="timer-pulse"></div>
+              </div>
+              
+              <div className="progress-display">
+                <div className="progress-icon-container">
+                  <BarChart3 className="progress-icon" />
+                </div>
+                <div className="progress-content">
+                  <span className="progress-value">{getAnsweredQuestionsCount()}/{test.questions.length}</span>
+                  <span className="progress-label">Completed</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="grid lg:grid-cols-4 gap-6">
-            {/* Question Navigation */}
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-lg shadow-md p-4 sticky top-24">
-                <h3 className="font-semibold text-gray-800 mb-4">Questions</h3>
-                <div className="grid grid-cols-5 lg:grid-cols-4 gap-2">
-                  {test.questions.map((_, index) => {
-                    const isAnswered = answers.some(a => a.questionId === test.questions[index].id);
-                    const isCurrent = index === currentQuestion;
-                    
-                    return (
-                      <button
-                        key={index}
-                        onClick={() => handleQuestionJump(index)}
-                        className={`w-8 h-8 rounded text-xs font-medium transition duration-200 ${
-                          isCurrent
-                            ? 'bg-blue-600 text-white'
-                            : isAnswered
-                            ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {index + 1}
-                      </button>
-                    );
-                  })}
-                </div>
-                <button
-                  onClick={() => setShowSubmitDialog(true)}
-                  className="w-full mt-6 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition duration-200"
-                >
-                  Submit Test
-                </button>
+          
+          {/* Progress Bar */}
+          <div className="progress-bar-container">
+            <div className="progress-bar">
+              <div 
+                className="progress-fill"
+                style={{ width: `${progressPercentage}%` }}
+              >
+                <div className="progress-shine"></div>
               </div>
             </div>
+            <span className="progress-percentage">{progressPercentage}%</span>
+          </div>
+        </div>
+      </header>
 
-            {/* Current Question */}
-            <div className="lg:col-span-3">
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-lg font-semibold text-gray-800">
-                    Question {currentQuestion + 1} of {test.questions.length}
-                  </h2>
-                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-sm">
-                    {currentQ.topic}
-                  </span>
+      <main className="test-main">
+        <div className="test-container">
+          <div className="test-layout">
+            {/* Question Navigation Sidebar */}
+            <aside className="question-navigation">
+              <div className="nav-header">
+                <Target className="nav-icon" />
+                <h3 className="nav-title">Question Navigator</h3>
+              </div>
+              
+              <div className="nav-stats">
+                <div className="nav-stat answered">
+                  <CheckCircle className="stat-icon" />
+                  <span className="stat-value">{getAnsweredQuestionsCount()}</span>
+                  <span className="stat-label">Answered</span>
+                </div>
+                <div className="nav-stat remaining">
+                  <Clock className="stat-icon" />
+                  <span className="stat-value">{test.questions.length - getAnsweredQuestionsCount()}</span>
+                  <span className="stat-label">Remaining</span>
+                </div>
+              </div>
+              
+              <div className="question-grid">
+                {test.questions.map((_, index) => {
+                  const isAnswered = answers.some(a => a.questionId === test.questions[index].id);
+                  const isCurrent = index === currentQuestion;
+                  
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => handleQuestionJump(index)}
+                      className={`question-nav-btn ${
+                        isCurrent ? 'current' : 
+                        isAnswered ? 'answered' : 'unanswered'
+                      }`}
+                      title={`Question ${index + 1} ${isAnswered ? '(Answered)' : '(Not answered)'}`}
+                    >
+                      <span className="btn-number">{index + 1}</span>
+                      {isAnswered && <CheckCircle className="btn-check" />}
+                      {isCurrent && <div className="current-indicator"></div>}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <div className="nav-actions">
+                <button
+                  onClick={() => setShowReviewMode(!showReviewMode)}
+                  className="review-btn"
+                  title="Review Mode"
+                >
+                  <Eye className="btn-icon" />
+                  <span>Review</span>
+                </button>
+                
+                <button
+                  onClick={() => setShowSubmitDialog(true)}
+                  className="submit-btn"
+                  title="Submit Test"
+                >
+                  <Send className="btn-icon" />
+                  <span>Submit Test</span>
+                </button>
+              </div>
+            </aside>
+
+            {/* Main Question Area */}
+            <section className="question-section">
+              <div className="question-container">
+                {/* Question Header */}
+                <div className="question-header">
+                  <div className="question-meta">
+                    <div className="question-number">
+                      <FileText className="number-icon" />
+                      <span>Question {currentQuestion + 1} of {test.questions.length}</span>
+                    </div>
+                    <div className="question-topic">
+                      <Flag className="topic-icon" />
+                      <span>{currentQ.topic}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="question-status">
+                    {selectedAnswer !== undefined ? (
+                      <div className="status-badge answered">
+                        <CheckCircle className="status-icon" />
+                        <span>Answered</span>
+                      </div>
+                    ) : (
+                      <div className="status-badge unanswered">
+                        <AlertTriangle className="status-icon" />
+                        <span>Not Answered</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="mb-8">
-                  <h3 className="text-lg text-gray-800 mb-6">{currentQ.text}</h3>
-                  <div className="space-y-3">
+                {/* Question Content */}
+                <div className="question-content">
+                  <div className="question-text">
+                    <Lightbulb className="question-icon" />
+                    <p>{currentQ.text}</p>
+                  </div>
+
+                  {/* Answer Options */}
+                  <div className="answer-options">
                     {currentQ.options.map((option, index) => (
                       <label
                         key={index}
-                        className={`block p-4 border rounded-lg cursor-pointer transition duration-200 ${
-                          selectedAnswer === index
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
+                        className={`answer-option ${selectedAnswer === index ? 'selected' : ''}`}
                       >
-                        <div className="flex items-center">
-                          <input
-                            type="radio"
-                            name={`question-${currentQ.id}`}
-                            value={index}
-                            checked={selectedAnswer === index}
-                            onChange={() => handleAnswerSelect(currentQ.id, index)}
-                            className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-gray-800">
-                            <strong>{String.fromCharCode(65 + index)}.</strong> {option}
-                          </span>
+                        <input
+                          type="radio"
+                          name={`question-${currentQ.id}`}
+                          value={index}
+                          checked={selectedAnswer === index}
+                          onChange={() => handleAnswerSelect(currentQ.id, index)}
+                          className="option-radio"
+                        />
+                        <div className="option-content">
+                          <div className="option-indicator">
+                            <span className="option-letter">
+                              {String.fromCharCode(65 + index)}
+                            </span>
+                            {selectedAnswer === index && (
+                              <div className="selection-check">
+                                <CheckCircle className="check-icon" />
+                              </div>
+                            )}
+                          </div>
+                          <span className="option-text">{option}</span>
                         </div>
+                        <div className="option-ripple"></div>
                       </label>
                     ))}
                   </div>
                 </div>
 
-                <div className="flex justify-between">
+                {/* Navigation Controls */}
+                <div className="question-navigation-controls">
                   <button
                     onClick={handlePrevious}
                     disabled={currentQuestion === 0}
-                    className={`px-6 py-2 rounded-lg transition duration-200 ${
-                      currentQuestion === 0
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        : 'bg-gray-600 hover:bg-gray-700 text-white'
-                    }`}
+                    className="nav-btn previous"
                   >
-                    Previous
+                    <ChevronLeft className="btn-icon" />
+                    <span>Previous</span>
                   </button>
+                  
+                  <div className="question-indicator">
+                    <div className="indicator-dots">
+                      {test.questions.map((_, index) => (
+                        <div
+                          key={index}
+                          className={`dot ${index === currentQuestion ? 'active' : ''} ${
+                            answers.some(a => a.questionId === test.questions[index].id) ? 'answered' : ''
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
                   
                   <button
                     onClick={handleNext}
                     disabled={currentQuestion === test.questions.length - 1}
-                    className={`px-6 py-2 rounded-lg transition duration-200 ${
-                      currentQuestion === test.questions.length - 1
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        : 'bg-blue-600 hover:bg-blue-700 text-white'
-                    }`}
+                    className="nav-btn next"
                   >
-                    Next
+                    <span>Next</span>
+                    <ChevronRight className="btn-icon" />
                   </button>
                 </div>
               </div>
+            </section>
+          </div>
+        </div>
+      </main>
+
+      {/* Submit Confirmation Dialog */}
+      {showSubmitDialog && (
+        <div className="modal-overlay">
+          <div className="modal-backdrop" onClick={() => setShowSubmitDialog(false)}></div>
+          <div className="submit-modal">
+            <div className="modal-header">
+              <div className="modal-icon">
+                <Send className="icon" />
+              </div>
+              <h3 className="modal-title">Submit Your Test?</h3>
+              <p className="modal-subtitle">This action cannot be undone</p>
+            </div>
+            
+            <div className="modal-content">
+              <div className="submission-summary">
+                <div className="summary-stats">
+                  <div className="summary-stat completed">
+                    <div className="stat-circle">
+                      <CheckCircle className="stat-icon" />
+                      <span className="stat-number">{getAnsweredQuestionsCount()}</span>
+                    </div>
+                    <span className="stat-label">Questions Answered</span>
+                  </div>
+                  
+                  <div className="summary-stat pending">
+                    <div className="stat-circle">
+                      <AlertTriangle className="stat-icon" />
+                      <span className="stat-number">{test.questions.length - getAnsweredQuestionsCount()}</span>
+                    </div>
+                    <span className="stat-label">Questions Remaining</span>
+                  </div>
+                  
+                  <div className="summary-stat time">
+                    <div className="stat-circle">
+                      <Clock className="stat-icon" />
+                      <span className="stat-number">{formatTime(timeLeft)}</span>
+                    </div>
+                    <span className="stat-label">Time Remaining</span>
+                  </div>
+                </div>
+                
+                {getAnsweredQuestionsCount() < test.questions.length && (
+                  <div className="warning-message">
+                    <Shield className="warning-icon" />
+                    <p>
+                      <strong>Important:</strong> You have {test.questions.length - getAnsweredQuestionsCount()} unanswered questions. 
+                      These will be marked as incorrect.
+                    </p>
+                  </div>
+                )}
+                
+                <div className="encouragement-message">
+                  <Star className="encouragement-icon" />
+                  <p>
+                    Great job! You've completed {Math.round((getAnsweredQuestionsCount() / test.questions.length) * 100)}% of the test.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="modal-actions">
+              <button
+                onClick={() => setShowSubmitDialog(false)}
+                className="modal-btn secondary"
+              >
+                <ArrowLeft className="btn-icon" />
+                <span>Continue Test</span>
+              </button>
+              
+              <button
+                onClick={handleSubmitTest}
+                className="modal-btn primary"
+              >
+                <Send className="btn-icon" />
+                <span>Submit Test</span>
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Submit Dialog */}
-      {showSubmitDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center px-4 z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Submit Test?</h3>
-            <p className="text-gray-600 mb-6">
-              You have answered {getAnsweredQuestionsCount()} out of {test.questions.length} questions. 
-              {getAnsweredQuestionsCount() < test.questions.length && 
-                ' Unanswered questions will be marked as incorrect.'
-              }
-            </p>
-            <div className="flex gap-4">
-              <button
-                onClick={() => setShowSubmitDialog(false)}
-                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg transition duration-200"
-              >
-                Continue Test
-              </button>
-              <button
-                onClick={handleSubmitTest}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition duration-200"
-              >
-                Submit Now
-              </button>
+      {/* Time Warning Toast */}
+      {timeLeft <= 300 && timeLeft > 60 && (
+        <div className="time-warning-toast">
+          <div className="toast-content">
+            <Coffee className="toast-icon" />
+            <div className="toast-text">
+              <strong>5 minutes remaining!</strong>
+              <p>Please review your answers</p>
             </div>
           </div>
         </div>
