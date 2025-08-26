@@ -106,7 +106,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
   }, []);
 
   const copyTestLink = async (testKey: string) => {
-    const testLink = `${window.location.origin}/test/${testKey}`;
+    const testLink = `${window.location.origin}/${testKey}`;
     try {
       await navigator.clipboard.writeText(testLink);
       setCopiedTestId(testKey);
