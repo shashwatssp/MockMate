@@ -1,108 +1,151 @@
 import React, { useState } from 'react';
 import type { Test } from '../types';
-
+import './StudentEntry.css';
 
 interface StudentEntryProps {
-  test: Test | null;
+  test: Test;
   onStartTest: (studentName: string) => void;
 }
 
 export const StudentEntry: React.FC<StudentEntryProps> = ({ test, onStartTest }) => {
   const [studentName, setStudentName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleStartTest = () => {
+  const handleStartTest = async () => {
     if (!studentName.trim()) {
       alert('Please enter your name to start the test.');
       return;
     }
-    onStartTest(studentName.trim());
+    setIsLoading(true);
+    // Simulate loading for better UX
+    setTimeout(() => {
+      onStartTest(studentName.trim());
+      setIsLoading(false);
+    }, 1000);
   };
 
-  if (!test) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
-          <div className="text-red-500 text-6xl mb-4">❌</div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">Test Not Found</h1>
-          <p className="text-gray-600">
-            The test you're looking for doesn't exist or may have been removed.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
-        <div className="text-center mb-8">
-          <div className="text-blue-600 text-5xl mb-4">📝</div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">
-            Mock<span className="text-blue-600">Mate</span>
-          </h1>
-          <p className="text-gray-600">Ready to take your test?</p>
+    <div className="student-entry-container">
+      <div className="background-decoration">
+        <div className="floating-shape shape-1"></div>
+        <div className="floating-shape shape-2"></div>
+        <div className="floating-shape shape-3"></div>
+      </div>
+      
+      <div className="entry-card">
+        {/* Brand Header */}
+        <div className="brand-header">
+          <div className="brand-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+            </svg>
+          </div>
+          <h1 className="brand-title">MockMate Everywhere</h1>
+          <p className="brand-subtitle">Your Gateway to Success</p>
         </div>
 
-        <div className="bg-blue-50 rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">{test.title}</h2>
-          <div className="space-y-2 text-sm text-gray-600">
-            <div className="flex items-center">
-              <span className="w-4 h-4 mr-2">📝</span>
-              <span>{test.questions.length} questions</span>
+        {/* Test Information Card */}
+        <div className="test-info-card">
+          <div className="test-header">
+            <h2 className="test-name">{test.name}</h2>
+            <div className="test-badge">Ready</div>
+          </div>
+          
+          <div className="test-details">
+            <div className="detail-item">
+              <div className="detail-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                </svg>
+              </div>
+              <span className="detail-text">{test.questions.length} Questions</span>
             </div>
-            <div className="flex items-center">
-              <span className="w-4 h-4 mr-2">⏱️</span>
-              <span>{test.duration} minutes</span>
+            
+            <div className="detail-item">
+              <div className="detail-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22C6.47,22 2,17.5 2,12A10,10 0 0,1 12,2M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z"/>
+                </svg>
+              </div>
+              <span className="detail-text">{test.duration || test.timeLimit} Minutes</span>
             </div>
-            <div className="flex items-center">
-              <span className="w-4 h-4 mr-2">✅</span>
-              <span>Multiple choice questions</span>
+            
+            <div className="detail-item">
+              <div className="detail-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M11,16.5L18,9.5L16.59,8.09L11,13.67L7.91,10.59L6.5,12L11,16.5Z"/>
+                </svg>
+              </div>
+              <span className="detail-text">Multiple Choice</span>
             </div>
           </div>
         </div>
 
-        <div className="mb-6">
-          <label htmlFor="studentName" className="block text-sm font-medium text-gray-700 mb-2">
-            Your Name
+        {/* Student Input Section */}
+        <div className="input-section">
+          <label className="input-label">
+            Enter Your Full Name
           </label>
-          <input
-            type="text"
-            id="studentName"
-            value={studentName}
-            onChange={(e) => setStudentName(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleStartTest()}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition duration-200"
-            placeholder="Enter your full name"
-            required
-          />
+          <div className="input-wrapper">
+            <input
+              type="text"
+              value={studentName}
+              onChange={(e) => setStudentName(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleStartTest()}
+              className="student-input"
+              placeholder="John Doe"
+              required
+            />
+            <div className="input-icon">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
+              </svg>
+            </div>
+          </div>
         </div>
 
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-          <h3 className="text-sm font-semibold text-yellow-800 mb-2">⚠️ Instructions:</h3>
-          <ul className="text-xs text-yellow-700 space-y-1">
-            <li>• Read each question carefully</li>
-            <li>• Select only one answer per question</li>
-            <li>• You can review and change answers before submitting</li>
-            <li>• Submit the test before time runs out</li>
+        {/* Instructions Panel */}
+        <div className="instructions-panel">
+          <div className="instructions-header">
+            <div className="warning-icon">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,2L13.09,8.26L22,9L13.09,9.74L12,16L10.91,9.74L2,9L10.91,8.26L12,2Z"/>
+              </svg>
+            </div>
+            <h3>Important Instructions</h3>
+          </div>
+          <ul className="instructions-list">
+            <li>Read each question carefully before answering</li>
+            <li>Select only one answer per question</li>
+            <li>You can review and change answers anytime</li>
+            <li>Submit before the timer runs out</li>
           </ul>
         </div>
 
+        {/* Action Button */}
         <button
           onClick={handleStartTest}
-          disabled={!studentName.trim()}
-          className={`w-full py-3 px-4 rounded-lg font-semibold transition duration-300 transform hover:scale-105 ${
-            studentName.trim()
-              ? 'bg-blue-600 hover:bg-blue-700 text-white'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-          }`}
+          disabled={isLoading}
+          className={`start-button ${isLoading ? 'loading' : ''}`}
         >
-          Start Test
+          {isLoading ? (
+            <>
+              <div className="loading-spinner"></div>
+              Preparing Test...
+            </>
+          ) : (
+            <>
+              <svg className="button-icon" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8,5.14V19.14L19,12.14L8,5.14Z"/>
+              </svg>
+              Start Your Test
+            </>
+          )}
         </button>
 
-        <div className="text-center mt-6">
-          <p className="text-xs text-gray-500">
-            Good luck! Do your best and stay calm.
-          </p>
+        {/* Footer */}
+        <div className="footer-message">
+          <p>✨ Believe in yourself and do your best! ✨</p>
         </div>
       </div>
     </div>

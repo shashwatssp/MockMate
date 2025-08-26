@@ -14,7 +14,9 @@ import {
 } from 'lucide-react';
 import { TestConfigSection } from './TestConfigSection';
 import { QuestionSelectionSection } from './QuestionSelectionSection';
-import { dummyQuestions } from '../data/dummyQuestions';
+// Remove the dummyQuestions import - we'll get from Supabase instead
+// import { dummyQuestions } from '../data/dummyQuestions';
+import { createTest, getQuestions } from '../lib/database';
 import type { Question, Test } from '../types';
 import './CreateTest.css';
 
@@ -50,10 +52,31 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
   const [startDate, setStartDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [duration, setDuration] = useState(90);
+  
+  // New state for questions from Supabase
+  const [availableQuestions, setAvailableQuestions] = useState<Question[]>([]);
+  const [questionsLoading, setQuestionsLoading] = useState(true);
+  const [questionsError, setQuestionsError] = useState<string | null>(null);
 
   useEffect(() => {
     setIsLoaded(true);
+    loadQuestions();
   }, []);
+
+  // Load questions from Supabase
+  const loadQuestions = async () => {
+    try {
+      setQuestionsLoading(true);
+      setQuestionsError(null);
+      const questions = await getQuestions();
+      setAvailableQuestions(questions);
+    } catch (error) {
+      console.error('Error loading questions:', error);
+      setQuestionsError('Failed to load questions. Please try again.');
+    } finally {
+      setQuestionsLoading(false);
+    }
+  };
 
   const getDifficulty = (question: Question): DifficultyLevel => {
     const textLength = question.text.length;
@@ -89,11 +112,57 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
     try {
       const testKey = generateTestKey();
 
+      // Prepare test data for Supabase
+      const testData = {
+        testKey,
+        name: testName.trim(),
+        description: testDescription.trim(),
+        questions: randomizeQuestions ? shuffleArray([...selectedQuestions]) : selectedQuestions,
+        startDate: new Date(`${startDate}T${startTime}`),
+        duration,
+        timeLimit,
+        settings: {
+          randomizeQuestions,
+          allowReview,
+          showCorrectAnswers
+        }
+      };
 
+      // Create test in Supabase
+      const result = await createTest(testData);
+      
+      if (result) {
+        // Create Test object for local state
+        const createdTest: Test = {
+          id: result.id,
+          testKey: result.test_key,
+          name: result.name,
+          description: result.description || '',
+          questions: result.questions,
+          createdAt: new Date(result.created_at),
+          startDate: new Date(result.start_date),
+          duration: result.duration,
+          timeLimit: result.time_limit,
+          settings: result.settings
+        };
+
+        alert(`Test created successfully! Test Key: ${result.test_key}`);
+        onCreateTest(createdTest);
+        
+        // Reset form
+        setTestName('');
+        setTestDescription('');
+        setSelectedQuestions([]);
+        setStartDate('');
+        setStartTime('');
+        
+        onBackToDashboard();
+      }
 
     } catch (error) {
       console.error('Error creating test:', error);
-      alert('Failed to create test. Please try again.');
+      alert(`Failed to create test: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
       setIsCreating(false);
     }
   };
@@ -114,6 +183,35 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
         return sum + difficultyScore;
       }, 0) / selectedQuestions.length)
     : 0;
+
+  // Show loading state if questions are loading
+  if (questionsLoading) {
+    return (
+      <div className="create-test-wrapper">
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p>Loading questions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if questions failed to load
+  if (questionsError) {
+    return (
+      <div className="create-test-wrapper">
+        <div className="error-container">
+          <p className="error-message">{questionsError}</p>
+          <button onClick={loadQuestions} className="retry-btn">
+            Retry Loading Questions
+          </button>
+          <button onClick={onBackToDashboard} className="back-btn">
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="create-test-wrapper">
@@ -202,7 +300,7 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
           <QuestionSelectionSection
             selectedQuestions={selectedQuestions}
             setSelectedQuestions={setSelectedQuestions}
-            dummyQuestions={dummyQuestions}
+            dummyQuestions={availableQuestions} // Use questions from Supabase
             getDifficulty={getDifficulty}
             isLoaded={isLoaded}
           />

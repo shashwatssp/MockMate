@@ -40,7 +40,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout, te
   }, []);
 
   const copyTestLink = async (testId: string) => {
-    const testLink = `${window.location.origin}/test/${testId}`;
+    const testLink = `${window.location.origin}/${testId}`;
     try {
       await navigator.clipboard.writeText(testLink);
       setCopiedTestId(testId);
@@ -391,8 +391,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout, te
                     </button>
                     
                     <button
-                      onClick={() => copyTestLink(test.id)}
-                      className={`action-btn primary ${copiedTestId === test.id ? 'copied' : ''}`}
+                      onClick={() => copyTestLink(test.testKey)}
+                      className={`action-btn primary ${copiedTestId === test.testKey ? 'copied' : ''}`}
                     >
                       {copiedTestId === test.id ? (
                         <>
