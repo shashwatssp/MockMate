@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase'; // Import your supabase client
 import { 
   Plus, 
   LogOut, 
@@ -18,7 +19,8 @@ import {
   CheckCircle,
   AlertCircle,
   Activity,
-  Zap
+  Zap,
+  Loader2
 } from 'lucide-react';
 import type { Test } from '../types';
 import './Dashboard.css';
@@ -26,27 +28,100 @@ import './Dashboard.css';
 interface DashboardProps {
   onCreateTest: () => void;
   onLogout: () => void;
-  tests: Test[];
+  tests: Test[]; // This will be replaced by fetched data
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout, tests }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [copiedTestId, setCopiedTestId] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  
+  // New state for actual data
+  const [tests, setTests] = useState<Test[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // Fetch tests from Supabase
+  const fetchTests = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data, error: fetchError } = await supabase
+        .from('tests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      // Transform Supabase data to match your Test interface
+      const transformedTests: Test[] = data?.map(test => ({
+        id: test.id,
+        testKey: test.test_key,
+        name: test.name,
+        title: test.name, // Using name as title
+        questions: test.questions || [],
+        settings: test.settings,
+        createdAt: new Date(test.created_at),
+        duration: test.duration,
+        timeLimit: test.time_limit,
+        description: test.description || undefined,
+        startDate: test.start_date ? new Date(test.start_date) : undefined
+      })) || [];
+
+      setTests(transformedTests);
+    } catch (err) {
+      console.error('Error fetching tests:', err);
+      setError('Failed to load tests. Please try again.');
+    } finally {
+      setLoading(false);
+      setIsLoaded(true);
+    }
+  };
+
+  // Fetch data on component mount
   useEffect(() => {
-    setIsLoaded(true);
+    fetchTests();
   }, []);
 
-  const copyTestLink = async (testId: string) => {
-    const testLink = `${window.location.origin}/${testId}`;
+  // Real-time subscription for test updates (optional)
+  useEffect(() => {
+    const subscription = supabase
+      .channel('tests-channel')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'tests' }, 
+        (payload) => {
+          console.log('Test updated:', payload);
+          fetchTests(); // Refetch data when changes occur
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const copyTestLink = async (testKey: string) => {
+    const testLink = `${window.location.origin}/test/${testKey}`;
     try {
       await navigator.clipboard.writeText(testLink);
-      setCopiedTestId(testId);
+      setCopiedTestId(testKey);
       setTimeout(() => setCopiedTestId(null), 2000);
     } catch (err) {
-      alert('Test link copied to clipboard!');
+      console.error('Failed to copy:', err);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = testLink;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopiedTestId(testKey);
+      setTimeout(() => setCopiedTestId(null), 2000);
     }
   };
 
@@ -88,6 +163,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout, te
     (new Date().getTime() - test.createdAt.getTime()) < (7 * 24 * 60 * 60 * 1000)
   ).length;
 
+  // Handle loading state
+  if (loading) {
+    return (
+      <div className="dashboard-wrapper">
+        <div className="loading-container">
+          <Loader2 className="loading-spinner" />
+          <h2>Loading your tests...</h2>
+          <p>Please wait while we fetch your data</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle error state
+  if (error) {
+    return (
+      <div className="dashboard-wrapper">
+        <div className="error-container">
+          <AlertCircle className="error-icon" />
+          <h2>Oops! Something went wrong</h2>
+          <p>{error}</p>
+          <button onClick={fetchTests} className="retry-btn">
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-wrapper">
       {/* Header */}
@@ -105,18 +209,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout, te
             </div>
             
             <div className="header-actions">
-              <button
-                onClick={onCreateTest}
-                className="create-btn"
-              >
+              <button onClick={fetchTests} className="refresh-btn" title="Refresh">
+                <Activity className="btn-icon" />
+              </button>
+              
+              <button onClick={onCreateTest} className="create-btn">
                 <Plus className="btn-icon" />
                 <span className="btn-text">Create Test</span>
               </button>
               
-              <button
-                onClick={onLogout}
-                className="logout-btn"
-              >
+              <button onClick={onLogout} className="logout-btn">
                 <LogOut className="btn-icon" />
                 <span className="btn-text">Logout</span>
               </button>
@@ -136,7 +238,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout, te
                   <span className="greeting-emoji">👋</span>
                 </h2>
                 <p className="greeting-subtitle">
-                  Ready to create an amazing test for your students?
+                  {tests.length > 0 
+                    ? "Here's an overview of your tests"
+                    : "Ready to create your first amazing test?"
+                  }
                 </p>
               </div>
               
@@ -175,7 +280,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout, te
           </div>
         </section>
 
-        {/* Stats Dashboard */}
+        {/* Stats Dashboard - Now with real data */}
         <section className={`stats-section ${isLoaded ? 'loaded' : ''}`}>
           <div className="stats-grid">
             <div className="stat-card primary">
@@ -185,7 +290,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout, te
                 </div>
                 <div className="stat-trend positive">
                   <TrendingUp className="trend-icon" />
-                  <span>+12%</span>
+                  <span>Live</span>
                 </div>
               </div>
               <div className="stat-content">
@@ -237,15 +342,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout, te
                 </div>
               </div>
               <div className="stat-content">
-                <div className="stat-number">98%</div>
-                <div className="stat-label">Success Rate</div>
-                <div className="stat-sublabel">Student completion</div>
+                <div className="stat-number">{tests.length > 0 ? '100%' : '0%'}</div>
+                <div className="stat-label">Active Rate</div>
+                <div className="stat-sublabel">Tests ready</div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Tests Section */}
+        {/* Tests Section - Now with real data */}
         <section className={`tests-section ${isLoaded ? 'loaded' : ''}`}>
           <div className="tests-header">
             <div className="tests-title-area">
@@ -316,10 +421,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout, te
                   </div>
                 </div>
                 
-                <button
-                  onClick={onCreateTest}
-                  className="empty-cta"
-                >
+                <button onClick={onCreateTest} className="empty-cta">
                   <Plus className="cta-icon" />
                   <span>Create Your First Test</span>
                 </button>
@@ -370,7 +472,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout, te
                         <Clock className="stat-icon-xs" />
                       </div>
                       <span className="stat-text">
-                        {test.duration || 30} min
+                        {test.duration || test.timeLimit || 30} min
                       </span>
                     </div>
                     
@@ -394,7 +496,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout, te
                       onClick={() => copyTestLink(test.testKey)}
                       className={`action-btn primary ${copiedTestId === test.testKey ? 'copied' : ''}`}
                     >
-                      {copiedTestId === test.id ? (
+                      {copiedTestId === test.testKey ? (
                         <>
                           <CheckCircle className="action-icon" />
                           <span>Copied!</span>
