@@ -10,7 +10,8 @@ import {
   Target,
   TrendingUp,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { TestConfigSection } from './TestConfigSection';
 import { QuestionSelectionSection } from './QuestionSelectionSection';
@@ -187,12 +188,12 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
   // Show loading state if questions are loading
   if (questionsLoading) {
     return (
-      <div className="create-test-wrapper">
+
         <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <p>Loading questions...</p>
+          <Loader2 className="loading-spinner" />
+          <h2>Loading Questions...</h2>
+          <p>Please wait while we fetch your data</p>
         </div>
-      </div>
     );
   }
 

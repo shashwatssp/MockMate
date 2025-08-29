@@ -166,13 +166,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
   // Handle loading state
   if (loading) {
     return (
-      <div className="dashboard-wrapper">
         <div className="loading-container">
           <Loader2 className="loading-spinner" />
           <h2>Loading your tests...</h2>
           <p>Please wait while we fetch your data</p>
         </div>
-      </div>
     );
   }
 
