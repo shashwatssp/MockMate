@@ -4,10 +4,28 @@ export interface Question {
   options: string[];
   correctAnswer: number;
   topic: string;
-  difficulty?: 1 | 2 | 3;
-  marks?: number;
-  negativeMarks?: number;
-  explanation?: string;
+  subject: string;        // New field
+  year: string;           // New field
+  difficulty?: 'easy' | 'medium' | 'hard';
+}
+
+export interface StudentAnswer {
+  questionId: string;
+  selectedOption: number;
+}
+
+export interface TestResult {
+  testId: string;
+  studentName: string;
+  answers: StudentAnswer[];
+  score: number;
+  totalQuestions: number;
+  completedAt: Date;
+}
+
+export interface User {
+  id: string;
+  role: 'teacher' | 'student';
 }
 
 export interface Test {

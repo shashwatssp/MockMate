@@ -1,14 +1,17 @@
 import { supabase } from './supabase'
-import type { Question, Test, TestResult, User } from '../types'
+import type { Question, Test, TestResult } from '../types'
 
 // Questions
-export default supabase;
 export const insertQuestions = async (questions: Omit<Question, 'id'>[]) => {
+  console.log("Questions to insert:", questions);
+  
   const questionsWithDifficulty = questions.map(q => ({
     text: q.text,
     options: q.options,
     correct_answer: q.correctAnswer,
     topic: q.topic,
+    subject: q.subject,        
+    year: q.year,              
     difficulty: getDifficulty(q) as 'easy' | 'medium' | 'hard'
   }))
 
@@ -41,16 +44,35 @@ export const getQuestions = async () => {
     text: q.text,
     options: q.options,
     correctAnswer: q.correct_answer,
-    topic: q.topic
+    topic: q.topic,
+    subject: q.subject,        
+    year: q.year,              
+    difficulty: q.difficulty   
   })) as Question[]
 }
 
-export const getQuestionsByTopic = async (topic: string) => {
-  const { data, error } = await supabase
-    .from('questions')
-    .select('*')
-    .eq('topic', topic)
-    .order('created_at', { ascending: false })
+export const getQuestionsByFilters = async (filters: {
+  subject?: string;
+  topic?: string;
+  year?: string;
+  difficulty?: string;
+}) => {
+  let query = supabase.from('questions').select('*')
+
+  if (filters.subject) {
+    query = query.eq('subject', filters.subject)
+  }
+  if (filters.topic) {
+    query = query.eq('topic', filters.topic)
+  }
+  if (filters.year) {
+    query = query.eq('year', filters.year)
+  }
+  if (filters.difficulty) {
+    query = query.eq('difficulty', filters.difficulty)
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: false })
 
   if (error) throw error
 
@@ -59,11 +81,19 @@ export const getQuestionsByTopic = async (topic: string) => {
     text: q.text,
     options: q.options,
     correctAnswer: q.correct_answer,
-    topic: q.topic
+    topic: q.topic,
+    subject: q.subject,       
+    year: q.year,             
+    difficulty: q.difficulty   
   })) as Question[]
 }
 
-// Tests
+// Keep your existing getQuestionsByTopic for backward compatibility
+export const getQuestionsByTopic = async (topic: string) => {
+  return getQuestionsByFilters({ topic })
+}
+
+// Tests (unchanged)
 export const createTest = async (testData: Omit<Test, 'id' | 'createdAt'>) => {
   const { data, error } = await supabase
     .from('tests')
@@ -136,7 +166,7 @@ export const getAllTests = async () => {
   })) as Test[]
 }
 
-// Test Results
+// Test Results (unchanged)
 export const saveTestResult = async (result: Omit<TestResult, 'completedAt'>) => {
   const { data, error } = await supabase
     .from('test_results')
@@ -172,7 +202,7 @@ export const getTestResults = async (testId: string) => {
   })) as TestResult[]
 }
 
-// Helper function - NOW EXPORTED
+// Helper function
 export const getDifficulty = (question: Omit<Question, 'id'>): string => {
   const textLength = question.text.length;
   const optionsCount = question.options.length;

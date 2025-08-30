@@ -4,10 +4,11 @@ export interface Question {
   options: string[];
   correctAnswer: number;
   topic: string;
-  subject: string;
-  difficulty: string;
-  year: string;
+  subject: string;        // New field
+  year: string;           // New field
+  difficulty?: 'easy' | 'medium' | 'hard';
 }
+
 
 export interface Test {
   id: string;

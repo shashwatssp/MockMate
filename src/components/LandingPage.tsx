@@ -16,6 +16,7 @@ import {
 import './LandingPage.css';
 import populateDatabase from '../scripts/populateQuestions';
 
+
 interface LandingPageProps {
   onLogin: () => void;
 }
@@ -25,8 +26,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
   const [activeFeature, setActiveFeature] = useState(0);
 
   useEffect(() => {
-    console.log("ENTERED");
-    populateDatabase();
     setIsVisible(true);
     
     // Auto-rotate feature highlights
