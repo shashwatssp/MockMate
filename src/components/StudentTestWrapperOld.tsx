@@ -6,7 +6,7 @@ import TestResult from './TestResult';
 import { getTestByKey, saveTestResult } from '../lib/database';
 import type { Test, StudentAnswer, TestResult as TestResultType } from '../types';
 import { BookOpen, Loader, AlertTriangle, RefreshCw, Home, Clock, Shield } from 'lucide-react';
-import './StudentTestWrapper.css';
+import './StudentTestWrapperOld.css';
 
 type StudentTestState = 'loading' | 'waiting' | 'entry' | 'testing' | 'completed' | 'invalid' | 'too-early';
 
@@ -18,7 +18,7 @@ interface TimeInfo {
   hasTestEnded: boolean;
 }
 
-export const StudentTestWrapper: React.FC = () => {
+export const StudentTestWrapperOld: React.FC = () => {
   const { testCode } = useParams<{ testCode: string }>();
   const [state, setState] = useState<StudentTestState>('loading');
   const [test, setTest] = useState<Test | null>(null);
@@ -435,4 +435,4 @@ export const StudentTestWrapper: React.FC = () => {
   );
 };
 
-export default StudentTestWrapper;
+export default StudentTestWrapperOld;

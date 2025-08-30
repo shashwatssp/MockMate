@@ -14,6 +14,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 import './LandingPage.css';
+import populateDatabase from '../scripts/populateQuestions';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -25,6 +26,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
 
   useEffect(() => {
     console.log("ENTERED");
+    populateDatabase();
     setIsVisible(true);
     
     // Auto-rotate feature highlights

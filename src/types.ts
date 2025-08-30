@@ -4,6 +4,9 @@ export interface Question {
   options: string[];
   correctAnswer: number;
   topic: string;
+  subject: string;
+  difficulty: string;
+  year: string;
 }
 
 export interface Test {

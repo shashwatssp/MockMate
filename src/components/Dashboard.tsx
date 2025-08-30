@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import type { Test } from '../types';
 import './Dashboard.css';
+import populateDatabase from '../scripts/populateQuestions';
 
 interface DashboardProps {
   onCreateTest: () => void;

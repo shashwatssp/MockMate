@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useParams } from 'react-router-dom';
 import LoginPage from './components/LoginPage';
 import Dashboard from './components/Dashboard';
 import StudentEntry from './components/StudentEntry';
@@ -8,8 +8,15 @@ import TestResult from './components/TestResult';
 import type { StudentAnswer, Test, TestResult as TestResultType } from './types';
 import LandingPage from './components/LandingPage';
 import CreateTest from './components/CreateTest';
-import { StudentTestWrapper } from './components/StudentTestWrapper';
+import { StudentTestWrapperOld } from './components/StudentTestWrapperOld';
 import './App.css';
+import ExamWrapper from './components/Exam/ExamWrapper';
+
+// Create a wrapper component to extract URL params
+const ExamRouteWrapper = () => {
+  const { testCode } = useParams();
+  return <ExamWrapper testCode={testCode} />;
+};
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -69,7 +76,7 @@ function App() {
           <Route path="/" element={<TeacherApp />} />
           
           {/* Student routes - 4-letter test codes */}
-          <Route path="/:testCode" element={<StudentTestWrapper />} />
+          <Route path="/:testCode" element={<ExamRouteWrapper />} />
         </Routes>
       </div>
     </Router>
