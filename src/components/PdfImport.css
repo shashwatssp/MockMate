@@ -1,0 +1,501 @@
+/* ============== PDF import flow ============== */
+.pdf-import-screen {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+.pdf-import-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 1.5rem;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.05);
+}
+.pdf-import-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+.pdf-import-subtitle {
+  margin: 0 0 1.25rem;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.upload-dropzone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 2.5rem 1rem;
+  text-align: center;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  user-select: none;
+}
+.upload-dropzone.dragover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+.upload-dropzone input {
+  display: none;
+}
+.upload-dropzone .dz-icon {
+  margin-bottom: 0.5rem;
+  color: #64748b;
+}
+.upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 0.6rem 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 0.75rem;
+}
+.upload-btn:hover {
+  background: #1d4ed8;
+}
+.upload-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.progress-linear {
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 1rem;
+}
+.progress-linear > div {
+  height: 100%;
+  background: #2563eb;
+  transition: width 0.2s;
+}
+.note-list {
+  margin-top: 0.75rem;
+  font-size: 0.82rem;
+  color: #4b5563;
+}
+
+/* ============== one-by-one review ============== */
+.pdf-review {
+  padding: 1rem;
+}
+.pdf-review-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.progress-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.marker {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #f1f5f9;
+  color: #33415b;
+  font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.marker.active {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+.marker-accepted {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #16a34a;
+}
+.marker-discarded {
+  background: #fee2e2;
+  border-color: #fca5a1;
+  color: #dc2626;
+}
+.pdf-review-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.meta-chip {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.8rem;
+  color: #33415b;
+}
+.meta-chip.success {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+}
+.meta-chip.danger {
+  background: #fee2e2;
+  border-color: #fca5a1;
+  color: #b91c1c;
+}
+
+.pdf-review-card {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 1.5rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 1.25rem;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.04);
+}
+@media (max-width: 768px) {
+  .pdf-review-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+.review-image {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  object-fit: contain;
+}
+.review-thumb {
+  max-width: 100%;
+  max-height: 120px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.review-image-placeholder {
+  padding: 1.5rem;
+  border: 1px dashed #e5e7eb;
+  border-radius: 10px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.pdf-review-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.field-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+}
+.text-area {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+.text-area:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.options-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.options-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.option-row {
+  display: grid;
+  grid-template-columns: 24px 1fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+@media (max-width: 520px) {
+  .option-row {
+    grid-template-columns: 20px 1fr auto;
+  }
+}
+.option-label {
+  font-weight: 700;
+  color: #2563eb;
+}
+.option-input {
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+.correct-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: #f1f5f9;
+  color: #b91c1c;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn.danger:hover {
+  background: #fee2e2;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.marks-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+}
+.marks-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.marks-field label {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+.marks-field input {
+  padding: 0.4rem 0.55rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+.checkbox-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.error-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.5rem 0.7rem;
+  background: #fef2f2;
+  border: 1px solid #fca5a1;
+  border-radius: 8px;
+  color: #991b1b;
+  font-size: 0.82rem;
+}
+
+.review-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+.review-actions .action-btn {
+  flex: 1;
+}
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+.action-btn.secondary {
+  background: #f1f5f9;
+  color: #33415b;
+  border: 1px solid #d1d5db;
+}
+.action-btn.secondary:hover {
+  background: #e2e8f0;
+}
+.action-btn.discard {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a1;
+}
+.action-btn.discard:hover {
+  background: #fecaca;
+}
+.action-btn.accept {
+  background: #2563eb;
+  color: #fff;
+}
+.action-btn.accept:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.pdf-review-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1rem;
+}
+.pdf-review-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #6b7280;
+}
+.pdf-review-empty .icon {
+  margin-bottom: 0.75rem;
+  color: #dc2626;
+}
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ffffff66;
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.extracting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2rem 1rem;
+  color: #33415b;
+}
+.extracting .spin {
+  animation: spin 1s linear infinite;
+}
+.note {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #6b7280;
+  text-align: center;
+}
+.pdf-review-backdrop { padding: 1rem; }
+
+/* ============== crop tool (in-review image region) ============== */
+.crop-wrapper {
+  position: relative;
+  display: inline-block;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.crop-wrapper .review-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 0;
+}
+
+/* Darkened layer that captures the crop drag on top of the image. */
+.crop-overlay {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 10px;
+}
+
+.crop-wrapper.crop-active {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.crop-rect {
+  position: absolute;
+  border: 2px dashed #ffffff;
+  border-radius: 6px;
+  background: rgba(37, 99, 235, 0.12);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.crop-hud {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.4rem;
+}
+
+.controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.controls-row .action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.crop-active {
+  outline: 2px solid #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.ocr-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.ocr-toggle .ocr-note {
+  margin-left: 0.4rem;
+  color: #6b7280;
+  font-size: 0.78rem;
+}
+
+/* spinner re-used by the OCR/accept buttons */
+.pdf-review .spin {
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

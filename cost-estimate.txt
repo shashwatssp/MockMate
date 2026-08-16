@@ -1,0 +1,174 @@
+MOCKMATE HOSTING AND SCALING COST ESTIMATE
+Prepared: 2026-08-16
+Status: Planning estimate only — not a quote or capacity guarantee.
+
+EXECUTIVE SUMMARY
+-----------------
+For the current Vite/React frontend, Netlify is unlikely to be the main scaling cost. The
+important variables are Supabase database compute, API traffic, egress, Realtime usage,
+storage, and the number of monthly active users. A custom .com domain is normally about
+$10-$20 per year, and Netlify custom-domain connection plus SSL do not add a separate
+hosting charge.
+
+Recommended starting production setup:
+  - Netlify Personal or Pro, depending on traffic and whether auto-recharge is required.
+  - Supabase Pro ($25/month) with one Micro compute instance initially covered by the
+    included compute credit.
+  - Load test before an exam with more than approximately 100 simultaneous students.
+  - Move to Small or Medium compute only when measured database/API latency requires it.
+
+IMPORTANT CAPACITY LIMITATION
+-----------------------------
+"Concurrent students" alone cannot determine the correct Supabase tier. The estimate
+depends on:
+  - Exam duration.
+  - Questions loaded per student and payload size.
+  - Whether answers are saved after every question or only on submission.
+  - Whether each student opens Realtime subscriptions.
+  - Number of dashboard/teacher users.
+  - Number and size of result rows and analytics queries.
+  - Peak burst pattern: 10,000 students opening over 30 seconds is very different from
+    10,000 students spread across two hours.
+
+The current exam flow primarily uses Supabase REST/database calls. The dashboard uses a
+Realtime channel for test updates. If students are not individually subscribed to
+Realtime, the Realtime connection requirement is much lower than the student count.
+
+BASE PRICES USED
+----------------
+Supabase (official pricing categories; verify the current calculator before purchase):
+  - Free: $0/month; 500 MB database, 5 GB egress, 50,000 MAUs, approximately 200
+    Realtime peak connections.
+  - Pro: $25/month; 8 GB database, 250 GB uncached egress, 250 GB cached egress,
+    100,000 MAUs, and approximately 500 Realtime peak connections included.
+  - Pro includes approximately $10/month of compute credit, normally covering one Micro
+    instance.
+  - Approximate dedicated compute prices: Micro $10/month, Small $15/month, Medium
+    $60/month, Large $110/month, XL $210/month, 2XL $410/month.
+  - Pro Realtime overage is approximately $10 per 1,000 peak connections and about
+    $2.50 per additional million messages.
+  - Pro egress overage is approximately $0.09/GB uncached and $0.03/GB cached.
+  - Compute charges are separate from the plan and are not protected by the spend cap.
+
+Netlify (current credit-based pricing categories):
+  - Free: $0/month and 300 credits/month; projects can pause after credits are exhausted.
+  - Personal: $9/month and 1,000 credits/month.
+  - Pro: starts at $20/month and 3,000 credits/month, with higher credit tiers available.
+  - Bandwidth is approximately 20 credits/GB, web requests approximately 2 credits per
+    10,000 requests, and a production deploy approximately 15 credits.
+  - Custom domains and TLS/SSL are included; the domain registration is separate.
+  - Accounts created before September 4, 2025 may still have legacy pricing/limits.
+
+Domain:
+  - Cloudflare Registrar .com: approximately $10.46/year at cost, with renewal pricing
+    intended to remain stable; Cloudflare DNS is required.
+  - Namecheap .com: approximately $10.98 first-year standard registration and around
+    $18.48 renewal in one current listing; promotions can change.
+  - Practical budget: $12-$25/year including normal registration variance and privacy
+    add-ons, excluding premium domains.
+
+SCENARIO ESTIMATES
+------------------
+These totals assume one production project, one .com domain, ordinary static frontend
+delivery, and no unusually large file downloads. They exclude taxes and optional support.
+
+100 CONCURRENT STUDENTS
+  Conservative monthly platform budget:
+    Netlify:              $0-$20
+    Supabase Pro:         $25
+    Supabase compute:     $0 incremental if Micro credit applies; otherwise ~$10
+    Egress/Realtime:      $0-$10 typical headroom
+    Domain amortized:     ~$1-$2/month
+    Estimated total:      ~$26-$57/month
+    Annual equivalent:    ~$312-$684/year
+
+  Expected setup:
+    Supabase Pro + Micro is a reasonable first production configuration if tests save
+    answers at a modest frequency and the database is indexed. Netlify Free may work for
+    a low-traffic frontend, but Personal/Pro is easier to operate if deploys or traffic
+    are unpredictable.
+
+1,000 CONCURRENT STUDENTS
+  Conservative monthly platform budget:
+    Netlify:              $9-$40
+    Supabase Pro:         $25
+    Compute:              ~$15 Small to ~$60 Medium
+    Egress/Realtime/storage headroom: ~$10-$75
+    Domain amortized:     ~$1-$2/month
+    Estimated total:      ~$60-$202/month
+    Annual equivalent:    ~$720-$2,424/year
+
+  Expected setup:
+    Start with Pro + Small only after load testing demonstrates that Micro is not
+    sufficient. Medium is a safer exam-day tier if many students submit at the same
+    time, analytics queries run during the exam, or answer writes are frequent.
+    Consider a separate read/analytics strategy before jumping to Large compute.
+
+10,000 CONCURRENT STUDENTS
+  Conservative monthly platform budget:
+    Netlify Pro/high credit tier:       ~$20-$100+
+    Supabase Pro base:                  $25
+    Supabase compute:                   ~$60 Medium to ~$210 XL
+    Egress/Realtime/storage/overage:    ~$50-$500+
+    Domain amortized:                   ~$1-$2/month
+    Estimated total:                    ~$156-$837+/month
+    Annual equivalent:                  ~$1,872-$10,044+/year
+
+  More realistic exam-day planning range:
+    Budget approximately $300-$1,000/month until real load-test results are available.
+    A 10,000-student burst may require Medium/Large compute, query/index tuning, reduced
+    payloads, batched writes, and a careful Realtime design. XL is not automatically
+    required; it is a capacity fallback, not a recommendation without measurements.
+
+TRAFFIC EXAMPLES
+----------------
+If one student downloads 200 KB of question/test data once:
+  1,000 students ~= 0.2 GB of uncached data.
+  10,000 students ~= 2 GB of uncached data.
+
+If one student generates 100 answer-save/API requests and each request averages 5 KB:
+  1,000 students ~= 0.5 GB of API payload.
+  10,000 students ~= 5 GB of API payload.
+
+These examples are intentionally simple. Response overhead, retries, browser assets,
+analytics, result downloads, and cached-vs-uncached routing can change the total.
+Supabase Pro's included egress is usually more than enough for these payload sizes, but
+database compute and connection/query concurrency may still become the bottleneck.
+
+REALTIME GUIDANCE
+-----------------
+Do not create one Realtime subscription per student unless the product genuinely needs
+live events. For a normal exam, students can load test data and save answers through
+ordinary API requests. Keep Realtime for teacher dashboards or narrowly scoped events.
+If 10,000 students each maintain a Realtime connection, the included Pro quota is not
+enough and the connection architecture must be redesigned or budgeted for overage.
+
+RECOMMENDED SCALE PLAN
+----------------------
+Phase 1 — up to ~100 concurrent students:
+  Supabase Pro + Micro, Netlify Free or Personal, one normal .com domain.
+  Budget approximately $30-$60/month.
+
+Phase 2 — ~1,000 concurrent students:
+  Supabase Pro + Small or Medium after load testing, Netlify Personal/Pro.
+  Budget approximately $75-$250/month.
+
+Phase 3 — ~10,000 concurrent students:
+  Run a production-like load test, then choose Medium/Large/XL based on p95 latency,
+  error rate, database CPU, connection saturation, and write throughput.
+  Budget approximately $300-$1,000+/month until measured.
+
+BEFORE A 10,000-STUDENT EXAM
+-----------------------------
+  1. Add indexes for test lookup keys and result query columns.
+  2. Measure p50/p95/p99 latency and error rate under realistic bursts.
+  3. Decide whether answers are written per question, per page, or at submission.
+  4. Keep question payloads small and avoid downloading the whole bank to students.
+  5. Avoid student-wide Realtime subscriptions unless necessary.
+  6. Test reconnects, duplicate submissions, and partial network failures.
+  7. Set Supabase billing alerts and Netlify auto-recharge limits.
+  8. Re-check current official prices immediately before purchase.
+
+NOT INCLUDED IN THE COMMIT PLAN
+--------------------------------
+This file is a local planning estimate only. Keep it untracked and do not commit it.

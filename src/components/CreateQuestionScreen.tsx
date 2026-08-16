@@ -19,6 +19,7 @@ import './CreateQuestion.css';
 
 interface CreateQuestionScreenProps {
   onBackToDashboard: () => void;
+  onImportPdf?: () => void;
   onQuestionCreated?: () => void;
 }
 
@@ -32,6 +33,7 @@ const YEARS = Array.from({ length: 30 }, (_, i) => (2025 - i).toString());
 
 export const CreateQuestionScreen: React.FC<CreateQuestionScreenProps> = ({
   onBackToDashboard,
+  onImportPdf,
   onQuestionCreated,
 }) => {
   const [subject, setSubject] = useState('');
@@ -157,6 +159,15 @@ export const CreateQuestionScreen: React.FC<CreateQuestionScreenProps> = ({
               </div>
             </div>
             <div className="header-actions">
+              <button
+                type="button"
+                onClick={onImportPdf}
+                className="action-btn"
+                title="Import questions from a PDF"
+              >
+                <FileText className="btn-icon" />
+                <span className="btn-text">Import PDF</span>
+              </button>
               <button onClick={onBackToDashboard} className="action-btn secondary">
                 <Layers className="btn-icon" />
                 <span className="btn-text">Dashboard</span>

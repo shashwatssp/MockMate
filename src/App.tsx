@@ -14,6 +14,7 @@ import LoginPage from './components/LoginPage';
 import Dashboard from './components/Dashboard';
 import CreateTest from './components/CreateTest';
 import CreateQuestionScreen from './components/CreateQuestionScreen';
+import PdfImportScreen from './components/PdfImportScreen';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import ExamWrapper from './components/Exam/ExamWrapper';
@@ -75,12 +76,27 @@ function TeacherApp({ tests, setTests }: TeacherAppProps) {
       return (
         <CreateTest
           onBackToDashboard={() => navigate('/dashboard')}
+          onImportPdf={() => navigate('/import-pdf', { state: { returnTo: '/create-test' } })}
           onCreateTest={handleTestCreated}
         />
       );
+    case '/import-pdf': {
+      // `returnTo` is passed via location state by whichever create screen
+      // launched the import, so the flow can hand control back correctly.
+      const returnTo = (location.state as { returnTo?: string })?.returnTo ?? '/create-test';
+      return (
+        <PdfImportScreen
+          returnTo={returnTo}
+          onBack={() => navigate(returnTo, { replace: true })}
+        />
+      );
+    }
     case '/create-question':
       return (
-        <CreateQuestionScreen onBackToDashboard={() => navigate('/dashboard')} />
+        <CreateQuestionScreen
+          onBackToDashboard={() => navigate('/dashboard')}
+          onImportPdf={() => navigate('/import-pdf', { state: { returnTo: '/create-question' } })}
+        />
       );
     case '/forgot-password':
       return <ForgotPassword onBack={() => navigate('/')} />;
@@ -134,6 +150,7 @@ function App() {
           <Route path="/dashboard" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/create-test" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/create-question" element={<TeacherApp tests={tests} setTests={setTests} />} />
+          <Route path="/import-pdf" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/forgot-password" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/reset-password" element={<TeacherApp tests={tests} setTests={setTests} />} />
 
