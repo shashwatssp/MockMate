@@ -5,7 +5,6 @@ import {
   List,
   Search,
   X,
-  Filter as FilterIcon,
   ChevronDown,
   SortAsc,
   CheckSquare,
@@ -18,13 +17,11 @@ import {
   BookOpen,
   Calendar,
   TrendingUp,
-  BarChart3,
   Target,
-  Eye,
   Settings
 } from 'lucide-react';
 import { useQuestions } from './CreateTest';
-import type { Question } from '../types';
+import type { Question } from '../types/exam.types';
 import './CreateTest.css';
 
 type ViewMode = 'grid' | 'list';
@@ -374,31 +371,6 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
     setIsDifficultyDropdownOpen(false);
   };
 
-  // Get filter counts safely
-  const getFilterCounts = () => {
-    try {
-      const subjects = getSubjects().slice(1);
-      const topics = getTopics().slice(1);
-      const years = getYears().slice(1);
-      
-      return {
-        subjects: subjects.length,
-        topics: topics.length,
-        years: years.length,
-        difficulties: 3
-      };
-    } catch (error) {
-      console.warn('Error getting filter counts:', error);
-      return {
-        subjects: 0,
-        topics: 0,
-        years: 0,
-        difficulties: 3
-      };
-    }
-  };
-
-  const filterCounts = getFilterCounts();
 
   // Close dropdowns when clicking outside
   const closeAllDropdowns = () => {

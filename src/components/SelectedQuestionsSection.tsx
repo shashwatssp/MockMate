@@ -3,7 +3,6 @@ import {
   CheckCircle,
   X,
   Star,
-  BookOpen,
   Calendar,
   Target,
   TrendingUp,
@@ -12,19 +11,14 @@ import {
   Eye,
   EyeOff,
   Shuffle,
-  RotateCcw,
-  Filter,
   Search,
   Grid,
   List,
   ChevronDown,
-  Zap,
   Trash2,
-  Copy,
-  Download,
-  Share2
+  Download
 } from 'lucide-react';
-import type { Question } from '../types';
+import type { Question } from '../types/exam.types';
 import './CreateTest.css';
 
 type ViewMode = 'grid' | 'list' | 'compact';
@@ -415,7 +409,7 @@ export const SelectedQuestionsSection: React.FC<SelectedQuestionsSectionProps> =
                   )}
                   
                   <div className={`questions-grid ${viewMode}`}>
-                    {questions.map((question, index) => {
+                    {questions.map((question) => {
                       const difficulty = getDifficulty(question);
                       const isSelectedForAction = selectedForAction.includes(question.id);
                       const globalIndex = selectedQuestions.indexOf(question) + 1;

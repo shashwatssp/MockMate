@@ -3,8 +3,6 @@ import {
   X,
   Mic,
   MicOff,
-  Play,
-  Pause,
   RotateCcw,
   Volume2,
   VolumeX,
@@ -198,7 +196,7 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
         <div className="modal-content">
           {/* Step Indicator */}
           <div className="step-indicator">
-            <div className={`step-item ${step === 'instructions' ? 'active' : step !== 'instructions' ? 'completed' : ''}`}>
+            <div className={`step-item ${step === 'instructions' ? 'active' : 'completed'}`}>
               <div className="step-circle">
                 {step !== 'instructions' ? <CheckCircle className="step-icon" /> : '1'}
               </div>

@@ -9,8 +9,6 @@ import {
   Sparkles,
   Loader2,
   Mic,
-  MicOff,
-  Zap,
   Star
 } from 'lucide-react';
 import { TestConfigSection } from './TestConfigSection';
@@ -18,9 +16,8 @@ import { QuestionSelectionSection } from './QuestionSelectionSection';
 import { SelectedQuestionsSection } from './SelectedQuestionsSection';
 import { VoiceModeModal } from './VoiceModeModal';
 import { createTest, getQuestions } from '../lib/database';
-import type { Question, Test } from '../types';
+import type { Question, Test } from '../types/exam.types';
 import './CreateTest.css';
-import populateDatabase from '../scripts/populateQuestions';
 
 interface CreateTestProps {
   onBackToDashboard: () => void;
@@ -187,7 +184,7 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
       }
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = () => {
       setIsListening(false);
       alert('Speech recognition error. Please try again.');
     };
@@ -219,9 +216,9 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
       
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       
-      // Use gemini-1.5-flash with generation config for JSON output
+      // Use gemini-3.6-flash (current GA model) with generation config for JSON output
       const model = genAI.getGenerativeModel({ 
-        model: 'gemini-1.5-flash',
+        model: 'gemini-3.6-flash',
         generationConfig: {
           temperature: 0.1,
           topP: 0.8,
@@ -290,11 +287,12 @@ Rules:
       }
 
     } catch (error) {
-      if (error.message.includes('404')) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      if (errMsg.includes('404')) {
         alert('AI model not available. Please try again later.');
-      } else if (error.message.includes('API key')) {
-        alert('API configuration error. Please check your Gemini API key.');
-      } else if (error.message.includes('quota') || error.message.includes('limit')) {
+      } else if (errMsg.includes('API key')) {
+        alert('AI configuration error. Please check your Gemini API key.');
+      } else if (errMsg.includes('quota') || errMsg.includes('limit')) {
         alert('API quota exceeded. Please try again later.');
       } else {
         alert('Failed to process voice input. Please check your configuration.');

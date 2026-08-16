@@ -107,6 +107,384 @@ CREATE TEST - MODERN UI DESIGN WITH VOICE & ADVANCED FEATURES
   --bp-2xl: 1536px;
 }
 
+/* ===== Responsive visual polish ===== */
+.create-test-wrapper {
+  min-height: 100svh;
+}
+
+.header-content,
+.create-test-main {
+  width: min(100%, 1240px);
+}
+
+.create-test-main {
+  padding-top: 24px;
+}
+
+.card-header {
+  gap: 16px;
+}
+
+.header-stats {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.selection-controls,
+.action-bar {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .header-main {
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .progress-indicator {
+    order: 3;
+    width: 100%;
+  }
+
+  .card-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .header-stats {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .header-content,
+  .create-test-main {
+    padding-inline: 12px;
+  }
+
+  .create-test-main {
+    padding-top: 16px;
+    padding-bottom: 42px;
+  }
+
+  .header-main {
+    margin-bottom: 14px;
+  }
+
+  .header-brand {
+    gap: 10px;
+  }
+
+  .brand-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .brand-title {
+    font-size: 22px;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .header-actions .action-btn {
+    flex: 1;
+    justify-content: center;
+    padding-inline: 10px;
+  }
+
+  .btn-text {
+    font-size: 12px;
+  }
+
+  .progress-indicator {
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+
+  .card-header,
+  .card-content {
+    padding-inline: 16px;
+  }
+
+  .search-container {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .control-group {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .group-select,
+  .sort-select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .action-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bulk-actions,
+  .quick-actions {
+    flex-wrap: wrap;
+  }
+}
+
+/* ===== Final voice assistant modal polish ===== */
+.voice-modal-overlay {
+  z-index: 1000;
+  padding: 16px;
+  overflow-y: auto;
+  background: rgba(15, 23, 42, 0.68);
+}
+
+.voice-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(900px, 100%);
+  max-height: min(760px, calc(100svh - 32px));
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 22px;
+}
+
+.voice-modal .modal-header {
+  flex: 0 0 auto;
+  gap: 24px;
+  padding: 22px 26px;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+}
+
+.voice-modal .header-left {
+  min-width: 0;
+}
+
+.voice-modal .feature-badge {
+  width: fit-content;
+  margin-bottom: 12px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.voice-modal .modal-title {
+  font-size: clamp(22px, 3vw, 30px);
+  line-height: 1.2;
+}
+
+.voice-modal .modal-subtitle {
+  margin-top: 8px;
+  font-size: 15px;
+}
+
+.voice-modal .header-controls {
+  flex: 0 0 auto;
+}
+
+.voice-modal .modal-content {
+  min-height: 0;
+  padding: 22px 26px 28px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #fff;
+}
+
+.voice-modal .step-indicator {
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 12px 16px;
+}
+
+.voice-modal .step-item {
+  flex: 0 0 82px !important;
+  width: 82px !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  text-align: center;
+}
+
+.voice-modal .step-connector {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 18px !important;
+  max-width: 96px;
+  height: 2px !important;
+  margin: 0;
+  border-radius: 999px;
+}
+
+.voice-modal .step-indicator > .step-item,
+.voice-modal .step-indicator > .step-connector {
+  position: static;
+  transform: none;
+}
+
+.voice-modal .step-circle {
+  position: static;
+  flex: 0 0 36px;
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px;
+  margin: 0;
+}
+
+.voice-modal .step-label {
+  display: block;
+  white-space: nowrap;
+}
+
+.voice-modal .instructions-panel {
+  margin-bottom: 20px;
+  padding: 18px;
+  border-radius: 14px;
+  background: #f3f8ff;
+}
+
+.voice-modal .panel-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-modal .panel-title {
+  font-size: 18px;
+}
+
+.voice-modal .instructions-content {
+  gap: 16px;
+}
+
+.voice-modal .instruction-step {
+  gap: 12px;
+}
+
+.voice-modal .step-content {
+  min-width: 0;
+}
+
+.voice-modal .speech-format {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.voice-modal .format-item {
+  min-width: 0;
+  padding: 12px;
+}
+
+.voice-modal .format-example {
+  overflow-wrap: anywhere;
+}
+
+.voice-modal .pro-tips {
+  margin-top: 18px;
+  padding: 14px;
+}
+
+.voice-modal .recording-interface {
+  gap: 18px;
+}
+
+.voice-modal .recording-visualization {
+  max-width: none;
+  padding: 20px;
+  border-radius: 14px;
+}
+
+.voice-modal .record-btn {
+  width: 64px;
+  height: 64px;
+}
+
+.voice-modal .record-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.voice-modal .transcript-panel {
+  max-width: none;
+}
+
+.voice-modal .keyboard-shortcuts {
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+
+.voice-modal .feature-highlight {
+  margin-top: 18px;
+}
+
+@media (max-width: 620px) {
+  .voice-modal-overlay {
+    align-items: flex-start;
+    padding: 10px;
+  }
+
+  .voice-modal {
+    max-height: calc(100svh - 20px);
+    border-radius: 16px;
+  }
+
+  .voice-modal .modal-header {
+    padding: 18px;
+  }
+
+  .voice-modal .header-controls {
+    gap: 4px;
+  }
+
+  .voice-modal .control-btn,
+  .voice-modal .close-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .voice-modal .modal-content {
+    padding: 16px;
+  }
+
+  .voice-modal .step-indicator {
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+
+  .voice-modal .step-connector {
+    flex: 0 0 18px;
+  }
+
+  .voice-modal .panel-header {
+    grid-template-columns: auto 1fr;
+  }
+
+  .voice-modal .toggle-instructions {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .voice-modal .speech-format {
+    grid-template-columns: 1fr;
+  }
+
+  .voice-modal .keyboard-shortcuts {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 /* ============================================
 BASE STYLES
 ============================================ */
@@ -3528,4 +3906,387 @@ ACCESSIBILITY & ANIMATIONS
   }
 }
 
-/* Focus
+/* Focus */
+
+/* ===== Final voice assistant modal polish ===== */
+.voice-modal-overlay {
+  z-index: 1000;
+  padding: 16px;
+  overflow-y: auto;
+  background: rgba(15, 23, 42, 0.68);
+}
+
+.voice-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(900px, 100%);
+  max-height: min(760px, calc(100svh - 32px));
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 22px;
+}
+
+.voice-modal .modal-header {
+  flex: 0 0 auto;
+  gap: 24px;
+  padding: 22px 26px;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+}
+
+.voice-modal .header-left {
+  min-width: 0;
+}
+
+.voice-modal .feature-badge {
+  width: fit-content;
+  margin-bottom: 12px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.voice-modal .modal-title {
+  font-size: clamp(22px, 3vw, 30px);
+  line-height: 1.2;
+}
+
+.voice-modal .modal-subtitle {
+  margin-top: 8px;
+  font-size: 15px;
+}
+
+.voice-modal .header-controls {
+  flex: 0 0 auto;
+}
+
+.voice-modal .modal-content {
+  min-height: 0;
+  padding: 22px 26px 28px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #fff;
+}
+
+.voice-modal .step-indicator {
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 12px 16px;
+}
+
+.voice-modal .step-item {
+  min-width: 72px;
+}
+
+.voice-modal .step-connector {
+  flex: 1;
+  width: auto;
+  min-width: 18px;
+}
+
+.voice-modal .instructions-panel {
+  margin-bottom: 20px;
+  padding: 18px;
+  border-radius: 14px;
+  background: #f3f8ff;
+}
+
+.voice-modal .panel-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-modal .panel-title {
+  font-size: 18px;
+}
+
+.voice-modal .instructions-content {
+  gap: 16px;
+}
+
+.voice-modal .instruction-step {
+  gap: 12px;
+}
+
+.voice-modal .step-content {
+  min-width: 0;
+}
+
+.voice-modal .speech-format {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.voice-modal .format-item {
+  min-width: 0;
+  padding: 12px;
+}
+
+.voice-modal .format-example {
+  overflow-wrap: anywhere;
+}
+
+.voice-modal .pro-tips {
+  margin-top: 18px;
+  padding: 14px;
+}
+
+.voice-modal .recording-interface {
+  gap: 18px;
+}
+
+.voice-modal .recording-visualization {
+  max-width: none;
+  padding: 20px;
+  border-radius: 14px;
+}
+
+.voice-modal .record-btn {
+  width: 64px;
+  height: 64px;
+}
+
+.voice-modal .record-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.voice-modal .transcript-panel {
+  max-width: none;
+}
+
+.voice-modal .keyboard-shortcuts {
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+
+.voice-modal .feature-highlight {
+  margin-top: 18px;
+}
+
+@media (max-width: 620px) {
+  .voice-modal-overlay {
+    align-items: flex-start;
+    padding: 10px;
+  }
+
+  .voice-modal {
+    max-height: calc(100svh - 20px);
+    border-radius: 16px;
+  }
+
+  .voice-modal .modal-header {
+    padding: 18px;
+  }
+
+  .voice-modal .header-controls {
+    gap: 4px;
+  }
+
+  .voice-modal .control-btn,
+  .voice-modal .close-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .voice-modal .modal-content {
+    padding: 16px;
+  }
+
+  .voice-modal .step-indicator {
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+
+  .voice-modal .step-connector {
+    flex: 0 0 18px;
+  }
+
+  .voice-modal .panel-header {
+    grid-template-columns: auto 1fr;
+  }
+
+  .voice-modal .toggle-instructions {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .voice-modal .speech-format {
+    grid-template-columns: 1fr;
+  }
+
+  .voice-modal .keyboard-shortcuts {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* ===== Final responsive overrides ===== */
+.create-test-wrapper .header-actions .action-btn {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.create-test-wrapper .action-btn.voice-mode-btn {
+  color: #ffffff;
+  isolation: isolate;
+}
+
+.create-test-wrapper .action-btn.voice-mode-btn::before {
+  z-index: 0;
+}
+
+.create-test-wrapper .action-btn.voice-mode-btn > * {
+  position: relative;
+  z-index: 1;
+}
+
+.create-test-wrapper .action-btn.voice-mode-btn:hover,
+.create-test-wrapper .action-btn.voice-mode-btn:focus-visible {
+  color: #ffffff;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+}
+
+.create-test-wrapper .action-btn:focus-visible {
+  outline: 3px solid rgba(14, 165, 233, 0.35);
+  outline-offset: 2px;
+}
+
+.create-test-wrapper .progress-indicator {
+  min-height: 76px;
+}
+.create-test-wrapper {
+  min-height: 100svh;
+}
+
+.header-content,
+.create-test-main {
+  width: min(100%, 1240px);
+}
+
+.create-test-main {
+  padding-top: 24px;
+}
+
+.card-header {
+  gap: 16px;
+}
+
+.header-stats {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.selection-controls,
+.action-bar {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .header-main {
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .progress-indicator {
+    order: 3;
+    width: 100%;
+  }
+
+  .card-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .header-stats {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .header-content,
+  .create-test-main {
+    padding-inline: 12px;
+  }
+
+  .create-test-main {
+    padding-top: 16px;
+    padding-bottom: 42px;
+  }
+
+  .header-main {
+    margin-bottom: 14px;
+  }
+
+  .header-brand {
+    gap: 10px;
+  }
+
+  .brand-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .brand-title {
+    font-size: 22px;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .header-actions .action-btn {
+    flex: 1;
+    justify-content: center;
+    padding-inline: 10px;
+  }
+
+  .btn-text {
+    font-size: 12px;
+  }
+
+  .progress-indicator {
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+
+  .card-header,
+  .card-content {
+    padding-inline: 16px;
+  }
+
+  .search-container {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .control-group {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .group-select,
+  .sort-select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .action-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bulk-actions,
+  .quick-actions {
+    flex-wrap: wrap;
+  }
+}
