@@ -14,6 +14,7 @@ import {
   Copy,
   Info
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { signInWithEmail, signUpWithEmail } from '../lib/auth';
 import './LoginPage.css';
 
@@ -335,7 +336,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
           {/* Additional Links */}
           <div className="login-footer">
             <div className="footer-links">
-              <a href="#" className="footer-link">Forgot Password?</a>
+              <Link to="/forgot-password" className="footer-link">Forgot Password?</Link>
               <span className="link-divider">•</span>
               <a href="#" className="footer-link">Contact Support</a>
             </div>
@@ -347,41 +348,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
           </div>
         </div>
 
-        {/* Features Preview */}
-        <div className={`features-preview ${isVisible ? 'visible' : ''}`}>
-          <h3 className="features-title">Why Choose MockMate?</h3>
-          <div className="features-list">
-            <div className="feature-item">
-              <div className="feature-icon primary">
-                <BookOpen className="icon" />
-              </div>
-              <div className="feature-content">
-                <h4 className="feature-name">Easy Test Creation</h4>
-                <p className="feature-description">Create tests in minutes</p>
-              </div>
-            </div>
-            
-            <div className="feature-item">
-              <div className="feature-icon success">
-                <CheckCircle className="icon" />
-              </div>
-              <div className="feature-content">
-                <h4 className="feature-name">Real-time Results</h4>
-                <p className="feature-description">Instant performance insights</p>
-              </div>
-            </div>
-            
-            <div className="feature-item">
-              <div className="feature-icon warning">
-                <Sparkles className="icon" />
-              </div>
-              <div className="feature-content">
-                <h4 className="feature-name">Smart Analytics</h4>
-                <p className="feature-description">Detailed student analytics</p>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

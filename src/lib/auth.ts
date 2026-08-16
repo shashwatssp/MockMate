@@ -57,3 +57,19 @@ export const handleAuthCallback = async (): Promise<boolean> => {
 
   return false;
 };
+
+export const resetPassword = async (email: string) => {
+  const { data, error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    // The recovery email link carries this code; we pick it up on /reset-password
+    // via handleAuthCallback() (PKCE code exchange).
+    redirectTo: `${window.location.origin}/reset-password`,
+  });
+  if (error) throw error;
+  return data;
+};
+
+export const updatePassword = async (password: string) => {
+  const { data, error } = await supabase.auth.updateUser({ password });
+  if (error) throw error;
+  return data;
+};

@@ -13,6 +13,9 @@ import LandingPage from './components/LandingPage';
 import LoginPage from './components/LoginPage';
 import Dashboard from './components/Dashboard';
 import CreateTest from './components/CreateTest';
+import CreateQuestionScreen from './components/CreateQuestionScreen';
+import ForgotPassword from './components/ForgotPassword';
+import ResetPassword from './components/ResetPassword';
 import ExamWrapper from './components/Exam/ExamWrapper';
 import type { Test } from './types/exam.types';
 import { signOut, handleAuthCallback } from './lib/auth';
@@ -63,6 +66,7 @@ function TeacherApp({ tests, setTests }: TeacherAppProps) {
       return (
         <Dashboard
           onCreateTest={() => navigate('/create-test')}
+          onCreateQuestion={() => navigate('/create-question')}
           onLogout={handleLogout}
           tests={tests}
         />
@@ -72,6 +76,19 @@ function TeacherApp({ tests, setTests }: TeacherAppProps) {
         <CreateTest
           onBackToDashboard={() => navigate('/dashboard')}
           onCreateTest={handleTestCreated}
+        />
+      );
+    case '/create-question':
+      return (
+        <CreateQuestionScreen onBackToDashboard={() => navigate('/dashboard')} />
+      );
+    case '/forgot-password':
+      return <ForgotPassword onBack={() => navigate('/')} />;
+    case '/reset-password':
+      return (
+        <ResetPassword
+          onBack={() => navigate('/login')}
+          onPasswordReset={() => navigate('/login')}
         />
       );
     default:
@@ -116,6 +133,9 @@ function App() {
           <Route path="/login" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/dashboard" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/create-test" element={<TeacherApp tests={tests} setTests={setTests} />} />
+          <Route path="/create-question" element={<TeacherApp tests={tests} setTests={setTests} />} />
+          <Route path="/forgot-password" element={<TeacherApp tests={tests} setTests={setTests} />} />
+          <Route path="/reset-password" element={<TeacherApp tests={tests} setTests={setTests} />} />
 
           <Route path="/exam/:testCode" element={<LegacyExamRedirect />} />
           <Route path="/exam/:testCode/entry" element={<ExamRouteWrapper />} />
