@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import {
   Lightbulb,
   Grid,
@@ -20,7 +20,9 @@ import {
   Target,
   Settings,
   Upload,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react';
 import { QuestionImage } from './QuestionImage';
 import { useQuestions } from './CreateTest';
@@ -46,8 +48,17 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
   getDifficulty,
   isLoaded
 }) => {
-  // Use cached questions from context
-  const { allQuestions, refreshQuestions } = useQuestions();
+  // Paginated questions from context (the bank is paged 15 at a time).
+  const {
+    allQuestions,
+    refreshQuestions,
+    loadPage,
+    pageSize,
+    pageOffset,
+    hasMore,
+    totalCount,
+    isFetching,
+  } = useQuestions();
 
   // Filter states
   const [selectedSubject, setSelectedSubject] = useState<string>('All');
@@ -172,7 +183,21 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
   };
 
 
-  // Advanced filtering logic
+  // Debounced, server-side search: we never hold the full bank in memory while
+  // typing. The first run is skipped because the Create Test screen already
+  // loaded the initial page.
+  const searchDone = useRef(false);
+  useEffect(() => {
+    if (!searchDone.current) {
+      searchDone.current = true;
+      return;
+    }
+    const id = setTimeout(() => loadPage({ offset: 0, search: searchQuery }), 300);
+    return () => clearTimeout(id);
+  }, [searchQuery, loadPage]);
+
+  // Filtering logic: subject/topic/year/difficulty/sort apply to the current
+  // page returned by the server; search is handled by the effect above.
   const filteredQuestions = useMemo(() => {
     if (!allQuestions || allQuestions.length === 0) return [];
     
@@ -212,26 +237,8 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
       });
     }
 
-    // Search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      questions = questions.filter(q => {
-        try {
-          const searchableText = [
-            q.text || '',
-            q.topic || '',
-            q.subject || '',
-            ...(q.options || [])
-          ].join(' ').toLowerCase();
-          
-          return searchableText.includes(query);
-        } catch (error) {
-          console.warn('Error filtering question:', q.id, error);
-          return false;
-        }
-      });
-    }
-
+    // Search is performed server-side via the debounced `loadPage` effect
+    // above, so it is intentionally not re-applied here.
     // Sorting
     try {
       switch (sortBy) {
@@ -276,9 +283,8 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
     selectedSubject, 
     selectedTopic, 
     selectedYear, 
-    selectedDifficulties, 
-    searchQuery, 
-    sortBy, 
+    selectedDifficulties,
+    sortBy,
     getDifficulty
   ]);
 
@@ -1105,6 +1111,47 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
           );
         })}
       </div>
+
+      {/* Pagination — page through results 15 at a time (search is server-side) */}
+      {totalCount > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 'var(--space-3)',
+            padding: 'var(--space-3) var(--space-4)',
+            margin: 'var(--space-2) 0',
+            flexWrap: 'wrap',
+          }}
+        >
+          <button
+            type="button"
+            className="action-btn secondary"
+            onClick={() => loadPage({ offset: pageOffset - pageSize, search: searchQuery })}
+            disabled={pageOffset === 0 || isFetching}
+          >
+            <ArrowLeft size={16} /> Prev
+          </button>
+          <span
+            style={{
+              fontSize: '0.875rem',
+              color: 'var(--gray-600)',
+              fontWeight: 600,
+            }}
+          >
+            {filteredQuestions.length === 0 ? 0 : Math.floor(pageOffset / pageSize) + 1} / {Math.ceil(totalCount / pageSize) || 1}
+          </span>
+          <button
+            type="button"
+            className="action-btn secondary"
+            onClick={() => loadPage({ offset: pageOffset + pageSize, search: searchQuery })}
+            disabled={!hasMore || isFetching}
+          >
+            Next <ArrowRight size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Enhanced Empty State */}
       {(!filteredQuestions || filteredQuestions.length === 0) && (

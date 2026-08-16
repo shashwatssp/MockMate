@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import { 
   Home, 
   CheckCircle, 
@@ -8,19 +8,20 @@ import {
   ArrowRight,
   Sparkles,
   Loader2,
-  Mic,
-  Star
+  Mic
 } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { TestConfigSection } from './TestConfigSection';
 import { QuestionSelectionSection } from './QuestionSelectionSection';
 import { SelectedQuestionsSection } from './SelectedQuestionsSection';
 import { VoiceModeModal } from './VoiceModeModal';
-import { createTest, getQuestions } from '../lib/database';
+import { createTest, getPaginatedQuestions } from '../lib/database';
 import type { Question, Test } from '../types/exam.types';
 import './CreateTest.css';
 
 interface CreateTestProps {
   onBackToDashboard: () => void;
+  onImportPdf: () => void;
   onCreateTest: (test: Test) => void;
 }
 
@@ -44,9 +45,15 @@ interface VoiceData {
 // Question Storage Context
 interface QuestionContextType {
   allQuestions: Question[];
-  isLoading: boolean;
+ isLoading: boolean;
   error: string | null;
   refreshQuestions: () => Promise<void>;
+  loadPage: (params: { offset?: number; search?: string }) => Promise<void>;
+  pageSize: number;
+  pageOffset: number;
+  hasMore: boolean;
+  totalCount: number;
+  isFetching: boolean;
 }
 
 const QuestionContext = createContext<QuestionContextType | null>(null);
@@ -70,7 +77,7 @@ const generateTestKey = (): string => {
   return result;
 };
 
-export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCreateTest }) => {
+export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onImportPdf, onCreateTest }) => {
   
   // Basic test configuration state
   const [testName, setTestName] = useState('');
@@ -91,6 +98,12 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [questionsLoading, setQuestionsLoading] = useState(true);
   const [questionsError, setQuestionsError] = useState<string | null>(null);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [isFetching, setIsFetching] = useState(false);
+  const firstLoadRef = useRef(true);
+  const pageSize = 15;
   
   // Voice mode state
   const [showVoiceModal, setShowVoiceModal] = useState(false);
@@ -98,25 +111,38 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
 
-  useEffect(() => {
-    setIsLoaded(true);
-    loadQuestions();
-  }, []);
-
-  // Load questions from Supabase and store them
-  const loadQuestions = async () => {
-    try {
+  // Page through (or search) the question bank 15 at a time instead of
+  // fetching every question up front.
+  const loadPage = useCallback(async ({ offset = 0, search = '' }: { offset?: number; search?: string } = {}) => {
+    const isInitial = firstLoadRef.current && offset === 0 && !search;
+    if (isInitial) {
+      firstLoadRef.current = false;
       setQuestionsLoading(true);
-      setQuestionsError(null);
-      
-      const questions = await getQuestions();
-      setAllQuestions(questions);
-    } catch (error) {
+    } else {
+      setIsFetching(true);
+    }
+    setQuestionsError(null);
+    try {
+      const result = await getPaginatedQuestions({ limit: pageSize, offset, search });
+      setAllQuestions(result.questions);
+      setTotalCount(result.count);
+      setHasMore(result.hasMore);
+      setPageOffset(offset);
+    } catch {
       setQuestionsError('Failed to load questions. Please try again.');
     } finally {
-      setQuestionsLoading(false);
+      if (isInitial) setQuestionsLoading(false);
+      setIsFetching(false);
     }
-  };
+  }, []);
+
+  const loadQuestions = () => loadPage({ offset: 0 });
+
+  // Load the first page of questions when the screen mounts.
+  useEffect(() => {
+    setIsLoaded(true);
+    void loadPage({ offset: 0 });
+  }, [loadPage]);
 
   // Get available filter options for AI context
   const getAvailableFilters = () => {
@@ -650,7 +676,13 @@ const applyVoiceData = async (data: VoiceData) => {
     allQuestions,
     isLoading: questionsLoading,
     error: questionsError,
-    refreshQuestions: loadQuestions
+    refreshQuestions: loadQuestions,
+    loadPage,
+    pageSize,
+    pageOffset,
+    hasMore,
+    totalCount,
+    isFetching,
   };
 
   // Show loading state if questions are loading
@@ -710,7 +742,6 @@ const applyVoiceData = async (data: VoiceData) => {
                 >
                   <Mic className="btn-icon" />
                   <span className="btn-text">Voice Mode</span>
-                  <Star className="feature-badge" />
                 </button>
 
                 <button
@@ -723,6 +754,15 @@ const applyVoiceData = async (data: VoiceData) => {
                   <span className="btn-text">{showPreview ? 'Hide' : 'Preview'}</span>
                 </button>
                 
+                <button
+                  onClick={onImportPdf}
+                  className="action-btn"
+                  title="Import questions from a PDF"
+                >
+                  <FileText className="btn-icon" />
+                  <span className="btn-text">Import PDF</span>
+                </button>
+
                 <button
                   onClick={() => {
                     onBackToDashboard();

@@ -160,6 +160,65 @@ export const getQuestionsByTopic = async (topic: string) => {
   return getQuestionsByFilters({ topic })
 }
 
+/** Paginated, searchable page through the question bank.
+ *
+ * The Create Test screen uses this instead of `getQuestions()` so we never pull
+ * the entire bank into memory — teachers page through (or search) 15 questions
+ * at a time, which stays snappy even with hundreds of stored questions. */
+export interface PaginatedQuestionsResult {
+  questions: Question[];
+  count: number;
+  hasMore: boolean;
+}
+
+export const getPaginatedQuestions = async ({
+  limit = 15,
+  offset = 0,
+  search,
+}: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+} = {}): Promise<PaginatedQuestionsResult> => {
+  const trimmed = (search || '').trim().replace(/,/g, ' ');
+  let query = supabase
+    .from('questions')
+    .select('*', { count: 'exact', head: false })
+    .order('created_at', { ascending: false });
+
+  if (trimmed) {
+    const pattern = `%${trimmed}%`;
+    query = query.or(
+      `text.ilike.${pattern},subject.ilike.${pattern},topic.ilike.${pattern}`,
+    );
+  }
+
+  const { data, error, count } = await query.range(offset, offset + limit - 1);
+
+  if (error) {
+    console.error('Error fetching paginated questions:', error);
+    throw error;
+  }
+
+  const questions = (data ?? []).map(q => ({
+    id: q.id,
+    text: q.text,
+    options: q.options,
+    correctAnswer: q.correct_answer,
+    topic: q.topic,
+    subject: q.subject,
+    year: q.year,
+    imageUrl: q.image_url,
+  })) as Question[];
+
+  const total = count ?? 0;
+  return {
+    questions,
+    count: total,
+    hasMore: offset + questions.length < total,
+  };
+};
+
 // Tests (unchanged)
 export const createTest = async (testData: Omit<Test, 'id' | 'createdAt'>) => {
   const { data: { user } } = await supabase.auth.getUser();

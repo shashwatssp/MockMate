@@ -682,12 +682,13 @@ HEADER STYLES WITH VOICE MODE
   transform: translateY(-1px);
 }
 
-/* Voice Mode Button */
+/* Voice Mode Button — clean icon (+ "Voice Mode" text on desktop).
+   The premium star badge was removed per feedback; on mobile only the mic
+   icon is shown so the button stays legible and uncluttered. */
 .action-btn.voice-mode-btn {
   background: linear-gradient(135deg, var(--voice-primary), var(--voice-secondary));
   color: white;
   box-shadow: var(--shadow-lg);
-  position: relative;
 }
 
 .action-btn.voice-mode-btn:hover {
@@ -695,33 +696,10 @@ HEADER STYLES WITH VOICE MODE
   box-shadow: var(--shadow-xl);
 }
 
-.action-btn.voice-mode-btn .feature-badge {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 20px;
-  height: 20px;
-  background: var(--premium-gold);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: pulse-gold 2s infinite;
-}
-
-@keyframes pulse-gold {
-  0%, 100% {
-    box-shadow: 0 0 0 0 var(--premium-gold-light);
+@media (max-width: 640px) {
+  .action-btn.voice-mode-btn .btn-text {
+    display: none;
   }
-  50% {
-    box-shadow: 0 0 0 10px transparent;
-  }
-}
-
-.feature-badge .icon {
-  width: 12px;
-  height: 12px;
-  color: white;
 }
 
 .btn-icon {
