@@ -30,6 +30,8 @@ export interface Question {
   marks?: number;
   /** Negative marking per wrong answer (0 = disabled). */
   negativeMarks?: number;
+  /** Optional image URL for image-backed questions (stored on the public `questions` bucket). */
+  imageUrl?: string;
 }
 
 export interface StudentAnswer {
@@ -109,6 +111,8 @@ export interface Test {
   createdAt: Date;
   startDate?: Date;
   endDate?: Date;
+  /** Explicit wall-clock end time. When set, students can no longer access the test once it has passed. */
+  endTime?: Date;
   duration: number;
   timeLimit: number;
   settings: TestSettings;

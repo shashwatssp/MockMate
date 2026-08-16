@@ -8,6 +8,7 @@ import {
   Lightbulb,
   CheckCircle
 } from 'lucide-react';
+import { QuestionImage } from '../QuestionImage';
 import type { Question } from '../../types/exam.types';
 
 interface QuestionDisplayProps {
@@ -86,6 +87,8 @@ export const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
           <Lightbulb className="question-icon" />
           <p>{question.text}</p>
         </div>
+
+        <QuestionImage question={question} maxHeight={220} />
 
         {/* Answer Options */}
         <div className="options-container">

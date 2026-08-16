@@ -22,6 +22,7 @@ import {
   Upload,
   AlertCircle
 } from 'lucide-react';
+import { QuestionImage } from './QuestionImage';
 import { useQuestions } from './CreateTest';
 import type { Question } from '../types/exam.types';
 import { insertQuestions } from '../lib/database';
@@ -1065,6 +1066,7 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
               </div>
               
               <div className="card-content">
+                <QuestionImage question={question} maxHeight={170} />
                 <p className="question-text">{question.text || 'No question text'}</p>
                 
                 <div className="options-container">

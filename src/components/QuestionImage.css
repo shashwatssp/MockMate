@@ -1,0 +1,26 @@
+/* ===== Question images (image-backed questions) ===== */
+/* Responsive, accessible rendering shared by every place an image-backed
+   question is shown. The height cap adapts to the viewport via
+   `min(var(--q-max), 45vh)` so images stay readable on both mobile and
+   desktop without overflowing their container. */
+.mockmate-question-image {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: min(var(--q-max, 180px), 45vh);
+  flex-shrink: 0;
+  object-fit: contain;
+  object-position: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  display: block;
+  background: #f9fafb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mockmate-question-image {
+    box-shadow: none;
+  }
+}
