@@ -78,10 +78,16 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
 
   // Handle recording start
   const handleStartRecording = () => {
-    const recognition = onStartRecording();
-    setCurrentRecognition(recognition);
-    setStep('recording');
-    playSound('start');
+    try {
+      const recognition = onStartRecording();
+      if (!recognition) return;
+      setCurrentRecognition(recognition);
+      setStep('recording');
+      playSound('start');
+    } catch {
+      setCurrentRecognition(null);
+      setStep('instructions');
+    }
   };
 
   // Handle recording stop
@@ -114,6 +120,9 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
   const handleClose = () => {
     if (isListening && currentRecognition) {
       handleStopRecording();
+    } else if (currentRecognition) {
+      onStopRecording(currentRecognition);
+      setCurrentRecognition(null);
     }
     onClose();
     setStep('instructions');

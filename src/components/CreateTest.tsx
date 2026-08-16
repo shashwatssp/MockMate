@@ -26,6 +26,21 @@ interface CreateTestProps {
 
 type DifficultyLevel = 'easy' | 'medium' | 'hard';
 
+interface VoiceQuestionCriteria {
+  subject: string;
+  topic: string;
+  count: number;
+  difficulty: DifficultyLevel;
+}
+
+interface VoiceData {
+  testName: string;
+  testDate: string;
+  testTime: string;
+  duration: number;
+  questions: VoiceQuestionCriteria[];
+}
+
 // Question Storage Context
 interface QuestionContextType {
   allQuestions: Question[];
@@ -63,7 +78,6 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
   const [selectedQuestions, setSelectedQuestions] = useState<Question[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [timeLimit, setTimeLimit] = useState(2);
   const [isCreating, setIsCreating] = useState(false);
   const [randomizeQuestions, setRandomizeQuestions] = useState(false);
   const [allowReview, setAllowReview] = useState(true);
@@ -239,6 +253,7 @@ You must return ONLY a valid JSON object with exactly these fields:
   "testDate": "extracted date in YYYY-MM-DD format or today's date",
   "testTime": "extracted time in HH:MM format or current time + 1 hour",
   "duration": 90,
+  "questionCount": 5,
   "questions": [
     {
       "subject": "subject name from available subjects",
@@ -256,8 +271,9 @@ Rules:
 - Return ONLY valid JSON
 - No explanatory text before or after
 - Use reasonable defaults for missing information
-- Duration should be a number (90 minutes default)
-- Count should be a number (5 questions default)
+- Duration should be a number between 8 and 180 minutes (90 minutes default)
+- Count should be a number between 1 and 180 (5 questions default)
+- questionCount should preserve an explicit total such as 90
 - Difficulty must be exactly: "easy", "medium", or "hard"
 - Subject and topic must match available options or use "General" as fallback
 `;
@@ -302,276 +318,76 @@ Rules:
     }
   };
 
-const applyVoiceData = async (data: any) => {
-    // Set basic test details
-    if (data.testName) {
-      setTestName(data.testName);
-    }
-    if (data.testDate) {
-      setStartDate(data.testDate);
-    }
-    if (data.testTime) {
-      setStartTime(data.testTime);
-    }
-    if (data.duration) {
-      setDuration(data.duration);
-    }
+const applyVoiceData = async (data: VoiceData) => {
+    setTestName(data.testName);
+    setStartDate(data.testDate);
+    setStartTime(data.testTime);
+    setDuration(data.duration);
 
-    // Select questions based on criteria
-    console.log('🔍 === QUESTION SELECTION PHASE ===');
-    console.log('🔍 Total available questions:', allQuestions.length);
-    console.log('🔍 Current selected questions:', selectedQuestions.length);
-    console.log('🔍 Data.questions structure:', data.questions);
-    console.log('🔍 Is data.questions an array?', Array.isArray(data.questions));
-    
-    let questionsToSelect: Question[] = [];
+    if (!allQuestions.length) throw new Error('No questions are available for voice selection yet.');
 
-    if (data.questions && Array.isArray(data.questions)) {
-      console.log('📋 Processing', data.questions.length, 'question criteria');
-      
-      for (let i = 0; i < data.questions.length; i++) {
-        const criteria = data.questions[i];
-        console.log(`\n🔍 === PROCESSING CRITERIA ${i + 1}/${data.questions.length} ===`);
-        console.log('🔍 Criteria:', JSON.stringify(criteria, null, 2));
-        
-        console.log('🔍 Filtering questions...');
-        console.log('   - Looking for subject:', criteria.subject || 'Any');
-        console.log('   - Looking for topic:', criteria.topic || 'Any');
-        console.log('   - Looking for difficulty:', criteria.difficulty || 'Any');
-        console.log('   - Requested count:', criteria.count || 5);
-        
-        console.log('🔍 Starting question filtering process...');
-        console.log('🔍 Available questions to filter:', allQuestions.length);
-        
-        const matchingQuestions = allQuestions.filter((q, questionIndex) => {
-          console.log(`\n   🔍 Checking question ${questionIndex + 1}/${allQuestions.length} (ID: ${q.id})`);
-          
-          // Null-safe string comparisons with detailed logging
-          const questionSubject = q.subject || '';
-          const questionTopic = q.topic || '';
-          const criteriaSubject = criteria.subject || '';
-          const criteriaTopic = criteria.topic || '';
-          
-          console.log(`   📋 Question details:`);
-          console.log(`      - Subject: "${questionSubject}"`);
-          console.log(`      - Topic: "${questionTopic}"`);
-          console.log(`      - Difficulty: "${getDifficulty(q)}"`);
-          console.log(`      - Text preview: "${q.text?.substring(0, 30)}..."`);
-          
-          console.log(`   📋 Criteria to match:`);
-          console.log(`      - Subject: "${criteriaSubject}"`);
-          console.log(`      - Topic: "${criteriaTopic}"`);
-          console.log(`      - Difficulty: "${criteria.difficulty}"`);
-          
-          // Relaxed subject matching - treat empty subjects as matching "General"
-          const subjectMatch = !criteriaSubject || 
-            criteriaSubject === 'General' ||
-            questionSubject === '' ||  // Empty subject matches General
-            questionSubject.toLowerCase().includes(criteriaSubject.toLowerCase());
-          
-          console.log(`   ✓ Subject match check:`);
-          console.log(`      - No criteria subject: ${!criteriaSubject}`);
-          console.log(`      - Is General: ${criteriaSubject === 'General'}`);
-          console.log(`      - Question subject empty: ${questionSubject === ''}`);
-          console.log(`      - Contains match: ${questionSubject.toLowerCase().includes(criteriaSubject.toLowerCase())}`);
-          console.log(`      - Final subject match: ${subjectMatch}`);
-            
-          // Relaxed topic matching
-          const topicMatch = !criteriaTopic || 
-            criteriaTopic === 'General' ||
-            criteriaTopic === '' ||
-            criteriaTopic === null ||
-            questionTopic.toLowerCase().includes(criteriaTopic.toLowerCase()) ||
-            criteriaTopic.toLowerCase().includes(questionTopic.toLowerCase()); // Bidirectional matching
-          
-          console.log(`   ✓ Topic match check:`);
-          console.log(`      - No criteria topic: ${!criteriaTopic}`);
-          console.log(`      - Is General: ${criteriaTopic === 'General'}`);
-          console.log(`      - Is empty string: ${criteriaTopic === ''}`);
-          console.log(`      - Is null: ${criteriaTopic === null}`);
-          console.log(`      - Forward match: ${questionTopic.toLowerCase().includes(criteriaTopic.toLowerCase())}`);
-          console.log(`      - Reverse match: ${criteriaTopic.toLowerCase().includes(questionTopic.toLowerCase())}`);
-          console.log(`      - Final topic match: ${topicMatch}`);
-          
-          // More flexible difficulty matching - if criteria asks for "easy" but no easy questions exist, 
-          // allow medium, and if no medium, allow hard
-          let difficultyMatch = !criteria.difficulty;
-          
-          if (criteria.difficulty) {
-            const questionDifficulty = getDifficulty(q);
-            const requestedDifficulty = criteria.difficulty.toLowerCase();
-            
-            if (requestedDifficulty === 'easy') {
-              // For easy: accept easy first, then medium, then hard
-              difficultyMatch = questionDifficulty === 'easy' || 
-                              questionDifficulty === 'medium' || 
-                              questionDifficulty === 'hard';
-            } else if (requestedDifficulty === 'medium') {
-              // For medium: accept medium first, then easy, then hard
-              difficultyMatch = questionDifficulty === 'medium' || 
-                              questionDifficulty === 'easy' || 
-                              questionDifficulty === 'hard';
-            } else if (requestedDifficulty === 'hard') {
-              // For hard: accept hard first, then medium, then easy
-              difficultyMatch = questionDifficulty === 'hard' || 
-                              questionDifficulty === 'medium' || 
-                              questionDifficulty === 'easy';
-            } else {
-              // Unknown difficulty, accept all
-              difficultyMatch = true;
-            }
-          }
-          
-          console.log(`   ✓ Difficulty match check:`);
-          console.log(`      - No criteria difficulty: ${!criteria.difficulty}`);
-          console.log(`      - Question difficulty: ${getDifficulty(q)}`);
-          console.log(`      - Criteria difficulty: ${criteria.difficulty?.toLowerCase()}`);
-          console.log(`      - Final difficulty match: ${difficultyMatch}`);
-          
-          const matches = subjectMatch && topicMatch && difficultyMatch;
-          
-          console.log(`   🎯 FINAL MATCH RESULT: ${matches}`);
-          console.log(`      - Subject: ${subjectMatch}`);
-          console.log(`      - Topic: ${topicMatch}`);
-          console.log(`      - Difficulty: ${difficultyMatch}`);
-          
-          if (matches) {
-            console.log(`   ✅ Question ${q.id} MATCHES all criteria`);
-          } else {
-            console.log(`   ❌ Question ${q.id} does NOT match criteria`);
-          }
-          
-          return matches;
-        });
+    const selected: Question[] = [];
+    const selectedIds = new Set<string>();
+    const normalize = (value: unknown) => String(value || '').trim().toLowerCase();
+    let target = 0;
 
-        console.log(`📊 FILTERING RESULTS FOR CRITERIA ${i + 1}:`);
-        console.log(`📊 - Total questions checked: ${allQuestions.length}`);
-        console.log(`📊 - Matching questions found: ${matchingQuestions.length}`);
-        
-        if (matchingQuestions.length === 0) {
-          console.log('⚠️ No questions found for this criteria, trying more relaxed matching...');
-          
-          // Fallback: if no matches found, try topic-only matching (ignore subject and difficulty)
-          const fallbackQuestions = allQuestions.filter(q => {
-            const questionTopic = q.topic || '';
-            const criteriaTopic = criteria.topic || '';
-            
-            return !criteriaTopic || 
-                   criteriaTopic === 'General' ||
-                   questionTopic.toLowerCase().includes(criteriaTopic.toLowerCase()) ||
-                   criteriaTopic.toLowerCase().includes(questionTopic.toLowerCase());
-          });
-          
-          console.log(`📊 Fallback matching found: ${fallbackQuestions.length} questions`);
-          
-          if (fallbackQuestions.length > 0) {
-            const shuffled = shuffleArray(fallbackQuestions);
-            const requestedCount = criteria.count || 5;
-            const selected = shuffled.slice(0, requestedCount);
-            questionsToSelect = [...questionsToSelect, ...selected];
-            console.log(`✅ Used fallback selection: ${selected.length} questions`);
-            continue;
-          }
-          
-          console.log('⚠️ Even fallback matching failed, skipping criteria...');
-          console.log('⚠️ Criteria that failed to match any questions:', criteria);
-          continue;
-        }
-        
-        // Log some sample matching questions
-        console.log('📋 Sample matching questions:');
-        matchingQuestions.slice(0, 3).forEach((q, idx) => {
-          console.log(`   ${idx + 1}. ID: ${q.id} | Subject: "${q.subject}" | Topic: "${q.topic}" | Difficulty: "${getDifficulty(q)}" | Text: "${q.text?.substring(0, 30)}..."`);
-        });
-
-        // Shuffle and take requested count
-        console.log('🔀 Shuffling matching questions...');
-        const shuffled = shuffleArray(matchingQuestions);
-        console.log('✅ Questions shuffled');
-        
-        const requestedCount = criteria.count || 5;
-        const selected = shuffled.slice(0, requestedCount);
-        console.log(`🎯 Selected ${selected.length} out of ${requestedCount} requested questions`);
-        
-        // Log selected questions
-        console.log('📋 Selected questions for this criteria:');
-        selected.forEach((q, idx) => {
-          console.log(`   ${idx + 1}. ID: ${q.id} | Subject: "${q.subject}" | Topic: "${q.topic}" | Difficulty: "${getDifficulty(q)}"`);
-        });
-        
-        questionsToSelect = [...questionsToSelect, ...selected];
-        console.log(`📊 Total questions to select so far: ${questionsToSelect.length}`);
+    for (const criteria of data.questions) {
+      const count = Math.min(180, Math.max(1, Math.round(criteria.count)));
+      target += count;
+      const subject = normalize(criteria.subject);
+      const topic = normalize(criteria.topic);
+      const difficulty = normalize(criteria.difficulty);
+      const matches = (question: Question, includeDifficulty: boolean) => {
+        const questionSubject = normalize(question.subject);
+        const questionTopic = normalize(question.topic);
+        const questionDifficulty = normalize(getDifficulty(question));
+        const subjectMatches = !subject || subject === 'general' || !questionSubject || questionSubject.includes(subject) || subject.includes(questionSubject);
+        const topicMatches = !topic || topic === 'general' || !questionTopic || questionTopic.includes(topic) || topic.includes(questionTopic);
+        const difficultyMatches = !includeDifficulty || !difficulty || difficulty === 'any' || questionDifficulty === difficulty;
+        return subjectMatches && topicMatches && difficultyMatches;
+      };
+      const exact = allQuestions.filter(q => matches(q, true));
+      const candidates = exact.length ? exact : allQuestions.filter(q => matches(q, false));
+      for (const question of shuffleArray(candidates.length ? candidates : allQuestions)) {
+        if (selectedIds.has(question.id)) continue;
+        selectedIds.add(question.id);
+        selected.push(question);
+        if (selected.length >= target) break;
       }
-    } else {
-      console.log('⚠️ No valid question criteria provided, selecting random questions');
-      console.log('⚠️ data.questions type:', typeof data.questions);
-      console.log('⚠️ data.questions value:', data.questions);
-      
-      // Fallback: select 15 random questions if no criteria provided
-      const shuffled = shuffleArray(allQuestions);
-      questionsToSelect = shuffled.slice(0, 15);
-      console.log(`📊 Selected ${questionsToSelect.length} random questions as fallback`);
     }
 
-    // Final fallback: if still no questions selected, take random questions
-    if (questionsToSelect.length === 0) {
-      console.log('🚨 === EMERGENCY FALLBACK ===');
-      console.log('🚨 No questions selected through any criteria, selecting random questions');
-      const shuffled = shuffleArray(allQuestions);
-      questionsToSelect = shuffled.slice(0, 15);
-      console.log(`🚨 Emergency fallback: selected ${questionsToSelect.length} random questions`);
+    if (!selected.length) {
+      selected.push(...shuffleArray(allQuestions).slice(0, Math.min(5, allQuestions.length)));
     }
-
-    // Remove duplicates
-    console.log('🔄 === REMOVING DUPLICATES ===');
-    console.log('🔄 Questions before deduplication:', questionsToSelect.length);
-    
-    const uniqueQuestions = questionsToSelect.filter((q, index, self) => {
-      const isDuplicate = index !== self.findIndex(sq => sq.id === q.id);
-      if (isDuplicate) {
-        console.log(`   🗑️ Removing duplicate question ID: ${q.id}`);
-      }
-      return !isDuplicate;
-    });
-
-    console.log('✅ Questions after deduplication:', uniqueQuestions.length);
-    
-    // Log final selection summary
-    console.log('📊 === FINAL SELECTION SUMMARY ===');
-    console.log('📊 Total unique questions selected:', uniqueQuestions.length);
-    
-    // Group by subject and topic for summary
-    const summary = uniqueQuestions.reduce((acc, q) => {
-      const subject = q.subject || 'Unknown';
-      const topic = q.topic || 'Unknown';
-      const difficulty = getDifficulty(q);
-      
-      if (!acc[subject]) acc[subject] = {};
-      if (!acc[subject][topic]) acc[subject][topic] = { easy: 0, medium: 0, hard: 0 };
-      acc[subject][topic][difficulty]++;
-      
-      return acc;
-    }, {} as Record<string, Record<string, Record<string, number>>>);
-    
-    console.log('📊 Selection summary by subject/topic/difficulty:');
-    Object.entries(summary).forEach(([subject, topics]) => {
-      console.log(`   📚 ${subject}:`);
-      Object.entries(topics).forEach(([topic, difficulties]) => {
-        const total = Object.values(difficulties).reduce((sum, count) => sum + count, 0);
-        console.log(`      📖 ${topic}: ${total} questions (Easy: ${difficulties.easy}, Medium: ${difficulties.medium}, Hard: ${difficulties.hard})`);
+    if (selected.length < target) {
+      const requestedSubjects = new Set(
+        data.questions
+          .map((criteria) => normalize(criteria.subject))
+          .filter((subject) => subject && subject !== 'general'),
+      );
+      const fallbackPool = allQuestions.filter((question) => {
+        if (!requestedSubjects.size) return true;
+        return requestedSubjects.has(normalize(question.subject));
       });
-    });
-    
-    setSelectedQuestions(uniqueQuestions);
+      for (const question of shuffleArray(fallbackPool)) {
+        if (selectedIds.has(question.id)) continue;
+        selectedIds.add(question.id);
+        selected.push(question);
+        if (selected.length >= target) break;
+      }
+    }
+    if (selected.length < target) {
+      throw new Error(`Only ${selected.length} eligible questions are available; requested ${target}.`);
+    }
+    setSelectedQuestions(selected);
     setShowVoiceModal(false);
     setVoiceTranscript('');
   };
 
-
   // Enhanced clean JSON response function
   const cleanJsonResponse = (text: string): string => {
-    // Remove markdown code blocks
-    let cleaned = text.replace(/``````\s*/g, '');
+    // Remove markdown code fences while preserving the JSON payload.
+    let cleaned = text.replace(/```(?:json)?/gi, '');
     
     // Remove any text before the first {
     const firstBrace = cleaned.indexOf('{');
@@ -592,40 +408,55 @@ const applyVoiceData = async (data: any) => {
   };
 
   // Enhanced validate response data
-  const validateResponseData = (data: any) => {
-    const validated = {
-      testName: data.testName || 'Sample Test',
-      testDate: data.testDate || new Date().toISOString().split('T')[0],
-      testTime: data.testTime || new Date(Date.now() + 3600000).toTimeString().slice(0, 5),
-      duration: typeof data.duration === 'number' ? data.duration : 90,
-      questions: Array.isArray(data.questions) ? data.questions.map((q: any) => {
+  const validateResponseData = (data: any): VoiceData => {
+    const requestedCount = Number(data?.questionCount ?? data?.count ?? data?.numberOfQuestions);
+    const duration = Number.isFinite(Number(data?.duration))
+      ? Math.min(180, Math.max(8, Math.round(Number(data.duration))))
+      : 90;
+    const testDate = /^\d{4}-\d{2}-\d{2}$/.test(String(data?.testDate || ''))
+      ? String(data.testDate)
+      : new Date().toISOString().split('T')[0];
+    const testTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(data?.testTime || ''))
+      ? String(data.testTime)
+      : new Date(Date.now() + 3600000).toTimeString().slice(0, 5);
+    const questionCriteria = Array.isArray(data?.questions) && data.questions.length > 0
+      ? data.questions
+      : [{ subject: 'General', topic: 'General', difficulty: 'easy' }];
+    const questions = questionCriteria.map((q: any) => {
+        const useRequestedTotal = Number.isFinite(requestedCount)
+          && questionCriteria.length === 1
+          && (!Number.isFinite(Number(q?.count)) || Number(q.count) === 5);
+        const count = useRequestedTotal
+          ? Math.min(180, Math.max(1, Math.round(requestedCount)))
+          : Number.isFinite(Number(q?.count))
+          ? Math.min(180, Math.max(1, Math.round(Number(q.count))))
+          : 5;
         return {
-          subject: q.subject || 'General',
-          topic: q.topic || 'General',
-          count: typeof q.count === 'number' ? q.count : 5,
-          difficulty: ['easy', 'medium', 'hard'].includes(q.difficulty) ? q.difficulty : 'easy'
+          subject: String(q?.subject || 'General').trim() || 'General',
+          topic: String(q?.topic || 'General').trim() || 'General',
+          count,
+          difficulty: ['easy', 'medium', 'hard'].includes(q?.difficulty)
+            ? q.difficulty
+            : 'easy'
         };
-      }) : [{
-        subject: 'General',
-        topic: 'General',
-        count: 5,
-        difficulty: 'easy'
-      }]
+      });
+
+    return {
+      testName: String(data?.testName || 'Sample Test').trim() || 'Sample Test',
+      testDate,
+      testTime,
+      duration,
+      questions
     };
-    
-    return validated;
   };
 
   // Manual extraction fallback
-  const extractDataManually = (transcript: string) => {
+  const extractDataManually = (transcript: string): VoiceData => {
     const now = new Date();
-    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
-    
     const extracted = {
       testName: extractTestName(transcript) || 'Voice Created Test',
-      testDate: tomorrow.toISOString().split('T')[0],
-      testTime: oneHourLater.toTimeString().slice(0, 5),
+      testDate: extractDate(transcript, now),
+      testTime: extractTime(transcript, now),
       duration: extractDuration(transcript) || 90,
       questions: [{
         subject: extractSubject(transcript) || 'General',
@@ -635,34 +466,60 @@ const applyVoiceData = async (data: any) => {
       }]
     };
     
-    return extracted;
+    return validateResponseData(extracted);
   };
 
   // Simple extraction functions
   const extractTestName = (text: string): string | null => {
     const patterns = [
-      /test.{0,10}(?:called|named|titled)\s+(.+?)(?:\s|$)/i,
-      /create.{0,10}test.{0,10}(.+?)(?:\s|$)/i,
-      /(?:called|named)\s+(.+?)\s+test/i
+      /(?:test|quiz)\s+(?:called|named|titled)\s+["']?(.+?)["']?(?:\s+(?:on|at|for|with|\d+\s+minutes?)\b|$)/i,
+      /(?:called|named|titled)\s+["']?(.+?)["']?\s+(?:test|quiz)\b/i,
+      /create\s+(?:a\s+)?(?:test|quiz)\s+(?:about|on|for)\s+["']?(.+?)["']?(?:\s+(?:on|at|for|with)\b|$)/i
     ];
     
     for (const pattern of patterns) {
       const match = text.match(pattern);
       if (match) {
-        return match[1].trim();
+        return match[1].trim().replace(/[.,!?]+$/, '');
       }
     }
     return null;
   };
 
+  const extractDate = (text: string, now: Date): string => {
+    const normalized = text.toLowerCase();
+    const explicitDate = text.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+    if (explicitDate) return explicitDate[1];
+    if (normalized.includes('today')) return now.toISOString().split('T')[0];
+    const date = new Date(now);
+    if (normalized.includes('tomorrow')) date.setDate(date.getDate() + 1);
+    else date.setDate(date.getDate() + 1);
+    return date.toISOString().split('T')[0];
+  };
+
+  const extractTime = (text: string, now: Date): string => {
+    const match = text.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+    if (match) {
+      let hour = Number(match[1]);
+      const minute = Number(match[2] || 0);
+      const meridiem = match[3].toLowerCase();
+      if (meridiem === 'pm' && hour < 12) hour += 12;
+      if (meridiem === 'am' && hour === 12) hour = 0;
+      return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    }
+    return new Date(now.getTime() + 60 * 60 * 1000).toTimeString().slice(0, 5);
+  };
+
   const extractDuration = (text: string): number | null => {
+    const range = text.match(/(\d+)\s*(?:to|-)\s*(\d+)\s*(?:minute|min)/i);
+    if (range) return Number(range[2]);
     const match = text.match(/(\d+)\s*(?:minute|min)/i);
     const result = match ? parseInt(match[1]) : null;
     return result;
   };
 
   const extractQuestionCount = (text: string): number | null => {
-    const match = text.match(/(\d+)\s*(?:question|problem)/i);
+    const match = text.match(/(?:create|make|generate)?\s*(\d+)\s*(?:question|problem)/i);
     const result = match ? parseInt(match[1]) : null;
     return result;
   };
@@ -723,7 +580,7 @@ const applyVoiceData = async (data: any) => {
         questions: randomizeQuestions ? shuffleArray([...selectedQuestions]) : selectedQuestions,
         startDate: new Date(`${startDate}T${startTime}`),
         duration,
-        timeLimit,
+        timeLimit: duration,
         settings: {
           randomizeQuestions,
           allowReview,
@@ -742,8 +599,8 @@ const applyVoiceData = async (data: any) => {
           questions: result.questions,
           createdAt: new Date(result.created_at),
           startDate: new Date(result.start_date),
-          duration: result.duration,
-          timeLimit: result.time_limit,
+          duration: result.duration ?? result.time_limit,
+          timeLimit: result.duration ?? result.time_limit,
           settings: result.settings
         };
 
@@ -778,7 +635,7 @@ const applyVoiceData = async (data: any) => {
   };
 
   const selectedTopicCounts = getSelectedQuestionsByTopic();
-  const estimatedDuration = selectedQuestions.length * timeLimit;
+  const estimatedDuration = duration;
   const averageDifficulty = selectedQuestions.length > 0 
     ? Math.round(selectedQuestions.reduce((sum, q) => {
         const difficultyScore = { easy: 1, medium: 2, hard: 3 }[getDifficulty(q)];
@@ -904,8 +761,6 @@ const applyVoiceData = async (data: any) => {
               setTestName={setTestName}
               testDescription={testDescription}
               setTestDescription={setTestDescription}
-              timeLimit={timeLimit}
-              setTimeLimit={setTimeLimit}
               startDate={startDate}
               setStartDate={setStartDate}
               startTime={startTime}

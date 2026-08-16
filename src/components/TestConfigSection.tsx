@@ -20,8 +20,6 @@ interface TestConfigSectionProps {
   setTestName: (name: string) => void;
   testDescription: string;
   setTestDescription: (description: string) => void;
-  timeLimit: number;
-  setTimeLimit: (limit: number) => void;
   startDate: string;
   setStartDate: (date: string) => void;
   startTime: string;
@@ -46,8 +44,6 @@ export const TestConfigSection: React.FC<TestConfigSectionProps> = ({
   setTestName,
   testDescription,
   setTestDescription,
-  timeLimit,
-  setTimeLimit,
   startDate,
   setStartDate,
   startTime,
@@ -77,7 +73,6 @@ export const TestConfigSection: React.FC<TestConfigSectionProps> = ({
       description: "15-30 min quiz",
       config: {
         duration: 30,
-        timeLimit: 2,
         randomizeQuestions: true,
         allowReview: false,
         showCorrectAnswers: true
@@ -89,7 +84,6 @@ export const TestConfigSection: React.FC<TestConfigSectionProps> = ({
       description: "60-90 min exam",
       config: {
         duration: 90,
-        timeLimit: 3,
         randomizeQuestions: false,
         allowReview: true,
         showCorrectAnswers: false
@@ -101,7 +95,6 @@ export const TestConfigSection: React.FC<TestConfigSectionProps> = ({
       description: "2-3 hour assessment",
       config: {
         duration: 180,
-        timeLimit: 5,
         randomizeQuestions: true,
         allowReview: true,
         showCorrectAnswers: false
@@ -111,7 +104,6 @@ export const TestConfigSection: React.FC<TestConfigSectionProps> = ({
 
   const applyPreset = (preset: typeof presets[0]) => {
     setDuration(preset.config.duration);
-    setTimeLimit(preset.config.timeLimit);
     setRandomizeQuestions(preset.config.randomizeQuestions);
     setAllowReview(preset.config.allowReview);
     setShowCorrectAnswers(preset.config.showCorrectAnswers);
@@ -123,7 +115,7 @@ export const TestConfigSection: React.FC<TestConfigSectionProps> = ({
     const suggestions = [];
     
     if (selectedQuestionsCount > 0) {
-      const recommendedDuration = Math.max(30, selectedQuestionsCount * timeLimit + 10);
+      const recommendedDuration = Math.max(30, selectedQuestionsCount * 2 + 10);
       if (Math.abs(duration - recommendedDuration) > 15) {
         suggestions.push({
           type: 'duration',
@@ -132,11 +124,11 @@ export const TestConfigSection: React.FC<TestConfigSectionProps> = ({
         });
       }
       
-      if (averageDifficulty >= 2.5 && timeLimit < 3) {
+      if (averageDifficulty >= 2.5 && duration < selectedQuestionsCount * 3) {
         suggestions.push({
           type: 'time',
-          message: 'Increase time per question for harder questions',
-          action: () => setTimeLimit(Math.min(5, timeLimit + 1))
+          message: 'Consider a longer duration for harder questions',
+          action: () => setDuration(Math.min(300, Math.max(duration, selectedQuestionsCount * 3)))
         });
       }
     }
@@ -301,41 +293,24 @@ export const TestConfigSection: React.FC<TestConfigSectionProps> = ({
                       type="number"
                       value={duration}
                       onChange={(e) => setDuration(Number(e.target.value))}
-                      min="15"
-                      max="300"
+                      min="8"
+                      max="180"
                       className="field-input"
                     />
                     <input
                       type="range"
                       value={duration}
                       onChange={(e) => setDuration(Number(e.target.value))}
-                      min="15"
-                      max="300"
+                      min="8"
+                      max="180"
                       className="duration-slider"
                     />
                   </div>
                   <div className="field-hint">
-                    Recommended: {selectedQuestionsCount > 0 ? Math.max(30, selectedQuestionsCount * timeLimit + 10) : 90} minutes
+                    Recommended: {selectedQuestionsCount > 0 ? Math.max(30, selectedQuestionsCount * 2 + 10) : 90} minutes
                   </div>
                 </div>
 
-                <div className="form-field">
-                  <label className="field-label">
-                    <Clock className="label-icon" />
-                    Time per Question (minutes)
-                  </label>
-                  <div className="time-options">
-                    {[1, 2, 3, 5, 10].map(time => (
-                      <button
-                        key={time}
-                        onClick={() => setTimeLimit(time)}
-                        className={`time-option ${timeLimit === time ? 'active' : ''}`}
-                      >
-                        {time}m
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
           </div>

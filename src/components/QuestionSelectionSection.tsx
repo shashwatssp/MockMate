@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import {
   Lightbulb,
   Grid,
@@ -18,10 +18,14 @@ import {
   Calendar,
   TrendingUp,
   Target,
-  Settings
+  Settings,
+  Upload,
+  AlertCircle
 } from 'lucide-react';
 import { useQuestions } from './CreateTest';
 import type { Question } from '../types/exam.types';
+import { insertQuestions } from '../lib/database';
+import { validateQuestionImport, type QuestionImportIssue } from '../lib/questionImport';
 import './CreateTest.css';
 
 type ViewMode = 'grid' | 'list';
@@ -42,9 +46,7 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
   isLoaded
 }) => {
   // Use cached questions from context
-  const { allQuestions } = useQuestions();
-
-  console.log("ALL Questions ", allQuestions);
+  const { allQuestions, refreshQuestions } = useQuestions();
 
   // Filter states
   const [selectedSubject, setSelectedSubject] = useState<string>('All');
@@ -67,6 +69,13 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
   const [subjectSearch, setSubjectSearch] = useState('');
   const [topicSearch, setTopicSearch] = useState('');
   const [yearSearch, setYearSearch] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState<{
+    type: 'success' | 'error';
+    message: string;
+    issues?: QuestionImportIssue[];
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Predefined data
   const predefinedSubjects = ['Physics', 'Chemistry', 'Biology'];
@@ -106,7 +115,6 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
     const filteredSubjects = allSubjects.filter(subject =>
       subject.toLowerCase().includes(subjectSearch.toLowerCase())
     );
-         console.log("FILTERED QUESTIONS ", filteredQuestions);
     
     return ['All', ...filteredSubjects];
   };
@@ -412,7 +420,7 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
 
   const searchableDropdownStyles = {
     searchableDropdown: {
-      minWidth: '280px',
+      minWidth: 'min(280px, calc(100vw - 32px))',
       maxHeight: '320px',
       overflowY: 'auto' as const,
       border: '1px solid #e1e5e9',
@@ -492,6 +500,47 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
     }
   };
 
+  const handleQuestionFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setImportStatus(null);
+    setIsImporting(true);
+    try {
+      if (!file.name.toLowerCase().endsWith('.json') && file.type !== 'application/json') {
+        throw new Error('Please choose a JSON file.');
+      }
+
+      const payload = JSON.parse(await file.text()) as unknown;
+      const result = validateQuestionImport(payload, allQuestions);
+
+      if (!result.questions.length) {
+        setImportStatus({
+          type: 'error',
+          message: `No questions were imported. ${result.duplicateCount} duplicate(s) skipped.`,
+          issues: result.issues
+        });
+        return;
+      }
+
+      await insertQuestions(result.questions);
+      await refreshQuestions();
+      setImportStatus({
+        type: 'success',
+        message: `Imported ${result.questions.length} question(s). ${result.duplicateCount} duplicate(s) skipped.`,
+        issues: result.issues
+      });
+    } catch (error) {
+      setImportStatus({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'The JSON file could not be imported.'
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   return (
     <section className={`question-selection-section ${isLoaded ? 'loaded' : ''}`} onClick={closeAllDropdowns}>
       <div className="selection-header">
@@ -537,7 +586,47 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
               <List className="view-icon" />
             </button>
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="question-upload-input"
+            onChange={handleQuestionFileUpload}
+          />
+          <button
+            type="button"
+            className="question-upload-btn"
+            onClick={(event) => {
+              event.stopPropagation();
+              fileInputRef.current?.click();
+            }}
+            disabled={isImporting}
+          >
+            <Upload className="upload-icon" />
+            {isImporting ? 'Importing…' : 'Upload JSON'}
+          </button>
         </div>
+
+        {importStatus && (
+          <div className={`question-import-status ${importStatus.type}`} role="status">
+            <AlertCircle className="import-status-icon" />
+            <div>
+              <strong>{importStatus.message}</strong>
+              {importStatus.issues && importStatus.issues.length > 0 && (
+                <ul>
+                  {importStatus.issues.slice(0, 3).map(issue => (
+                    <li key={`${issue.row}-${issue.message}`}>
+                      Row {issue.row}: {issue.message}
+                    </li>
+                  ))}
+                  {importStatus.issues.length > 3 && (
+                    <li>And {importStatus.issues.length - 3} more invalid row(s).</li>
+                  )}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Enhanced Search and Filter Bar */}
@@ -575,7 +664,7 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
               }}
             >
               <BookOpen className="filter-icon" />
-              <span>Subject</span>
+              <span className="filter-label">Subject</span>
               {selectedSubject !== 'All' && <span className="filter-badge">{selectedSubject}</span>}
               <ChevronDown className="chevron" />
             </button>
@@ -648,7 +737,7 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
               }}
             >
               <Target className="filter-icon" />
-              <span>Topic</span>
+              <span className="filter-label">Topic</span>
               {selectedTopic !== 'All' && <span className="filter-badge">{selectedTopic}</span>}
               <ChevronDown className="chevron" />
             </button>
@@ -720,7 +809,7 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
               }}
             >
               <Calendar className="filter-icon" />
-              <span>Year</span>
+              <span className="filter-label">Year</span>
               {selectedYear !== 'All' && <span className="filter-badge">{selectedYear}</span>}
               <ChevronDown className="chevron" />
             </button>
@@ -792,7 +881,7 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
               }}
             >
               <TrendingUp className="filter-icon" />
-              <span>Difficulty</span>
+              <span className="filter-label">Difficulty</span>
               {selectedDifficulties.length > 0 && (
                 <span className="filter-badge">{selectedDifficulties.length}</span>
               )}
@@ -958,6 +1047,12 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
                     <Star className="difficulty-icon" />
                     {difficulty}
                   </span>
+                  {question.marks !== undefined && (
+                    <span className="marks-badge">{question.marks} mark{question.marks === 1 ? '' : 's'}</span>
+                  )}
+                  {question.negativeMarks !== undefined && question.negativeMarks > 0 && (
+                    <span className="negative-marks-badge">−{question.negativeMarks}</span>
+                  )}
                 </div>
                 
                 <div className="card-actions">
