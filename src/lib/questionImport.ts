@@ -128,8 +128,6 @@ export const validateQuestionImport = (
     }
 
     importedKeys.add(key);
-    const marks = Number(source.marks);
-    const negativeMarks = Number(source.negativeMarks ?? source.negative_marks);
     questions.push({
       text,
       options,
@@ -137,9 +135,7 @@ export const validateQuestionImport = (
       subject: normalizeQuestionText(source.subject) || 'General',
       topic: normalizeQuestionText(source.topic) || 'Unspecified',
       year: normalizeQuestionText(source.year) || 'Unspecified',
-      difficulty: normalizeDifficulty(source.difficulty),
-      ...(Number.isFinite(marks) && marks >= 0 ? { marks } : {}),
-      ...(Number.isFinite(negativeMarks) && negativeMarks >= 0 ? { negativeMarks } : {})
+      difficulty: normalizeDifficulty(source.difficulty)
     });
   });
 
