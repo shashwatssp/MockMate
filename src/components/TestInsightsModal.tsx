@@ -11,6 +11,7 @@ import {
   XCircle,
   MinusCircle
 } from 'lucide-react';
+import { QuestionImage } from './QuestionImage';
 import type { Question, Test, TestResult } from '../types/exam.types';
 import './Dashboard.css';
 
@@ -182,6 +183,7 @@ export const TestInsightsModal: React.FC<TestInsightsModalProps> = ({
                       {question.difficulty && <span>{question.difficulty}</span>}
                     </div>
                   </div>
+                  <QuestionImage question={question} maxHeight={160} />
                   <h3>{question.text}</h3>
                   <div className="preview-options">
                     {question.options.map((option, optionIndex) => (
@@ -245,7 +247,7 @@ export const TestInsightsModal: React.FC<TestInsightsModalProps> = ({
                                 <tr key={result.id || `${result.studentName}-${index}`}>
                                   <td><span className={`rank-badge rank-${index + 1}`}>{index < 3 ? <Medal size={14} /> : index + 1}</span></td>
                                   <td>{result.studentName}</td>
-                                  <td>{result.score}/{result.totalQuestions}</td>
+<td>{result.score}/{result.totalMarks ?? result.totalQuestions}</td>
                                   <td>{result.percentage}%</td>
                                   <td>{formatSeconds(result.timeTaken)}</td>
                                 </tr>

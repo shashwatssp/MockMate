@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
-import type { Question, Test, TestResult, TestSettings, TestResultInput } from '../types/exam.types'
+import type { Question, Test, TestResult, TestSettings, TestResultInput, StudentAnswer } from '../types/exam.types'
 import { normalizeQuestionKey, normalizeQuestionText } from './questionImport'
+import { scoreQuestions } from './score'
 
 // Questions
 export const insertQuestions = async (questions: Omit<Question, 'id'>[]) => {
@@ -49,8 +50,7 @@ export const insertQuestions = async (questions: Omit<Question, 'id'>[]) => {
     subject: q.subject,        
     year: q.year,              
     difficulty: q.difficulty ?? getDifficulty(q) as 'easy' | 'medium' | 'hard',
-    ...(q.marks !== undefined ? { marks: q.marks } : {}),
-    ...(q.negativeMarks !== undefined ? { negative_marks: q.negativeMarks } : {})
+    ...(q.imageUrl ? { image_url: q.imageUrl } : {})
   }))
 
   const { data, error } = await supabase
@@ -64,6 +64,19 @@ export const insertQuestions = async (questions: Omit<Question, 'id'>[]) => {
   }
   return data
 }
+
+/** Upload a question image to the public `questions` storage bucket and return its public URL. */
+export const uploadQuestionImage = async (file: File): Promise<string> => {
+  if (!file) throw new Error('No file provided');
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'png';
+  const path = `questions/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const { error } = await supabase.storage.from('questions').upload(path, file, {
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from('questions').getPublicUrl(path);
+  return data?.publicUrl ?? '';
+};
 
 export const getQuestions = async () => {
   const { data, error } = await supabase
@@ -86,8 +99,7 @@ export const getQuestions = async () => {
     subject: q.subject,        
     year: q.year,              
     difficulty: q.difficulty,
-    marks: q.marks,
-    negativeMarks: q.negative_marks
+    imageUrl: q.image_url
   })) as Question[]
 }
 
@@ -139,8 +151,7 @@ export const getQuestionsByFilters = async (filters: {
     subject: q.subject,       
     year: q.year,             
     difficulty: q.difficulty,
-    marks: q.marks,
-    negativeMarks: q.negative_marks
+    imageUrl: q.image_url
   })) as Question[]
 }
 
@@ -163,6 +174,7 @@ export const createTest = async (testData: Omit<Test, 'id' | 'createdAt'>) => {
       questions: testData.questions,
       settings: testData.settings,
       start_date: testData.startDate?.toISOString(),
+      end_date: testData.endTime?.toISOString(),
       duration: testData.duration,
       // Keep the legacy column synchronized for older database consumers.
       time_limit: testData.duration
@@ -196,9 +208,10 @@ export const getTestByKey = async (testKey: string) => {
     id: data.id,
     testKey: data.test_key,
     name: data.name,
-    description: data.description,
+    description: data.description || undefined,
     questions: data.questions,
     settings,
+    endTime: data.end_date ? new Date(data.end_date) : undefined,
     createdAt: new Date(data.created_at),
     startDate: new Date(data.start_date),
     endDate: settings.endDate ? new Date(settings.endDate) : undefined,
@@ -230,6 +243,7 @@ export const getAllTests = async () => {
       description: test.description,
       questions: test.questions,
       settings,
+      endTime: test.end_date ? new Date(test.end_date) : undefined,
       createdAt: new Date(test.created_at),
       startDate: new Date(test.start_date),
       endDate: settings.endDate ? new Date(settings.endDate) : undefined,
@@ -280,41 +294,92 @@ export const hasStudentTakenTest = async (testId: string, studentName: string) =
   );
 }
 
+export const getTestById = async (testId: string) => {
+  const { data, error } = await supabase
+    .from('tests')
+    .select('*')
+    .eq('id', testId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+
+  const settings = (data.settings ?? {}) as TestSettings;
+
+  return {
+    id: data.id,
+    testKey: data.test_key,
+    name: data.name,
+    description: data.description || undefined,
+    questions: data.questions,
+    settings,
+    endTime: data.end_date ? new Date(data.end_date) : undefined,
+    createdAt: new Date(data.created_at),
+    startDate: new Date(data.start_date),
+    endDate: settings.endDate ? new Date(settings.endDate) : undefined,
+    duration: data.duration ?? data.time_limit ?? 90,
+    timeLimit: data.duration ?? data.time_limit ?? 90,
+    allowReview: settings.allowReview ?? true,
+    maxAttempts: settings.maxAttempts ?? 1,
+    passingScore: settings.passingScore ?? 70,
+    isProctored: settings.isProctored ?? false,
+    instructions: data.instructions
+  } as Test;
+};
+
 export const getTestResults = async (testId: string) => {
+  // Fetch the test instance so we can read the per-question marks assigned at
+  // test creation. Bank questions no longer carry marks, so the total must be
+  // derived from the test's own questions JSONB.
+  const test = await getTestById(testId);
+  const testQuestions: Question[] = (test?.questions ?? []) as Question[];
+
   const { data, error } = await supabase
     .from('test_results')
     .select('*')
     .eq('test_id', testId)
-    .order('completed_at', { ascending: false })
+    .order('completed_at', { ascending: false });
 
-  if (error) throw error
+  if (error) throw error;
 
   return data.map(result => {
-    const total = result.total_questions ?? 0;
-    const score = result.score ?? 0;
-    const answers = Array.isArray(result.answers) ? result.answers : [];
-    const answered = answers.filter(answer => answer.selectedOption >= 0).length;
-    const recordedQuestionTime = answers.reduce((sum, answer) => (
-      sum + (Number.isFinite(answer.timeSpent) && answer.timeSpent > 0 ? answer.timeSpent : 0)
-    ), 0);
+    const answers = Array.isArray(result.answers)
+      ? (result.answers as StudentAnswer[])
+      : [];
+    const scored = scoreQuestions(testQuestions, answers);
+    const recordedQuestionTime = answers.reduce(
+      (sum, answer) => {
+        const timeSpent = answer.timeSpent;
+        return sum + (
+          typeof timeSpent === 'number' &&
+          Number.isFinite(timeSpent) &&
+          timeSpent > 0
+            ? timeSpent
+            : 0
+        );
+      },
+      0
+    );
 
     return {
       id: result.id,
       testId: result.test_id,
       studentName: result.student_name,
       answers,
-      score,
-      totalMarks: total,
-      totalQuestions: total,
-      correctAnswers: score,
-      incorrectAnswers: Math.max(0, answered - score),
-      unansweredQuestions: Math.max(0, total - answered),
-      percentage: total ? Math.round((score / total) * 100) : 0,
+      score: scored.score,
+      totalMarks: scored.totalMarks,
+      totalQuestions: testQuestions.length,
+      correctAnswers: scored.correctAnswers,
+      incorrectAnswers: scored.incorrectAnswers,
+      unansweredQuestions: scored.unansweredQuestions,
+      percentage: scored.percentage,
       timeTaken: result.time_taken ?? recordedQuestionTime,
       completedAt: new Date(result.completed_at)
     } as TestResult;
-  })
-}
+  });
+};
 
 // Helper function
 export const getDifficulty = (question: Omit<Question, 'id'>): string => {

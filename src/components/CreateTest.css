@@ -2023,6 +2023,43 @@ SELECTED QUESTIONS SECTION
   height: 12px;
 }
 
+/* ===== Per-question marks editor (test instance) ===== */
+.marks-editor {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+  padding: var(--space-2) 0;
+  border-top: 1px dashed var(--gray-200);
+}
+
+.marks-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.75rem;
+}
+
+.marks-label {
+  color: var(--gray-600);
+  font-weight: 600;
+}
+
+.marks-input {
+  width: 56px;
+  padding: var(--space-1);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  text-align: center;
+  background: white;
+}
+
+.header-stats .stat-chip.accent {
+  background: var(--primary-50);
+  color: var(--primary-700);
+}
+
 .remove-btn {
   display: flex;
   align-items: center;

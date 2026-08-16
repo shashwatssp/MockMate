@@ -200,7 +200,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
       cursorY += 22;
 
       const cards = [
-        { label: 'SCORE', value: `${result.score}/${result.totalQuestions}`, color: [30, 58, 138] },
+{ label: 'SCORE', value: `${result.score}/${result.totalMarks ?? result.totalQuestions}`, color: [30, 58, 138] },
         { label: 'ACCURACY', value: `${result.percentage}%`, color: [5, 150, 105] },
         { label: 'TIME TAKEN', value: formatTime(result.timeTaken), color: [217, 119, 6] }
       ];
@@ -474,7 +474,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
             <Star className="summary-icon" />
             <div className="summary-content">
               <span className="summary-label">Final Score</span>
-              <span className="summary-value">{result.score}/{result.totalQuestions}</span>
+<span className="summary-value">{result.score}/{result.totalMarks ?? result.totalQuestions}</span>
             </div>
           </div>
         </div>

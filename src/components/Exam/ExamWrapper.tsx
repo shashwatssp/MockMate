@@ -7,7 +7,8 @@ import { LoadingScreen } from './LoadingScreen';
 import { ErrorScreen } from './ErrorScreen';
 import { useExamState } from '../../hooks/useExamState';
 import { useExamTimer } from '../../hooks/useExamTimer';
-import { getTestByKey, hasStudentTakenTest, saveTestResult } from '../../lib/database'; // Import your database functions
+import { getTestByKey, hasStudentTakenTest, saveTestResult } from '../../lib/database';
+import { scoreQuestions } from '../../lib/score'; // Import your database functions
 import type { Test, ExamSession, TestResult, StudentAnswer } from '../../types/exam.types';
 import { Clock, Shield, RefreshCw } from 'lucide-react';
 import './styles.css';
@@ -17,7 +18,7 @@ interface ExamWrapperProps {
   initialTest?: Test;
 }
 
-type ExamState = 'loading' | 'entry' | 'active' | 'results' | 'invalid' | 'too-early';
+type ExamState = 'loading' | 'entry' | 'active' | 'results' | 'invalid' | 'too-early' | 'expired';
 
 type PersistedExamSnapshot = {
   phase: 'entry' | 'active' | 'results';
@@ -95,6 +96,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
   const [error, setError] = useState<string>('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [windowClosed, setWindowClosed] = useState(false);
 
   const examState = useExamState();
   const examTimer = useExamTimer();
@@ -196,6 +198,23 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
 
       setTest(testData);
 
+      // Once the wall-clock window has closed the test can no longer be taken
+      // for credit — but it remains available in Practice Mode (results are
+      // not persisted). This runs before any snapshot restore so a stale
+      // in-progress session cannot be resumed past the cut-off.
+      const now = new Date();
+      const testEnd = testData.endTime
+        ? new Date(testData.endTime)
+        : testData.endDate
+          ? new Date(testData.endDate)
+          : null;
+      if (testEnd && now > testEnd) {
+        window.localStorage.removeItem(getExamSnapshotKey(code));
+        setWindowClosed(true);
+        navigateToPhase('entry');
+        return;
+      }
+
       const saved = readExamSnapshot(code);
       if (saved && saved.test?.id === testData.id) {
         if (saved.phase === 'results' && saved.result && location.pathname.endsWith('/results')) {
@@ -258,31 +277,25 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
         return;
       }
 
-      // Determine initial state based on time
+      // Determine initial state based on time. The expired case is handled above
+      // (before snapshot restore); here we enforce the pre-start entry window.
       if (testData.startDate) {
         const testStart = new Date(testData.startDate);
         const entryWindow = new Date(testStart.getTime() - 5 * 60 * 1000);
-        const testEnd = testData.endDate ? new Date(testData.endDate) : null;
-        
+
         const now = new Date();
-        
-        if (testEnd && now > testEnd) {
-          setError('This test has already ended.');
-          setCurrentPhase('invalid');
-          return;
-        }
-        
+
         if (now < entryWindow) {
           setCurrentPhase('too-early');
           return;
         }
-        
+
         if (now >= entryWindow && now <= testStart) {
           navigateToPhase('entry');
           return;
         }
       }
-      
+
       navigateToPhase('entry');
     } catch (err) {
       console.error('Error loading test:', err);
@@ -399,7 +412,9 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
     try {
       setStudentName(name.trim());
       const attemptMarker = getAttemptMarkerKey(testCode, name);
+      // A test past its window is only available in Practice Mode.
       const practiceMode = Boolean(
+        windowClosed ||
         (attemptMarker && window.localStorage.getItem(attemptMarker)) ||
         await hasStudentTakenTest(test.id, name)
       );
@@ -478,7 +493,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
           testId: test.id,
           studentName: studentName.trim(),
           answers: finalAnswers,
-          score: result.correctAnswers,
+          score: result.score,
           totalQuestions: test.questions.length,
           timeTaken: result.timeTaken
         });
@@ -522,46 +537,55 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
     }
   }, [examTimer.timeRemaining, currentPhase, examState.answers]);
 
+  // Auto-submit if the wall-clock test end time is reached while a student is
+  // actively taking the exam. Practice-mode runs (e.g. after the window closed)
+  // are exempt so students can review without an instant kill-switch.
+  useEffect(() => {
+    if (
+      currentPhase === 'active' &&
+      !isPracticeMode &&
+      test?.endTime &&
+      Date.now() > new Date(test.endTime).getTime() &&
+      !autoSubmittedRef.current
+    ) {
+      autoSubmittedRef.current = true;
+      void submitExam();
+    }
+  }, [currentPhase, test, submitExam, currentTime, isPracticeMode]);
+
   // Calculate exam results
   const calculateResults = (test: Test, answers: StudentAnswer[], studentName: string): TestResult => {
-    let correctAnswers = 0;
-    let incorrectAnswers = 0;
-    let unansweredQuestions = 0;
+    const scored = scoreQuestions(test.questions, answers);
 
     const topicWiseScore: { [topic: string]: { correct: number; total: number } } = {};
-
     test.questions.forEach(question => {
-      // Initialize topic tracking
       if (!topicWiseScore[question.topic]) {
         topicWiseScore[question.topic] = { correct: 0, total: 0 };
       }
       topicWiseScore[question.topic].total++;
-
-      // Check answer
       const studentAnswer = answers.find(a => a.questionId === question.id);
-      
-      if (studentAnswer === undefined || studentAnswer.selectedOption < 0) {
-        unansweredQuestions++;
-      } else if (studentAnswer.selectedOption === question.correctAnswer) {
-        correctAnswers++;
+      if (
+        studentAnswer !== undefined &&
+        studentAnswer.selectedOption >= 0 &&
+        studentAnswer.selectedOption === question.correctAnswer
+      ) {
         topicWiseScore[question.topic].correct++;
-      } else {
-        incorrectAnswers++;
       }
     });
 
-    const percentage = Math.round((correctAnswers / test.questions.length) * 100);
+    const percentage = scored.percentage;
     const timeTaken = ((test.duration || test.timeLimit || 90) * 60) - examTimer.timeRemaining;
 
     return {
       testId: test.id,
       studentName,
       answers,
-      score: correctAnswers,
+      score: scored.score,
+      totalMarks: scored.totalMarks,
       totalQuestions: test.questions.length,
-      correctAnswers,
-      incorrectAnswers,
-      unansweredQuestions,
+      correctAnswers: scored.correctAnswers,
+      incorrectAnswers: scored.incorrectAnswers,
+      unansweredQuestions: scored.unansweredQuestions,
       percentage,
       timeTaken,
       completedAt: new Date(),
@@ -697,6 +721,39 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
           />
         ) : null;
 
+      case 'expired':
+        return test ? (
+          <div className="test-expired-screen" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="test-expired-content" style={{ textAlign: 'center', maxWidth: 480, padding: 32 }}>
+              <div className="expired-icon" style={{ fontSize: 48, marginBottom: 16 }}><Clock size={48} /></div>
+              <h1 className="expired-title">Test Expired</h1>
+              <p className="expired-subtitle">
+                Sorry, the window for this test has closed. This test is no longer accessible and cannot be taken.
+              </p>
+              {test.endTime ? (
+                <p className="expired-time" style={{ fontSize: 14, color: '#64748b', marginTop: 8 }}>
+                  Ended on {new Date(test.endTime).toLocaleString()}
+                </p>
+              ) : null}
+              <button
+                onClick={() => { window.location.href = '/'; }}
+                className="btn-secondary"
+                style={{ marginTop: 16 }}
+              >
+                Back to Home
+              </button>
+            </div>
+          </div>
+        ) : (
+          <ErrorScreen
+            title="Exam Unavailable"
+            message={error || "The requested exam could not be loaded."}
+            onRetry={handleRetry}
+            onGoHome={() => {
+              window.location.href = '/';
+            }}
+          />
+        );
       case 'invalid':
       default:
         return (

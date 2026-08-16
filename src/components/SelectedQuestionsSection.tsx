@@ -18,6 +18,7 @@ import {
   Trash2,
   Download
 } from 'lucide-react';
+import { QuestionImage } from './QuestionImage';
 import type { Question } from '../types/exam.types';
 import './CreateTest.css';
 
@@ -107,6 +108,15 @@ export const SelectedQuestionsSection: React.FC<SelectedQuestionsSectionProps> =
   const removeQuestion = (questionId: string) => {
     setSelectedQuestions(prev => prev.filter(q => q.id !== questionId));
     setSelectedForAction(prev => prev.filter(id => id !== questionId));
+  };
+
+  // Per-question marks live on the test instance (tests.questions JSONB),
+  // never on the shared question bank. Mutating the in-memory Question[] here
+  // flows through to createTest, which persists marks per question at creation.
+  const updateQuestionMarks = (questionId: string, marks: number, negativeMarks: number) => {
+    setSelectedQuestions(prev =>
+      prev.map(q => (q.id === questionId ? { ...q, marks, negativeMarks } : q))
+    );
   };
 
   // Remove multiple questions
@@ -255,6 +265,10 @@ export const SelectedQuestionsSection: React.FC<SelectedQuestionsSectionProps> =
             <div className="stat-chip warning">
               <Target className="stat-icon" />
               {Object.keys(stats.bySubject).length} subjects
+            </div>
+            <div className="stat-chip accent">
+              <Star className="stat-icon" />
+              {selectedQuestions.reduce((sum, q) => sum + (q.marks ?? 1), 0)} total marks
             </div>
           </div>
         </div>
@@ -449,7 +463,31 @@ export const SelectedQuestionsSection: React.FC<SelectedQuestionsSectionProps> =
                           </div>
                           
                           <div className="card-content">
-                            <p className="question-text">{question.text}</p>
+                            <QuestionImage question={question} maxHeight={130} />
+<p className="question-text">{question.text}</p>
+                            <div className="marks-editor">
+                              <label className="marks-field">
+                                <span className="marks-label">Marks</span>
+                                <input
+                                  className="marks-input"
+                                  type="number"
+                                  min={0}
+                                  value={question.marks ?? 1}
+                                  onChange={(e) => updateQuestionMarks(question.id, Math.max(0, Number(e.target.value) || 1), question.negativeMarks ?? 0)}
+                                />
+                              </label>
+                              <label className="marks-field">
+                                <span className="marks-label">Neg. Marks</span>
+                                <input
+                                  className="marks-input"
+                                  type="number"
+                                  min={0}
+                                  step={0.5}
+                                  value={question.negativeMarks ?? 0}
+                                  onChange={(e) => updateQuestionMarks(question.id, question.marks ?? 1, Math.max(0, Number(e.target.value) || 0))}
+                                />
+                              </label>
+                            </div>
                             
                             {(viewMode !== 'compact' || showPreview) && (
                               <div className="options-container">
