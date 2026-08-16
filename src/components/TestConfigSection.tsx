@@ -24,6 +24,8 @@ interface TestConfigSectionProps {
   setStartDate: (date: string) => void;
   startTime: string;
   setStartTime: (time: string) => void;
+  endTime: string;
+  setEndTime: (value: string) => void;
   duration: number;
   setDuration: (duration: number) => void;
   randomizeQuestions: boolean;
@@ -48,6 +50,8 @@ export const TestConfigSection: React.FC<TestConfigSectionProps> = ({
   setStartDate,
   startTime,
   setStartTime,
+  endTime,
+  setEndTime,
   duration,
   setDuration,
   randomizeQuestions,
@@ -261,6 +265,22 @@ export const TestConfigSection: React.FC<TestConfigSectionProps> = ({
                   className="field-input"
                   required
                 />
+              </div>
+
+              <div className="form-field">
+                <label className="field-label">
+                  <Clock className="label-icon" />
+                  End Date & Time
+                </label>
+                <input
+                  type="datetime-local"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="field-input"
+                />
+                <div className="field-hint">
+                  When set, students cannot access this test after this time.
+                </div>
               </div>
 
               <div className="form-field">

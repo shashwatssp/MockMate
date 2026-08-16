@@ -9,14 +9,12 @@ import {
   Users, 
   Clock, 
   Calendar,
-  TrendingUp,
   Eye,
   Share2,
   MoreVertical,
   Search,
   Filter,
   BarChart3,
-  Award,
   CheckCircle,
   AlertCircle,
   Activity,
@@ -24,7 +22,8 @@ import {
   Zap,
   Loader2,
   LayoutGrid,
-  List
+  List,
+  ListPlus
 } from 'lucide-react';
 import type { Test, TestResult } from '../types/exam.types';
 import { TestInsightsModal } from './TestInsightsModal';
@@ -32,11 +31,12 @@ import './Dashboard.css';
 
 interface DashboardProps {
   onCreateTest: () => void;
+  onCreateQuestion: () => void;
   onLogout: () => void;
   tests: Test[]; // This will be replaced by fetched data
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQuestion, onLogout }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [copiedTestId, setCopiedTestId] = useState<string | null>(null);
@@ -91,6 +91,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
         title: test.name, // Using name as title
         questions: test.questions || [],
         settings: test.settings,
+        endTime: test.end_date ? new Date(test.end_date) : undefined,
         createdAt: new Date(test.created_at),
         duration: test.duration ?? test.time_limit,
         timeLimit: test.duration ?? test.time_limit,
@@ -243,6 +244,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
     return `${diffInWeeks}w ago`;
   };
 
+  const recentTests = tests.filter(test => 
+    (new Date().getTime() - test.createdAt.getTime()) < (7 * 24 * 60 * 60 * 1000)
+  ).length;
+
   const filteredTests = tests.filter(test => {
     const matchesSearch = (test.name || test.title || '').toLowerCase().includes(searchQuery.toLowerCase());
     if (selectedFilter === 'all') return matchesSearch;
@@ -252,13 +257,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
     }
     return matchesSearch;
   });
-
-  const averageQuestions = tests.length > 0
-    ? Math.round(tests.reduce((sum, test) => sum + test.questions.length, 0) / tests.length)
-    : 0;
-  const recentTests = tests.filter(test => 
-    (new Date().getTime() - test.createdAt.getTime()) < (7 * 24 * 60 * 60 * 1000)
-  ).length;
 
   // Handle loading state
   if (loading) {
@@ -312,6 +310,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
               <button onClick={onCreateTest} className="create-btn" aria-label="Create test">
                 <Plus className="btn-icon" />
                 <span className="btn-text">Create Test</span>
+              </button>
+              
+              <button onClick={onCreateQuestion} className="create-btn secondary" aria-label="Create question">
+                <ListPlus className="btn-icon" />
+                <span className="btn-text">Create Question</span>
               </button>
               
               <button onClick={onLogout} className="logout-btn" aria-label="Log out">
@@ -376,77 +379,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
           </div>
         </section>
 
-        {/* Stats Dashboard - Now with real data */}
-        <section className={`stats-section ${isLoaded ? 'loaded' : ''}`}>
-          <div className="stats-grid">
-            <div className="stat-card primary">
-              <div className="stat-header">
-                <div className="stat-icon-wrapper primary">
-                  <BookOpen className="stat-icon" />
-                </div>
-                <div className="stat-trend positive">
-                  <TrendingUp className="trend-icon" />
-                  <span>Live</span>
-                </div>
-              </div>
-              <div className="stat-content">
-                <div className="stat-number">{tests.length}</div>
-                <div className="stat-label">Total Tests</div>
-                <div className="stat-sublabel">All time created</div>
-              </div>
-            </div>
-            
-            <div className="stat-card success">
-              <div className="stat-header">
-                <div className="stat-icon-wrapper success">
-                  <Users className="stat-icon" />
-                </div>
-                <div className="stat-badge">Active</div>
-              </div>
-              <div className="stat-content">
-                <div className="stat-number">{averageQuestions}</div>
-                <div className="stat-label">Avg Questions</div>
-                <div className="stat-sublabel">Per test</div>
-              </div>
-            </div>
-            
-            <div className="stat-card warning">
-              <div className="stat-header">
-                <div className="stat-icon-wrapper warning">
-                  <Activity className="stat-icon" />
-                </div>
-                <div className="stat-indicator">
-                  <div className="indicator-dot active"></div>
-                  <span>Live</span>
-                </div>
-              </div>
-              <div className="stat-content">
-                <div className="stat-number">{recentTests}</div>
-                <div className="stat-label">Recent Tests</div>
-                <div className="stat-sublabel">Last 7 days</div>
-              </div>
-            </div>
-            
-            <div className="stat-card info">
-              <div className="stat-header">
-                <div className="stat-icon-wrapper info">
-                  <Award className="stat-icon" />
-                </div>
-                <div className="stat-status">
-                  <CheckCircle className="status-icon" />
-                  <span>Ready</span>
-                </div>
-              </div>
-              <div className="stat-content">
-                <div className="stat-number">{tests.length > 0 ? '100%' : '0%'}</div>
-                <div className="stat-label">Active Rate</div>
-                <div className="stat-sublabel">Tests ready</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Tests Section - Now with real data */}
+        {/* Tests Section */}
         <section className={`tests-section ${isLoaded ? 'loaded' : ''}`}>
           <div className="tests-header">
             <div className="tests-title-area">
@@ -523,20 +456,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
                   It only takes a few minutes to set up.
                 </p>
                 
-                <div className="empty-features">
-                  <div className="feature-item">
-                    <CheckCircle className="feature-icon" />
-                    <span>Easy question selection</span>
-                  </div>
-                  <div className="feature-item">
-                    <CheckCircle className="feature-icon" />
-                    <span>Instant sharing</span>
-                  </div>
-                  <div className="feature-item">
-                    <CheckCircle className="feature-icon" />
-                    <span>Real-time results</span>
-                  </div>
-                </div>
                 
                 <button onClick={onCreateTest} className="empty-cta">
                   <Plus className="cta-icon" />
@@ -564,6 +483,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
                         <th scope="row">
                           <span className="table-test-name">{test.name || test.title}</span>
                           <span className="table-test-key">{test.testKey}</span>
+                          {test.endTime && new Date(test.endTime).getTime() < Date.now() ? (
+                            <span style={{marginLeft: 8, padding: '2px 8px', fontSize: '11px', fontWeight: 700, color: '#b91c1c', background: '#fee2e2', borderRadius: 4}}>Expired</span>
+                          ) : null}
                         </th>
                         <td>{formatDateOnly(test.createdAt)}</td>
                         <td>{formatDateOnly(test.startDate)}</td>
@@ -658,9 +580,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
                       <div className="stat-icon-small status">
                         <Activity className="stat-icon-xs" />
                       </div>
-                      <span className="stat-text status-active">
-                        Active
-                      </span>
+                      {test.endTime && new Date(test.endTime).getTime() < Date.now() ? (
+                        <span className="stat-text status-expired" style={{color: '#b91c1c', fontWeight: 700}}>
+                          Expired
+                        </span>
+                      ) : (
+                        <span className="stat-text status-active">
+                          Active
+                        </span>
+                      )}
                     </div>
                   </div>
                   

@@ -84,6 +84,7 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onCre
   const [showCorrectAnswers, setShowCorrectAnswers] = useState(true);
   const [startDate, setStartDate] = useState('');
   const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [duration, setDuration] = useState(90);
   
   // Question storage state
@@ -579,6 +580,7 @@ const applyVoiceData = async (data: VoiceData) => {
         description: testDescription.trim(),
         questions: randomizeQuestions ? shuffleArray([...selectedQuestions]) : selectedQuestions,
         startDate: new Date(`${startDate}T${startTime}`),
+        endTime: endTime ? new Date(endTime) : undefined,
         duration,
         timeLimit: duration,
         settings: {
@@ -765,6 +767,8 @@ const applyVoiceData = async (data: VoiceData) => {
               setStartDate={setStartDate}
               startTime={startTime}
               setStartTime={setStartTime}
+              endTime={endTime}
+              setEndTime={setEndTime}
               duration={duration}
               setDuration={setDuration}
               randomizeQuestions={randomizeQuestions}
