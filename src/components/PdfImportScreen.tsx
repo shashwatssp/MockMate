@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FileText, Upload, RefreshCw, AlertCircle, ArrowLeft } from 'lucide-react';
 import PdfImportReview from './PdfImportReview';
-import { extractQuestionsFromFile } from '../lib/pdfExtract';
+import { extractQuestionsFromFile, extractQuestionsFromImage } from '../lib/pdfExtract';
 import type { PdfExtractResult } from '../lib/pdfExtract';
 import './PdfImport.css';
 
@@ -29,8 +29,10 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
   const [extractError, setExtractError] = useState<string | null>(null);
 
   const validate = (f: File): string | null => {
-    if (!f.name.toLowerCase().endsWith('.pdf')) return 'Please select a PDF file.';
-    if (f.size === 0) return 'The selected PDF is empty.';
+    const isPdf = f.name.toLowerCase().endsWith('.pdf');
+    const isImage = f.type.startsWith('image/');
+    if (!isPdf && !isImage) return 'Please select a PDF or image file.';
+    if (f.size === 0) return 'The selected file is empty.';
     if (f.size > MAX_BYTES) return `File is too large (max ${MAX_BYTES / 1024 / 1024} MB).`;
     return null;
   };
@@ -49,7 +51,9 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
   const runExtract = async (f: File) => {
     setStep('extracting');
     try {
-      const r = await extractQuestionsFromFile(f);
+      const r = f.type.startsWith('image/')
+        ? await extractQuestionsFromImage(f)
+        : await extractQuestionsFromFile(f);
       setResult(r);
       setStep('review');
     } catch (e: unknown) {
@@ -76,7 +80,7 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
             onComplete={() => {
               const accepted = result.questions.length; // rough count until review marks them
               alert(
-                `PDF import complete! ${accepted} question(s) processed. Accepted questions are now in your question bank.`,
+                `Import complete! ${accepted} question(s) processed. Accepted questions are now in your question bank.`,
               );
               onBack();
             }}
@@ -93,7 +97,7 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
       </button>
 
       <div className="pdf-import-card">
-        <h1 className="pdf-import-title">Import questions from PDF</h1>
+<h1 className="pdf-import-title">Import questions from PDFs, images</h1>
         <p className="pdf-import-subtitle">
           Upload a hand-written, scanned or typed question paper. Questions are
           extracted on-device (no internet credits used) and presented one by one
@@ -132,13 +136,13 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
             {file ? (
               <strong>{file.name}</strong>
             ) : (
-              <span>Drop a PDF here, or click to browse</span>
+            <span>Drop a PDF or image here, or click to browse</span>
             )}
           </div>
           <input
             id="pdf-file-input"
             type="file"
-            accept="application/pdf"
+            accept="application/pdf,image/*"
             onChange={e => {
               const f = e.target.files?.[0];
               if (f) handleFile(f);
@@ -153,7 +157,7 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
                 document.getElementById('pdf-file-input')?.click();
               }}
             >
-              <Upload size={16} /> Choose PDF
+              <Upload size={16} /> Choose PDF or image
             </button>
           )}
         </div>

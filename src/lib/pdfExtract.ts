@@ -428,3 +428,46 @@ export async function extractQuestionsFromArrayBuffer(
 
   return { questions, pageCount: totalPages, pageImages, errors };
 }
+
+/**
+ * Extract questions from a plain image (PNG/JPG/…) using the *same*
+ * band-split → crop → image-backed-question pipeline as a scanned PDF
+ * page. A bare image has no selectable text, so it always takes the
+ * image-backed path (whole-page / band crops, optionally completed with
+ * the on-device OCR toggle in the review screen). No new dependencies:
+ * the canvas analysis helpers above operate on any HTMLCanvasElement.
+ */
+export async function extractQuestionsFromImage(file: File): Promise<PdfExtractResult> {
+  // createImageBitmap decodes off the main thread and gives us natural pixels
+  // so band math (whitespace gaps, ink density) matches the PDF path. A File is a
+  // Blob, which createImageBitmap accepts directly — no need to materialize the
+  // full ArrayBuffer on the main thread.
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    bitmap.close();
+    throw new Error('Canvas unavailable for image extraction.');
+  }
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+
+  const pageImage = canvasToDataUrl(canvas);
+  const pageImages: string[] = [pageImage];
+
+  // No selectable text → fall back to whitespace band-splitting.
+  const bands = splitCanvasIntoBands(canvas);
+  const imageBands = bands.length
+    ? bands
+    : [{ xMin: 0, yMin: 0, xMax: canvas.width, yMax: canvas.height }];
+
+  const questions: ExtractedQuestion[] = [];
+  for (const band of imageBands) {
+    const cropped = await cropCanvas(canvas, band);
+    questions.push(buildImageQuestion(1, '', cropped.dataURL, cropped.blob));
+  }
+
+  return { questions, pageCount: 1, pageImages, errors: [] };
+}
