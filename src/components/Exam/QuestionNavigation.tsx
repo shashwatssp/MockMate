@@ -155,7 +155,7 @@ const QuestionNavigation = (props: QuestionNavigationProps) => {
   }
 
   return (
-    <aside className={className} aria-label="Question navigation">
+    <aside id="question-navigation" className={className} aria-label="Question navigation">
       <nav
         className="question-nav"
         aria-label="Questions"

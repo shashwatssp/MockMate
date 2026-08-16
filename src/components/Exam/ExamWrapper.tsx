@@ -7,8 +7,8 @@ import { LoadingScreen } from './LoadingScreen';
 import { ErrorScreen } from './ErrorScreen';
 import { useExamState } from '../../hooks/useExamState';
 import { useExamTimer } from '../../hooks/useExamTimer';
-import { getTestByKey, saveTestResult } from '../../lib/database'; // Import your database functions
-import type { Test, ExamSession, TestResult } from '../../types/exam.types';
+import { getTestByKey, hasStudentTakenTest, saveTestResult } from '../../lib/database'; // Import your database functions
+import type { Test, ExamSession, TestResult, StudentAnswer } from '../../types/exam.types';
 import { Clock, Shield, RefreshCw } from 'lucide-react';
 import './styles.css';
 
@@ -24,6 +24,7 @@ type PersistedExamSnapshot = {
   test: Test;
   studentName: string;
   startTime: string;
+  isPracticeMode?: boolean;
   state?: {
     currentQuestionIndex: number;
     answers: ExamSession['state']['answers'];
@@ -39,6 +40,11 @@ type PersistedExamSnapshot = {
 
 const getExamSnapshotKey = (testCode?: string) =>
   testCode ? `mockmate.exam.${testCode.toUpperCase()}` : '';
+
+const getAttemptMarkerKey = (testCode: string | undefined, studentName: string) =>
+  testCode
+    ? `mockmate.completed.${testCode.toUpperCase()}.${studentName.trim().toLocaleLowerCase()}`
+    : '';
 
 const readExamSnapshot = (testCode?: string): PersistedExamSnapshot | null => {
   const key = getExamSnapshotKey(testCode);
@@ -85,6 +91,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
   const [studentName, setStudentName] = useState<string>('');
   const [examSession, setExamSession] = useState<ExamSession | null>(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [isPracticeMode, setIsPracticeMode] = useState(false);
   const [error, setError] = useState<string>('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -94,6 +101,12 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
   const submittingRef = useRef(false);
   const autoSubmittedRef = useRef(false);
   const deadlineRef = useRef<number | null>(null);
+
+  const isMobileDevice = () =>
+    typeof window !== 'undefined' &&
+    (window.matchMedia('(max-width: 768px)').matches ||
+      navigator.maxTouchPoints > 0 ||
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
 
   const navigateToPhase = useCallback((phase: 'entry' | 'active' | 'results') => {
     setCurrentPhase(phase);
@@ -120,6 +133,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
         isTestActive: true,
         hasTestEnded: false
       };
+
     }
 
     const testStart = new Date(test.startDate);
@@ -184,8 +198,9 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
 
       const saved = readExamSnapshot(code);
       if (saved && saved.test?.id === testData.id) {
-        if (saved.phase === 'results' && saved.result) {
+        if (saved.phase === 'results' && saved.result && location.pathname.endsWith('/results')) {
           setStudentName(saved.studentName);
+          setIsPracticeMode(saved.result.isPractice ?? false);
           setTestResult({
             ...saved.result,
             completedAt: new Date(saved.result.completedAt),
@@ -218,6 +233,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
               },
             };
             setStudentName(saved.studentName);
+            setIsPracticeMode(saved.isPracticeMode ?? false);
             setExamSession(restoredSession);
             examState.initialize(restoredSession.state);
             examTimer.start(remaining);
@@ -285,11 +301,17 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
   // Handle fullscreen mode
   const enterFullscreen = async () => {
     try {
+      // Mobile browsers show a native fullscreen-exit banner that can cover
+      // the fixed exam controls. Keep mobile in normal browser layout.
+      if (isMobileDevice()) {
+        setIsFullscreen(false);
+        return;
+      }
       if (document.documentElement.requestFullscreen) {
         await document.documentElement.requestFullscreen();
         setIsFullscreen(true);
       }
-    } catch (err) {
+    } catch {
       console.warn('Fullscreen not supported or denied');
     }
   };
@@ -300,7 +322,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
         await document.exitFullscreen();
         setIsFullscreen(false);
       }
-    } catch (err) {
+    } catch {
       console.warn('Failed to exit fullscreen');
     }
   };
@@ -330,6 +352,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
       phase: 'active',
       test,
       studentName: examSession.studentName,
+      isPracticeMode,
       startTime: examSession.startTime.toISOString(),
       deadline: deadlineRef.current,
       state: {
@@ -352,6 +375,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
     examState.reviewMode,
     examState.visitedQuestions,
     examTimer.timeRemaining,
+    isPracticeMode,
     test,
     testCode,
   ]);
@@ -374,6 +398,13 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
 
     try {
       setStudentName(name.trim());
+      const attemptMarker = getAttemptMarkerKey(testCode, name);
+      const practiceMode = Boolean(
+        (attemptMarker && window.localStorage.getItem(attemptMarker)) ||
+        await hasStudentTakenTest(test.id, name)
+      );
+      setIsPracticeMode(practiceMode);
+      setTestResult(null);
       
       // Initialize exam session
       const session: ExamSession = {
@@ -383,7 +414,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
         state: {
           currentQuestionIndex: 0,
           answers: [],
-          timeRemaining: test.duration * 60, // Convert to seconds (duration is the exam length in minutes)
+          timeRemaining: (test.duration || test.timeLimit || 90) * 60,
           isSubmitted: false,
           bookmarkedQuestions: new Set(),
           visitedQuestions: new Set([test.questions[0]?.id].filter(Boolean)),
@@ -405,6 +436,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
         phase: 'active',
         test,
         studentName: session.studentName,
+        isPracticeMode: practiceMode,
         startTime: session.startTime.toISOString(),
         deadline: deadlineRef.current,
         state: {
@@ -418,13 +450,13 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
       await enterFullscreen();
       
       navigateToPhase('active');
-    } catch (err) {
+    } catch {
       setError('Failed to start exam. Please try again.');
     }
   };
 
   // Handle exam submission
-  const handleExamSubmission = async (finalAnswers: any[]) => {
+  const handleExamSubmission = async (finalAnswers: StudentAnswer[]) => {
     if (!test || !examSession) return;
     if (submittingRef.current) return;
     submittingRef.current = true;
@@ -435,19 +467,27 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
       // Calculate results
       const result = calculateResults(test, finalAnswers, studentName);
       
-      // Save result to database
-      const savedResult = await saveTestResult({
-        testId: test.id,
-        studentName: studentName.trim(),
-        answers: finalAnswers,
-        score: result.correctAnswers,
-        totalQuestions: test.questions.length
-      });
-      
       const finalResult = {
         ...result,
-        completedAt: new Date(savedResult.completed_at)
+        isPractice: isPracticeMode,
+        completedAt: result.completedAt
       };
+
+      if (!isPracticeMode) {
+        const savedResult = await saveTestResult({
+          testId: test.id,
+          studentName: studentName.trim(),
+          answers: finalAnswers,
+          score: result.correctAnswers,
+          totalQuestions: test.questions.length,
+          timeTaken: result.timeTaken
+        });
+        finalResult.completedAt = new Date(savedResult.completed_at);
+        const attemptMarker = getAttemptMarkerKey(testCode, studentName);
+        if (attemptMarker) {
+          window.localStorage.setItem(attemptMarker, '1');
+        }
+      }
       
       setTestResult(finalResult);
       examTimer.stop();
@@ -466,8 +506,8 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
   };
 
   // Single, guarded no-arg entry point for manual + auto submission.
-  const submitExam = useCallback(() => {
-    void handleExamSubmission(examState.answers);
+  const submitExam = useCallback((finalAnswers?: StudentAnswer[]) => {
+    void handleExamSubmission(finalAnswers || examState.answers);
   }, [examState.answers]);
 
   // Handle exam timeout - single auto-submit owner, guarded against re-fire.
@@ -483,7 +523,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
   }, [examTimer.timeRemaining, currentPhase, examState.answers]);
 
   // Calculate exam results
-  const calculateResults = (test: Test, answers: any[], studentName: string): TestResult => {
+  const calculateResults = (test: Test, answers: StudentAnswer[], studentName: string): TestResult => {
     let correctAnswers = 0;
     let incorrectAnswers = 0;
     let unansweredQuestions = 0;
@@ -500,7 +540,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
       // Check answer
       const studentAnswer = answers.find(a => a.questionId === question.id);
       
-      if (studentAnswer === undefined) {
+      if (studentAnswer === undefined || studentAnswer.selectedOption < 0) {
         unansweredQuestions++;
       } else if (studentAnswer.selectedOption === question.correctAnswer) {
         correctAnswers++;
@@ -511,7 +551,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
     });
 
     const percentage = Math.round((correctAnswers / test.questions.length) * 100);
-    const timeTaken = (test.duration * 60) - examTimer.timeRemaining;
+    const timeTaken = ((test.duration || test.timeLimit || 90) * 60) - examTimer.timeRemaining;
 
     return {
       testId: test.id,
@@ -629,6 +669,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
             examState={examState}
             examTimer={examTimer}
             onSubmitExam={submitExam}
+            isPracticeMode={isPracticeMode}
             onError={(error) => {
               setError(error);
             }}
@@ -646,6 +687,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
               window.localStorage.removeItem(getExamSnapshotKey(testCode));
               deadlineRef.current = null;
               autoSubmittedRef.current = false;
+              setIsPracticeMode(false);
               navigateToPhase('entry');
               setTestResult(null);
               setExamSession(null);

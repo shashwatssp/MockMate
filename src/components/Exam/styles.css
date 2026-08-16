@@ -7,6 +7,20 @@
   box-sizing: border-box;
 }
 
+.practice-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid #f8d27a;
+  border-radius: 999px;
+  background: #fff8e1;
+  color: #8a5a00;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 
 #root {
   height: 100%;
@@ -1189,6 +1203,51 @@
 
 /* Mobile Styles */
 @media (max-width: 768px) {
+  :root {
+    --exam-mobile-header-height: 68px;
+  }
+
+  .exam-active-screen {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .exam-content {
+    height: auto;
+    min-height: calc(100dvh - var(--exam-mobile-header-height));
+    overflow: visible;
+  }
+
+  .exam-main {
+    min-height: calc(100dvh - var(--exam-mobile-header-height));
+    overflow: visible;
+  }
+
+  .exam-sidebar {
+    top: var(--exam-mobile-header-height);
+    height: calc(100dvh - var(--exam-mobile-header-height));
+    max-height: calc(100dvh - var(--exam-mobile-header-height));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .question-nav {
+    min-height: 100%;
+    padding-bottom: calc(32px + env(safe-area-inset-bottom));
+  }
+
+  .sidebar-overlay {
+    top: var(--exam-mobile-header-height);
+  }
+
+  .exam-controls-below {
+    position: sticky;
+    bottom: 0;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    box-shadow: 0 -6px 18px rgba(24, 47, 87, 0.1);
+  }
   :root {
     --header-height: 60px;
     --sidebar-width: 100%;
@@ -2495,8 +2554,47 @@
 @media (max-width: 768px) {
   .exam-active-screen {
     height: auto;
-    min-height: 100vh;
+    min-height: 100dvh;
     overflow: visible;
+  }
+
+  .exam-content {
+    height: auto;
+    min-height: calc(100dvh - var(--exam-mobile-header-height));
+    overflow: visible;
+  }
+
+  .exam-main {
+    min-height: calc(100dvh - var(--exam-mobile-header-height));
+    overflow: visible;
+  }
+
+  .exam-sidebar {
+    top: var(--exam-mobile-header-height);
+    height: calc(100dvh - var(--exam-mobile-header-height));
+    max-height: calc(100dvh - var(--exam-mobile-header-height));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .question-nav {
+    min-height: 100%;
+    padding-bottom: calc(32px + env(safe-area-inset-bottom));
+  }
+
+  .sidebar-overlay {
+    top: var(--exam-mobile-header-height);
+  }
+
+  .exam-controls-below {
+    position: sticky;
+    bottom: 0;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    box-shadow: 0 -6px 18px rgba(24, 47, 87, 0.1);
+  }
+  .fullscreen-toggle {
+    display: inline-flex !important;
   }
 
   .exam-header {
@@ -2540,15 +2638,6 @@
     font-size: 14px;
   }
 
-  .exam-content {
-    height: auto;
-    min-height: calc(100vh - 68px);
-    overflow: visible;
-  }
-
-  .exam-main {
-    min-height: calc(100vh - 68px);
-  }
 
   .exam-sidebar {
     flex-basis: auto;
@@ -2595,7 +2684,9 @@
   .exam-controls-below {
     align-items: stretch;
     flex-direction: column;
-    padding: 12px 16px 18px;
+    padding: 12px 16px calc(18px + env(safe-area-inset-bottom));
+    position: relative;
+    z-index: 2;
   }
 
   .exam-controls-below .control-group {
@@ -2768,6 +2859,26 @@
   margin-top: 28px;
 }
 
+.practice-mode-notice {
+  margin: 18px auto 0;
+  max-width: 720px;
+  padding: 12px 16px;
+  border: 1px solid #f8d27a;
+  border-radius: 10px;
+  background: #fff8e1;
+  color: #8a5a00;
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.results-action-message {
+  margin: 12px 0 0;
+  color: var(--primary-blue);
+  font-size: 14px;
+  text-align: center;
+}
+
 .results-actions .btn {
   min-height: 44px;
   justify-content: center;
@@ -2874,5 +2985,250 @@
 
   .question-btn {
     height: 40px;
+  }
+}
+
+/* ===== Registration opens soon ===== */
+.too-early-screen {
+  position: relative;
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  overflow: hidden;
+  padding: clamp(24px, 5vw, 64px) 20px;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(125, 211, 252, 0.24), transparent 34%),
+    radial-gradient(circle at 88% 90%, rgba(129, 140, 248, 0.3), transparent 38%),
+    linear-gradient(135deg, #0f1f47 0%, #183a78 52%, #24549a 100%);
+}
+
+.too-early-screen::before,
+.too-early-screen::after {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 50%;
+  content: '';
+  pointer-events: none;
+}
+
+.too-early-screen::before {
+  width: min(58vw, 620px);
+  aspect-ratio: 1;
+  top: -28%;
+  right: -14%;
+}
+
+.too-early-screen::after {
+  width: min(48vw, 500px);
+  aspect-ratio: 1;
+  bottom: -30%;
+  left: -16%;
+}
+
+.too-early-content {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 720px);
+  padding: clamp(28px, 5vw, 54px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 28px 70px rgba(5, 15, 45, 0.32);
+  text-align: center;
+  animation: registrationCardIn 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes registrationCardIn {
+  from { opacity: 0; transform: translateY(18px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.clock-animation {
+  display: grid;
+  width: 72px;
+  height: 72px;
+  place-items: center;
+  margin: 0 auto 22px;
+  border: 8px solid #dbeafe;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #2563eb, #4f46e5);
+  color: #fff;
+  box-shadow: 0 10px 26px rgba(37, 99, 235, 0.28);
+}
+
+.clock-animation svg {
+  width: 32px;
+  height: 32px;
+  animation: clockFloat 2.8s ease-in-out infinite;
+}
+
+@keyframes clockFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+.too-early-title {
+  margin: 0;
+  color: #142445;
+  font-size: clamp(26px, 4vw, 40px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+}
+
+.too-early-subtitle {
+  max-width: 500px;
+  margin: 14px auto 0;
+  color: #64748b;
+  font-size: clamp(14px, 2vw, 17px);
+  line-height: 1.6;
+}
+
+.too-early-subtitle strong {
+  color: #2452a0;
+  font-weight: 750;
+}
+
+.time-display {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 32px 0 24px;
+}
+
+.time-card {
+  padding: 18px 14px;
+  border: 1px solid #dbe5f4;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #f8fbff, #eef4ff);
+}
+
+.time-label {
+  color: #71809a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.time-value {
+  margin-top: 7px;
+  color: #1e3a8a;
+  font-family: 'Courier New', monospace;
+  font-size: clamp(24px, 5vw, 34px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.too-early-content .test-info {
+  margin: 0;
+  padding: 20px;
+  border: 1px solid #e5eaf2;
+  border-radius: 16px;
+  background: #f8fafc;
+  text-align: left;
+}
+
+.too-early-content .test-info h3 {
+  overflow-wrap: anywhere;
+  margin: 0 0 13px;
+  color: #223252;
+  font-size: clamp(16px, 2.5vw, 20px);
+  line-height: 1.35;
+}
+
+.too-early-content .test-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.too-early-content .detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid #dfe7f2;
+  border-radius: 999px;
+  background: #fff;
+  color: #596a84;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.too-early-content .detail svg {
+  width: 15px;
+  height: 15px;
+  color: #3265bd;
+}
+
+.refresh-btn {
+  width: 100%;
+  max-width: 230px;
+  margin-top: 24px;
+  border: 0;
+  border-radius: 12px;
+  background: #edf3ff;
+  color: #234a9b;
+}
+
+.refresh-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  background: #dbeafe;
+  color: #173779;
+}
+
+@media (max-width: 520px) {
+  .too-early-screen {
+    align-items: start;
+    padding: 18px 12px;
+  }
+
+  .too-early-content {
+    margin-top: 3vh;
+    padding: 28px 18px 22px;
+    border-radius: 22px;
+  }
+
+  .clock-animation {
+    width: 62px;
+    height: 62px;
+    margin-bottom: 18px;
+    border-width: 6px;
+  }
+
+  .time-display {
+    gap: 9px;
+    margin-top: 26px;
+  }
+
+  .time-card {
+    padding: 14px 8px;
+  }
+
+  .time-label {
+    font-size: 9px;
+    letter-spacing: 0.03em;
+  }
+
+  .too-early-content .test-details {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .too-early-content .detail {
+    border-radius: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .too-early-content,
+  .clock-animation svg {
+    animation: none;
   }
 }

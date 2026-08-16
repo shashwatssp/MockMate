@@ -23,7 +23,7 @@ import './ExamEntry.css';
 
 interface ExamEntryProps {
   test: Test;
-  onStartExam: (studentName: string) => void;
+  onStartExam: (studentName: string) => void | Promise<void>;
   onError: (error: string) => void;
   timeInfo?: {
     canEnter: boolean;
@@ -139,8 +139,8 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
     try {
       // Simulate validation and setup
       await new Promise(resolve => setTimeout(resolve, 2000));
-      onStartExam(trimmedName);
-    } catch (error) {
+      await onStartExam(trimmedName);
+    } catch {
       onError('Failed to start exam. Please try again.');
     } finally {
       setIsLoading(false);
@@ -165,7 +165,8 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
   };
 
   const calculateDifficulty = () => {
-    const questionsPerMinute = test.questions.length / test.timeLimit;
+    const duration = test.duration || test.timeLimit || 90;
+    const questionsPerMinute = test.questions.length / duration;
     if (questionsPerMinute > 2) return { level: 'Hard', color: 'difficulty-hard' };
     if (questionsPerMinute > 1) return { level: 'Medium', color: 'difficulty-medium' };
     return { level: 'Easy', color: 'difficulty-easy' };
@@ -234,7 +235,7 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
                   <Timer size={20} />
                 </div>
                 <div className="stat-content">
-                  <span className="stat-value">{test.timeLimit}</span>
+                  <span className="stat-value">{test.duration || test.timeLimit}</span>
                   <span className="stat-label">Minutes</span>
                 </div>
               </div>

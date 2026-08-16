@@ -1,5 +1,5 @@
 // ExamInterface.tsx - Single source of truth exam UI with persistent RHW navigator.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Brain, User, BarChart3, Menu, AlertTriangle, X, Minimize2, Maximize2 } from 'lucide-react';
 import QuestionDisplay from './QuestionDisplay';
 import QuestionNavigation from './QuestionNavigation';
@@ -17,8 +17,9 @@ interface ExamInterfaceProps {
   examSession: ExamSession;
   examState: ExamStateHook;
   examTimer: ExamTimerHook;
-  onSubmitExam: () => void;
+  onSubmitExam: (answers?: StudentAnswer[]) => void;
   onError?: (error: string) => void;
+  isPracticeMode?: boolean;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
 }
@@ -29,12 +30,15 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
   examState,
   examTimer,
   onSubmitExam,
+  isPracticeMode = false,
   isFullscreen,
   onToggleFullscreen,
 }) => {
   const questions: Question[] = test.questions;
   const [showSidebar, setShowSidebar] = useState(false);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  const questionStartedAt = useRef(Date.now());
+  const previousQuestionId = useRef<string | undefined>(undefined);
 
   // ---- Single source of truth: everything is read from / written to examState ----
   const currentQuestionIndex = examState.currentQuestionIndex;
@@ -48,6 +52,20 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
   );
   const selectedAnswer = currentAnswer?.selectedOption;
   const isBookmarked = !!currentQuestion && bookmarkedQuestions.has(currentQuestion.id);
+  const { recordTimeSpent } = examState;
+
+  useEffect(() => {
+    const currentQuestionId = currentQuestion?.id;
+    const previousId = previousQuestionId.current;
+    if (previousId && previousId !== currentQuestionId) {
+      recordTimeSpent(
+        previousId,
+        (Date.now() - questionStartedAt.current) / 1000
+      );
+    }
+    previousQuestionId.current = currentQuestionId;
+    questionStartedAt.current = Date.now();
+  }, [currentQuestion?.id, recordTimeSpent]);
 
   const totalQuestions = questions.length;
   const canGoNext = currentQuestionIndex < totalQuestions - 1;
@@ -63,6 +81,13 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
 
   // ---- Answer / navigation handlers delegate to examState ----
   const handleAnswerSelect = (questionId: string, option: number) => {
+    if (questionId === currentQuestion?.id) {
+      examState.recordTimeSpent(
+        questionId,
+        (Date.now() - questionStartedAt.current) / 1000
+      );
+      questionStartedAt.current = Date.now();
+    }
     examState.updateAnswer(questionId, option);
     examState.markVisited(questionId);
   };
@@ -94,7 +119,8 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
     }
   };
 
-  const unansweredCount = totalQuestions - answers.length;
+  const unansweredCount = totalQuestions - answers.filter(answer => answer.selectedOption >= 0).length;
+  const answeredCount = answers.filter(answer => answer.selectedOption >= 0).length;
   const markedCount = bookmarkedQuestions.size;
 
   const handleSidebarSelect = (index: number) => {
@@ -106,11 +132,38 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
   const handleOpenSubmit = () => {
     setSubmitDialogOpen(true);
   };
+  const getAnswersWithCurrentTiming = () => {
+    if (!currentQuestion?.id) return answers;
+
+    const elapsedSeconds = (Date.now() - questionStartedAt.current) / 1000;
+    if (!Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0) return answers;
+
+    const existingAnswer = answers.find(answer => answer.questionId === currentQuestion.id);
+    if (existingAnswer) {
+      return answers.map(answer => (
+        answer.questionId === currentQuestion.id
+          ? { ...answer, timeSpent: (answer.timeSpent || 0) + elapsedSeconds }
+          : answer
+      ));
+    }
+
+    return [
+      ...answers,
+      { questionId: currentQuestion.id, selectedOption: -1, timeSpent: elapsedSeconds }
+    ];
+  };
 
   const handleConfirmSubmit = () => {
     setSubmitDialogOpen(false);
     setShowSidebar(false);
-    onSubmitExam();
+    const finalAnswers = getAnswersWithCurrentTiming();
+    if (currentQuestion?.id) {
+      recordTimeSpent(
+        currentQuestion.id,
+        (Date.now() - questionStartedAt.current) / 1000
+      );
+    }
+    onSubmitExam(finalAnswers);
   };
 
   // Timer warnings surface as an in-screen toast (does NOT submit).
@@ -135,9 +188,14 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
           </div>
 
           <div className="exam-header-right">
+            {isPracticeMode && (
+              <span className="practice-mode-pill" title="This attempt is not stored in teacher statistics">
+                Practice Mode
+              </span>
+            )}
             <TimerDisplay
               timeRemaining={examTimer.timeRemaining}
-              totalTime={test.duration * 60}
+              totalTime={(test.duration || test.timeLimit || 90) * 60}
               onWarning={() => {}}
             />
             <div className="progress-indicator">
@@ -162,7 +220,7 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
 
             <button
               type="button"
-              className="action-btn"
+              className="action-btn fullscreen-toggle"
               onClick={onToggleFullscreen}
               title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
               aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
@@ -280,7 +338,7 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
                 Submit Exam?
               </h2>
               <p className="modal-subtitle">
-                You have answered {answers.length} of {totalQuestions} questions.
+                You have answered {answeredCount} of {totalQuestions} questions.
                 Marked for review: {markedCount}. Unanswered: {unansweredCount}.
               </p>
             </div>
@@ -293,7 +351,7 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
                 <div className="summary-stats">
                   <div className="summary-stat completed">
                     <div className="stat-circle">
-                      <span className="stat-number">{answers.length}</span>
+                      <span className="stat-number">{answeredCount}</span>
                     </div>
                     <div className="stat-label">Answered</div>
                   </div>
