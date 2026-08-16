@@ -79,8 +79,9 @@ export const TestInsightsModal: React.FC<TestInsightsModalProps> = ({
           wrong += 1;
         }
 
-        if (answer && Number.isFinite(answer.timeSpent) && answer.timeSpent > 0) {
-          totalTime += answer.timeSpent;
+        const timeSpent = answer?.timeSpent;
+        if (answer && typeof timeSpent === 'number' && Number.isFinite(timeSpent) && timeSpent > 0) {
+          totalTime += timeSpent;
           timedResponses += 1;
         }
       });
