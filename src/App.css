@@ -1,40 +1,270 @@
-#root {
+#root,
+.App {
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* Legacy component styles use pseudo-element hover treatments. Keep the
+   foreground content above those treatments and preserve readable contrast. */
+.dashboard-wrapper .create-btn:hover,
+.dashboard-wrapper .action-btn.primary:hover,
+.create-test-wrapper .action-btn.primary:hover,
+.landing-wrapper .cta-primary:hover {
+  color: #fff;
+}
+
+.dashboard-wrapper .action-btn.secondary:hover,
+.create-test-wrapper .action-btn.secondary:hover {
+  color: #334155;
+}
+
+.voice-modal button:hover {
+  color: inherit;
+}
+
+/* Cross-screen CSS stability guards. These rules are intentionally scoped so
+   legacy component selectors cannot leak into other views. */
+.exam-app,
+.landing-wrapper,
+.login-wrapper,
+.dashboard-wrapper,
+.create-test-wrapper {
+  max-width: 100%;
+}
+
+.exam-app img,
+.landing-wrapper img,
+.login-wrapper img,
+.dashboard-wrapper img,
+.create-test-wrapper img {
+  max-width: 100%;
+  height: auto;
+}
+
+.exam-app .results-table {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.exam-app .table-header,
+.exam-app .table-row {
+  min-width: 560px;
+}
+
+.voice-modal .modal-content {
+  display: block;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0;
+  box-sizing: border-box;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.voice-modal .instructions-panel,
+.voice-modal .instructions-content,
+.voice-modal .recording-interface,
+.voice-modal .feature-highlight {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+.voice-modal .format-item,
+.voice-modal .instruction-step,
+.voice-modal .feature-highlight {
+  min-width: 0;
+}
+
+/* The exam loader uses a Lucide SVG plus a book icon. Global `.loading-spinner`
+   rules from teacher screens previously styled both elements as competing
+   spinners, causing overlap during phase transitions. */
+.exam-app .loading-screen {
+  min-height: 100dvh;
+  width: 100%;
+  padding: 24px;
+  overflow: hidden;
+  background: #f6f8fc;
+}
+
+.exam-app .loading-content {
+  width: min(100%, 420px);
+  max-width: 420px;
   margin: 0 auto;
+  padding: 28px 24px;
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.exam-app .loading-animation {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 24px;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
+.exam-app .loading-animation .loading-book {
+  position: relative;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  color: #3154b8;
+}
+
+.exam-app .loading-animation .loading-spinner {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 88px !important;
+  height: 88px !important;
+  padding: 0;
+  border: 4px solid #dfe6f2;
+  border-top-color: #3154b8;
+  border-right-color: #7b5ce1;
+  border-radius: 50%;
+  color: transparent;
+  animation: exam-loader-spin 0.9s linear infinite;
+}
+
+.exam-app .loading-title {
+  margin: 0 0 8px;
+  color: #1b2b4b;
+}
+
+.exam-app .loading-subtitle {
+  margin: 0;
+  color: #64748b;
+}
+
+.exam-app .loading-steps {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.exam-app .loading-steps .step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  min-width: 84px;
+  opacity: 0.5;
+}
+
+.exam-app .loading-steps .step.active {
+  opacity: 1;
+}
+
+.exam-app .loading-steps .step-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+
+.exam-app .loading-steps .step.active .step-indicator {
+  background: #3154b8;
+  box-shadow: 0 0 0 5px rgba(49, 84, 184, 0.12);
+}
+
+.exam-app .loading-steps .step span {
+  color: #64748b;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+@keyframes exam-loader-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
+@media (max-width: 768px) {
+  .exam-app .exam-header-content {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .exam-app .exam-content,
+  .exam-app .exam-main {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .exam-app .exam-controls-below {
+    padding-inline: 14px;
+  }
+
+  .exam-app .question-text,
+  .exam-app .option-text {
+    overflow-wrap: anywhere;
+  }
+
+  .dashboard-wrapper .header-content,
+  .dashboard-wrapper .dashboard-main,
+  .create-test-wrapper .header-content,
+  .create-test-wrapper .create-test-main {
+    max-width: 100%;
+  }
+
+  .dashboard-wrapper button,
+  .create-test-wrapper button,
+  .login-wrapper button {
+    min-height: 40px;
+  }
+
+  .voice-modal .modal-header {
+    min-width: 0;
+  }
+
+  .voice-modal .modal-title,
+  .voice-modal .modal-subtitle {
+    overflow-wrap: anywhere;
+  }
+
+  .voice-modal .modal-content {
+    padding-inline: 16px;
+  }
+
+  .exam-app .loading-screen {
+    padding: 16px;
+  }
+
+  .exam-app .loading-content {
+    padding: 24px 16px;
+  }
+
+  .exam-app .loading-steps {
+    gap: 8px;
+  }
+
+  .exam-app .loading-steps .step {
+    min-width: 0;
+    flex: 1;
   }
 }
 
-.card {
-  padding: 2em;
-}
+@media (max-width: 390px) {
+  .exam-app .exam-header {
+    padding-inline: 10px;
+  }
 
-.read-the-docs {
-  color: #888;
+  .exam-app .question-container {
+    padding-inline: 12px;
+  }
+
+  .exam-app .exam-controls-below .control-group:last-child {
+    gap: 6px;
+  }
+
+  .login-wrapper .login-card {
+    padding-inline: 14px;
+  }
+
+  .voice-modal .modal-header,
+  .voice-modal .modal-content {
+    padding-inline: 12px;
+  }
 }

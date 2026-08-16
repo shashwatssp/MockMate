@@ -14,8 +14,6 @@ import {
   TrendingUp
 } from 'lucide-react';
 import './LandingPage.css';
-import populateDatabase from '../scripts/populateQuestions';
-
 
 interface LandingPageProps {
   onLogin: () => void;

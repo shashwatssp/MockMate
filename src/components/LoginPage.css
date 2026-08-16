@@ -1165,3 +1165,178 @@
   display: none; /* Chrome, Safari, Opera */
 }
 
+/* ===== Responsive visual polish ===== */
+.login-wrapper {
+  min-height: 100svh;
+  height: auto;
+  background: transparent;
+}
+
+.login-container {
+  max-width: 1180px;
+  min-height: 100svh;
+  gap: clamp(24px, 5vw, 72px);
+  padding: clamp(72px, 7vw, 96px) 24px 40px;
+}
+
+.login-card {
+  max-width: 470px;
+  padding: clamp(24px, 3vw, 36px);
+  border-radius: 20px;
+}
+
+.brand-container {
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.brand-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+}
+
+.brand-icon .icon {
+  width: 28px;
+  height: 28px;
+}
+
+.brand-title {
+  font-size: clamp(28px, 3vw, 36px);
+}
+
+.welcome-title {
+  font-size: clamp(24px, 2.5vw, 30px);
+}
+
+.welcome-subtitle {
+  font-size: 15px;
+}
+
+.login-header {
+  margin-bottom: 28px;
+}
+
+.security-badge {
+  padding: 8px 14px;
+  border-width: 1px;
+}
+
+.form-group {
+  margin-bottom: 18px;
+}
+
+.form-label {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.form-input {
+  padding: 13px 46px;
+  font-size: 15px;
+  border-width: 1px;
+  border-radius: 10px;
+}
+
+.submit-button {
+  min-height: 48px;
+  padding: 12px 18px;
+  font-size: 16px;
+  border-radius: 10px;
+}
+
+.demo-section {
+  padding: 16px;
+  border-width: 1px;
+  border-radius: 14px;
+}
+
+.features-preview {
+  max-width: 310px;
+  padding: 24px;
+  border-radius: 20px;
+}
+
+.features-title {
+  font-size: 20px;
+  margin-bottom: 22px;
+}
+
+.features-list {
+  gap: 18px;
+}
+
+@media (max-width: 1199px) {
+  .login-container {
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-top: 88px;
+  }
+
+  .features-preview {
+    max-width: 470px;
+    width: 100%;
+  }
+
+  .features-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 768px) {
+  .login-container {
+    gap: 18px;
+    padding: 76px 14px 24px;
+  }
+
+  .back-button {
+    top: 14px;
+    left: 14px;
+  }
+
+  .login-card {
+    padding: 24px 18px;
+  }
+
+  .features-preview {
+    padding: 20px 16px;
+  }
+}
+
+/* Keep field affordances in their own layer so global form styles cannot
+   place icons on top of entered text. */
+.login-wrapper .input-wrapper {
+  position: relative;
+  isolation: isolate;
+}
+
+.login-wrapper .form-input {
+  position: relative;
+  z-index: 1;
+  min-height: 54px;
+  padding: 14px 52px;
+  line-height: 1.35;
+}
+
+.login-wrapper .input-icon {
+  left: 16px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.login-wrapper .password-toggle {
+  right: 10px;
+  z-index: 3;
+  width: 38px;
+  height: 38px;
+  padding: 8px;
+}
+
+@media (max-width: 480px) {
+  .login-wrapper .form-input {
+    min-height: 50px;
+    padding: 12px 46px;
+  }
+}
+

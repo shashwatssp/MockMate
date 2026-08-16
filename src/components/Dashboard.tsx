@@ -22,9 +22,8 @@ import {
   Zap,
   Loader2
 } from 'lucide-react';
-import type { Test } from '../types';
+import type { Test } from '../types/exam.types';
 import './Dashboard.css';
-import populateDatabase from '../scripts/populateQuestions';
 
 interface DashboardProps {
   onCreateTest: () => void;
