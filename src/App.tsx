@@ -15,6 +15,7 @@ import Dashboard from './components/Dashboard';
 import CreateTest from './components/CreateTest';
 import ExamWrapper from './components/Exam/ExamWrapper';
 import type { Test } from './types/exam.types';
+import { signOut } from './lib/auth';
 import './App.css';
 
 const ExamRouteWrapper = () => {
@@ -36,6 +37,16 @@ function TeacherApp({ tests, setTests }: TeacherAppProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const handleLogout = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.warn('Unable to sign out of Supabase:', error);
+    } finally {
+      navigate('/');
+    }
+  };
+
   const handleTestCreated = (test: Test) => {
     setTests(prev => [...prev, test]);
     navigate('/dashboard');
@@ -52,7 +63,7 @@ function TeacherApp({ tests, setTests }: TeacherAppProps) {
       return (
         <Dashboard
           onCreateTest={() => navigate('/create-test')}
-          onLogout={() => navigate('/')}
+          onLogout={handleLogout}
           tests={tests}
         />
       );

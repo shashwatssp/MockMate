@@ -16,13 +16,31 @@ export const useExamState = () => {
     setExamState(initialState);
   }, []);
 
+  const recordTimeSpent = useCallback((questionId: string, seconds: number) => {
+    if (!questionId || !Number.isFinite(seconds) || seconds <= 0) return;
+    setExamState(prev => {
+      const existing = prev.answers.find(answer => answer.questionId === questionId);
+      return {
+        ...prev,
+        answers: existing
+          ? prev.answers.map(answer =>
+              answer.questionId === questionId
+                ? { ...answer, timeSpent: (answer.timeSpent || 0) + seconds }
+                : answer
+            )
+          : [...prev.answers, { questionId, selectedOption: -1, timeSpent: seconds }]
+      };
+    });
+  }, []);
+
   const updateAnswer = useCallback((questionId: string, selectedOption: number) => {
     setExamState(prev => {
       const existingIndex = prev.answers.findIndex(a => a.questionId === questionId);
       const newAnswer: StudentAnswer = {
         questionId,
         selectedOption,
-        isBookmarked: prev.bookmarkedQuestions.has(questionId)
+        isBookmarked: prev.bookmarkedQuestions.has(questionId),
+        timeSpent: existingIndex >= 0 ? prev.answers[existingIndex].timeSpent : undefined
       };
 
       const updatedAnswers = existingIndex >= 0
@@ -99,6 +117,7 @@ export const useExamState = () => {
     setCurrentQuestion,
     toggleBookmark,
     markVisited,
+    recordTimeSpent,
     submitExam,
     reset,
     answers: examState.answers

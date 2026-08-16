@@ -14,6 +14,7 @@ import {
   Copy,
   Info
 } from 'lucide-react';
+import { signInWithEmail, signUpWithEmail } from '../lib/auth';
 import './LoginPage.css';
 
 interface LoginPageProps {
@@ -32,6 +33,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [copiedCredential, setCopiedCredential] = useState<string | null>(null);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [authMessage, setAuthMessage] = useState('');
 
   useEffect(() => {
     setIsVisible(true);
@@ -41,15 +44,37 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    
-    // Simulate authentication delay for better UX
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Check credentials
-    if (credentials.id === '1234' && credentials.password === 'Testing') {
-      onLogin();
-    } else {
-      setError('Invalid credentials. Please check your ID and password.');
+    setAuthMessage('');
+
+    try {
+      if (!isSignUp && credentials.id === '1234' && credentials.password === 'Testing') {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        onLogin();
+        return;
+      }
+
+      if (!credentials.id.includes('@')) {
+        throw new Error('Use an email address for your account.');
+      }
+      if (credentials.password.length < 6) {
+        throw new Error('Password must be at least 6 characters.');
+      }
+
+      if (isSignUp) {
+        const { session } = await signUpWithEmail(credentials.id, credentials.password);
+        if (session) {
+          onLogin();
+        } else {
+          setAuthMessage('Account created. Check your email to confirm it, then sign in.');
+          setIsSignUp(false);
+        }
+      } else {
+        await signInWithEmail(credentials.id, credentials.password);
+        onLogin();
+      }
+    } catch (authError) {
+      setError(authError instanceof Error ? authError.message : 'Authentication failed. Please try again.');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -60,6 +85,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
       [e.target.name]: e.target.value
     });
     setError(''); // Clear error when user types
+    setAuthMessage('');
   };
 
   const copyCredential = async (type: 'id' | 'password', value: string) => {
@@ -79,6 +105,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
       password: 'Testing'
     });
     setError('');
+    setAuthMessage('');
   };
 
   return (
@@ -132,11 +159,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="login-form">
-            {/* Teacher ID Field */}
+            {/* Account Email / Demo Teacher ID Field */}
             <div className="form-group">
               <label htmlFor="id" className="form-label">
                 <User className="label-icon" />
-                Teacher ID
+                {isSignUp ? 'Email Address' : 'Email or Teacher ID'}
               </label>
               <div className={`input-wrapper ${focusedField === 'id' ? 'focused' : ''}`}>
                 <input
@@ -147,7 +174,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
                   onChange={handleChange}
                   onFocus={() => setFocusedField('id')}
                   onBlur={() => setFocusedField(null)}
-                  placeholder="Enter your teacher ID"
+                  placeholder={isSignUp ? 'you@example.com' : 'Email or demo ID'}
                   className="form-input"
                   required
                   disabled={isLoading}
@@ -213,16 +240,36 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
               {isLoading ? (
                 <>
                   <div className="loading-spinner"></div>
-                  <span>Signing In...</span>
+                  <span>{isSignUp ? 'Creating Account...' : 'Signing In...'}</span>
                 </>
               ) : (
                 <>
                   <LogIn className="submit-icon" />
-                  <span>Sign In</span>
+                  <span>{isSignUp ? 'Create Account' : 'Sign In'}</span>
                 </>
               )}
             </button>
           </form>
+
+          {authMessage && (
+            <div className="success-message">
+              <CheckCircle className="success-icon" />
+              <span className="success-text">{authMessage}</span>
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="auth-mode-toggle"
+            onClick={() => {
+              setIsSignUp(!isSignUp);
+              setError('');
+              setAuthMessage('');
+            }}
+            disabled={isLoading}
+          >
+            {isSignUp ? 'Already have an account? Sign in' : 'New to MockMate? Create an account'}
+          </button>
 
           {/* Demo Credentials Section */}
           <div className="demo-section">
