@@ -6,6 +6,12 @@ import { normalizeQuestionKey, normalizeQuestionText } from './questionImport'
 export const insertQuestions = async (questions: Omit<Question, 'id'>[]) => {
   if (questions.length === 0) return []
 
+  // Record the teacher who ingested these questions. A NULL/empty
+  // ingested_by marks the question as shared with every teacher (see the RLS
+  // policy on `questions`).
+  const { data: { user } } = await supabase.auth.getUser();
+  const ingestedBy = user?.email ?? null;
+
   const incomingByKey = new Map<string, Omit<Question, 'id'>>()
   questions.forEach(question => {
     const key = normalizeQuestionKey(normalizeQuestionText(question.text))
@@ -37,6 +43,7 @@ export const insertQuestions = async (questions: Omit<Question, 'id'>[]) => {
   const questionsWithDifficulty = newQuestions.map(q => ({
     text: q.text,
     options: q.options,
+    ingested_by: ingestedBy,
     correct_answer: q.correctAnswer,
     topic: q.topic,
     subject: q.subject,        
@@ -144,10 +151,13 @@ export const getQuestionsByTopic = async (topic: string) => {
 
 // Tests (unchanged)
 export const createTest = async (testData: Omit<Test, 'id' | 'createdAt'>) => {
+  const { data: { user } } = await supabase.auth.getUser();
+
   const { data, error } = await supabase
     .from('tests')
     .insert([{
       test_key: testData.testKey,
+      created_by: user?.id ?? null,
       name: testData.name,
       description: testData.description,
       questions: testData.questions,

@@ -65,10 +65,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
       setLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      let query = supabase
         .from('tests')
         .select('*')
         .order('created_at', { ascending: false });
+      // Scope the dashboard to the logged-in teacher's own tests so teachers
+      // never see tests created by others. Students still reach tests via the
+      // shareable key (getTestByKey is intentionally unfiltered).
+      if (user) {
+        query = query.eq('created_by', user.id);
+      }
+
+      const { data, error: fetchError } = await query;
 
       if (fetchError) {
         throw fetchError;

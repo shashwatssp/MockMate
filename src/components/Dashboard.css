@@ -1554,6 +1554,62 @@
   background: var(--primary-hover);
 }
 
+/* ===== Mobile: stat cards must not truncate / overflow ===== */
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 0.875rem;
+  }
+
+  .stat-card {
+    min-width: 0;
+    padding: 1.25rem;
+  }
+
+  /* Scale the large stat numbers/labels down so they fit a narrow card. */
+  .stat-number {
+    font-size: 2rem;
+    line-height: 1.1;
+  }
+
+  .stat-label {
+    font-size: 1rem;
+  }
+
+  .stat-sublabel {
+    font-size: 0.9rem;
+  }
+
+  /* Force long labels/sublabels to wrap instead of being clipped. */
+  .stat-card .stat-label,
+  .stat-card .stat-sublabel,
+  .stat-card .stat-number,
+  .stat-card .stat-badge,
+  .stat-card .stat-trend,
+  .stat-card .stat-indicator {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+}
+
+@media (max-width: 410px) {
+  .stat-number {
+    font-size: 1.75rem;
+  }
+
+  .stat-label {
+    font-size: 0.95rem;
+  }
+
+  .stat-sublabel {
+    font-size: 0.85rem;
+  }
+
+  .stats-grid {
+    gap: 0.625rem;
+  }
+}
+
 /* Refresh Button */
 .refresh-btn {
   padding: 0.75rem;
