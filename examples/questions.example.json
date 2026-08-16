@@ -1,0 +1,52 @@
+{
+  "questions": [
+    {
+      "text": "A particle starts from rest and moves with a constant acceleration of 2 m/s². What is its speed after 5 seconds?",
+      "options": [
+        "5 m/s",
+        "10 m/s",
+        "12 m/s",
+        "20 m/s"
+      ],
+      "correctAnswer": 1,
+      "subject": "Physics",
+      "topic": "Mechanics",
+      "year": "2025",
+      "difficulty": "easy",
+      "marks": 4,
+      "negativeMarks": 1
+    },
+    {
+      "text": "Which gas is released when dilute hydrochloric acid reacts with zinc?",
+      "options": [
+        "Oxygen",
+        "Nitrogen",
+        "Hydrogen",
+        "Chlorine"
+      ],
+      "correctAnswer": 2,
+      "subject": "Chemistry",
+      "topic": "Redox Reactions",
+      "year": "2024",
+      "difficulty": "medium",
+      "marks": 4,
+      "negativeMarks": 1
+    },
+    {
+      "text": "Which organelle is primarily responsible for ATP production in a eukaryotic cell?",
+      "options": [
+        "Ribosome",
+        "Mitochondrion",
+        "Golgi apparatus",
+        "Lysosome"
+      ],
+      "correctAnswer": 1,
+      "subject": "Biology",
+      "topic": "Cell Biology",
+      "year": "2023",
+      "difficulty": "easy",
+      "marks": 4,
+      "negativeMarks": 1
+    }
+  ]
+}
