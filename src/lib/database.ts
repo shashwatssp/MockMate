@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { Question, Test, TestResult } from '../types'
+import type { Question, Test, TestResult, TestSettings, TestResultInput } from '../types/exam.types'
 
 // Questions
 export const insertQuestions = async (questions: Omit<Question, 'id'>[]) => {
@@ -103,7 +103,7 @@ export const createTest = async (testData: Omit<Test, 'id' | 'createdAt'>) => {
       description: testData.description,
       questions: testData.questions,
       settings: testData.settings,
-      start_date: testData.startDate.toISOString(),
+      start_date: testData.startDate?.toISOString(),
       duration: testData.duration,
       time_limit: testData.timeLimit
     }])
@@ -130,17 +130,25 @@ export const getTestByKey = async (testKey: string) => {
     throw error
   }
 
+  const settings = (data.settings ?? {}) as TestSettings;
+
   return {
     id: data.id,
     testKey: data.test_key,
     name: data.name,
     description: data.description,
     questions: data.questions,
-    settings: data.settings,
+    settings,
     createdAt: new Date(data.created_at),
     startDate: new Date(data.start_date),
+    endDate: settings.endDate ? new Date(settings.endDate) : undefined,
     duration: data.duration,
-    timeLimit: data.time_limit
+    timeLimit: data.time_limit,
+    allowReview: settings.allowReview ?? true,
+    maxAttempts: settings.maxAttempts ?? 1,
+    passingScore: settings.passingScore ?? 70,
+    isProctored: settings.isProctored ?? false,
+    instructions: data.instructions
   } as Test
 }
 
@@ -152,22 +160,32 @@ export const getAllTests = async () => {
 
   if (error) throw error
 
-  return data.map(test => ({
-    id: test.id,
-    testKey: test.test_key,
-    name: test.name,
-    description: test.description,
-    questions: test.questions,
-    settings: test.settings,
-    createdAt: new Date(test.created_at),
-    startDate: new Date(test.start_date),
-    duration: test.duration,
-    timeLimit: test.time_limit
-  })) as Test[]
+  return data.map(test => {
+    const settings = (test.settings ?? {}) as TestSettings;
+
+    return {
+      id: test.id,
+      testKey: test.test_key,
+      name: test.name,
+      description: test.description,
+      questions: test.questions,
+      settings,
+      createdAt: new Date(test.created_at),
+      startDate: new Date(test.start_date),
+      endDate: settings.endDate ? new Date(settings.endDate) : undefined,
+      duration: test.duration,
+      timeLimit: test.time_limit,
+      allowReview: settings.allowReview ?? true,
+      maxAttempts: settings.maxAttempts ?? 1,
+      passingScore: settings.passingScore ?? 70,
+      isProctored: settings.isProctored ?? false,
+      instructions: test.instructions
+    } as Test;
+  })
 }
 
 // Test Results (unchanged)
-export const saveTestResult = async (result: Omit<TestResult, 'completedAt'>) => {
+export const saveTestResult = async (result: TestResultInput) => {
   const { data, error } = await supabase
     .from('test_results')
     .insert([{
@@ -192,14 +210,27 @@ export const getTestResults = async (testId: string) => {
 
   if (error) throw error
 
-  return data.map(result => ({
-    testId: result.test_id,
-    studentName: result.student_name,
-    answers: result.answers,
-    score: result.score,
-    totalQuestions: result.total_questions,
-    completedAt: new Date(result.completed_at)
-  })) as TestResult[]
+  return data.map(result => {
+    const total = result.total_questions ?? 0;
+    const score = result.score ?? 0;
+    const answered = Array.isArray(result.answers) ? result.answers.length : 0;
+
+    return {
+      id: result.id,
+      testId: result.test_id,
+      studentName: result.student_name,
+      answers: result.answers,
+      score,
+      totalMarks: total,
+      totalQuestions: total,
+      correctAnswers: score,
+      incorrectAnswers: Math.max(0, answered - score),
+      unansweredQuestions: Math.max(0, total - answered),
+      percentage: total ? Math.round((score / total) * 100) : 0,
+      timeTaken: result.time_taken ?? 0,
+      completedAt: new Date(result.completed_at)
+    } as TestResult;
+  })
 }
 
 // Helper function

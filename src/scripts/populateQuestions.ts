@@ -1,4 +1,5 @@
 import { insertQuestions } from '../lib/database'
+import type { Question } from '../types/exam.types'
 
 const sampleQuestions = [
   {
@@ -507,7 +508,7 @@ const sampleQuestions = [
 export const populateDatabase = async () => {
   try {
     console.log('Inserting questions...')
-    const result = await insertQuestions(sampleQuestions)
+    const result = await insertQuestions(sampleQuestions as unknown as Omit<Question, 'id'>[])
     console.log(`Successfully inserted ${result.length} questions`)
     return result
   } catch (error) {

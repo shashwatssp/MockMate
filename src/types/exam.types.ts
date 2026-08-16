@@ -1,48 +1,35 @@
+// Canonical domain model for MockMate (single source of truth).
+// This file is the only place `Test`, `Question`, `StudentAnswer`,
+// `StudentAnswer`, `ExamState`, `ExamSession` and `TestResult` are defined.
+// All other modules must import these types from here.
+
+/** Visibility / behaviour toggles persisted inside the JSON `settings` column. */
+export interface TestSettings {
+  randomizeQuestions?: boolean;
+  allowReview?: boolean;
+  showCorrectAnswers?: boolean;
+  isProctored?: boolean;
+  maxAttempts?: number;
+  passingScore?: number;
+  endDate?: string;
+}
+
+export type Difficulty = 'easy' | 'medium' | 'hard';
+
 export interface Question {
   id: string;
   text: string;
   options: string[];
+  /** Index of the correct option. */
   correctAnswer: number;
   topic: string;
-  subject: string;        // New field
-  year: string;           // New field
-  difficulty?: 'easy' | 'medium' | 'hard';
-}
-
-export interface StudentAnswer {
-  questionId: string;
-  selectedOption: number;
-}
-
-export interface TestResult {
-  testId: string;
-  studentName: string;
-  answers: StudentAnswer[];
-  score: number;
-  totalQuestions: number;
-  completedAt: Date;
-}
-
-export interface User {
-  id: string;
-  role: 'teacher' | 'student';
-}
-
-export interface Test {
-  id: string;
-  name: string;
-  title?: string;
-  description?: string;
-  questions: Question[];
-  timeLimit: number; // in minutes
-  duration?: number; // alternative field
-  startDate?: string;
-  endDate?: string;
-  instructions?: string[];
-  allowReview?: boolean;
-  showResults?: boolean;
-  randomizeQuestions?: boolean;
-  maxAttempts?: number;
+  subject: string;
+  year: string;
+  difficulty?: Difficulty;
+  /** Marks carried by the question (defaults to 1). */
+  marks?: number;
+  /** Negative marking per wrong answer (0 = disabled). */
+  negativeMarks?: number;
 }
 
 export interface StudentAnswer {
@@ -50,9 +37,11 @@ export interface StudentAnswer {
   selectedOption: number;
   timeSpent?: number;
   isBookmarked?: boolean;
-  isReviewed?: boolean;
+  isVisited?: boolean;
+  status?: 'not-visited' | 'answered' | 'unanswered' | 'flagged';
 }
 
+/** Mutable data shape held by `useExamState` (mirrors the `ExamSession.state` payload). */
 export interface ExamState {
   currentQuestionIndex: number;
   answers: StudentAnswer[];
@@ -70,21 +59,6 @@ export interface ExamSettings {
   confirmSubmit: boolean;
 }
 
-export interface TestResult {
-  testId: string;
-  studentName: string;
-  answers: StudentAnswer[];
-  score: number;
-  totalQuestions: number;
-  correctAnswers: number;
-  incorrectAnswers: number;
-  unansweredQuestions: number;
-  percentage: number;
-  timeTaken: number;
-  completedAt: Date;
-  topicWiseScore?: { [topic: string]: { correct: number; total: number } };
-}
-
 export interface ExamSession {
   test: Test;
   studentName: string;
@@ -93,58 +67,50 @@ export interface ExamSession {
   settings: ExamSettings;
 }
 
-export interface NavigationState {
-  currentSection: 'entry' | 'instructions' | 'exam' | 'review' | 'results';
-  canNavigate: boolean;
-  showWarnings: boolean;
-}
-
-export interface TimerState {
-  timeRemaining: number;
-  isRunning: boolean;
-  warnings: {
-    fifteenMinutes: boolean;
-    fiveMinutes: boolean;
-    oneMinute: boolean;
-  };
-}
-
-export interface QuestionStatus {
-  answered: boolean;
-  bookmarked: boolean;
-  visited: boolean;
-  current: boolean;
-  reviewPending?: boolean;
-}
-
 export type ExamPhase = 'loading' | 'entry' | 'instructions' | 'active' | 'paused' | 'submitted' | 'results';
-export type QuestionType = 'single-choice' | 'multiple-choice' | 'numerical' | 'comprehension';
-export type DifficultyLevel = 'easy' | 'medium' | 'hard';
 
-export interface ExamConfig {
-  enableBookmarks: boolean;
-  enableReview: boolean;
-  showQuestionPalette: boolean;
-  autoSubmit: boolean;
-  warningTimeouts: number[]; // in seconds
-  maxIdleTime?: number; // in minutes
+export interface TestResult {
+  id?: string;
+  testId: string;
+  studentName: string;
+  studentEmail?: string;
+  answers: StudentAnswer[];
+  score: number;
+  totalMarks?: number;
+  totalQuestions: number;
+  correctAnswers: number;
+  incorrectAnswers: number;
+  unansweredQuestions: number;
+  percentage: number;
+  timeTaken: number;
+  completedAt: Date;
+  topicWiseScore?: { [topic: string]: { correct: number; total: number } };
+  grade?: string;
+  passed?: boolean;
 }
 
-export interface Analytics {
-  questionWiseTime: { [questionId: string]: number };
-  topicWisePerformance: { [topic: string]: { correct: number; total: number; avgTime: number } };
-  difficultyWisePerformance: { [difficulty: string]: { correct: number; total: number } };
-  timeDistribution: number[];
-  totalActiveTime: number;
-}
+/** Subset persisted by `saveTestResult` (no DB-generated fields). */
+export type TestResultInput = Pick<
+  TestResult,
+  'testId' | 'studentName' | 'answers' | 'score' | 'totalQuestions'
+>;
 
-export interface ExamError {
-  code: string;
-  message: string;
-  timestamp: Date;
-  recoverable: boolean;
+export interface Test {
+  id: string;
+  testKey: string;
+  name: string;
+  title?: string;
+  description?: string;
+  questions: Question[];
+  createdAt: Date;
+  startDate?: Date;
+  endDate?: Date;
+  duration: number;
+  timeLimit: number;
+  settings: TestSettings;
+  allowReview?: boolean;
+  maxAttempts?: number;
+  passingScore?: number;
+  isProctored?: boolean;
+  instructions?: string;
 }
-
-// Utility types
-export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
-export type RequiredFields<T, K extends keyof T> = T & Required<Pick<T, K>>;

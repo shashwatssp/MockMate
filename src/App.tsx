@@ -1,82 +1,103 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
+import {
+  BrowserRouter as Router,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router-dom';
+import LandingPage from './components/LandingPage';
 import LoginPage from './components/LoginPage';
 import Dashboard from './components/Dashboard';
-import StudentEntry from './components/StudentEntry';
-import StudentTest from './components/StudentTest';
-import TestResult from './components/TestResult';
-import type { StudentAnswer, Test, TestResult as TestResultType } from './types';
-import LandingPage from './components/LandingPage';
 import CreateTest from './components/CreateTest';
-import { StudentTestWrapperOld } from './components/StudentTestWrapperOld';
-import './App.css';
 import ExamWrapper from './components/Exam/ExamWrapper';
+import type { Test } from './types/exam.types';
+import './App.css';
 
-// Create a wrapper component to extract URL params
 const ExamRouteWrapper = () => {
   const { testCode } = useParams();
   return <ExamWrapper testCode={testCode} />;
 };
 
-function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentView, setCurrentView] = useState<'landing' | 'login' | 'dashboard' | 'create'>('landing');
-  const [tests, setTests] = useState<Test[]>([]);
+const LegacyExamRedirect = () => {
+  const { testCode } = useParams();
+  return <Navigate to={`/exam/${testCode?.toUpperCase()}/entry`} replace />;
+};
 
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-    setCurrentView('dashboard');
-  };
+interface TeacherAppProps {
+  tests: Test[];
+  setTests: Dispatch<SetStateAction<Test[]>>;
+}
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setCurrentView('landing');
-  };
+function TeacherApp({ tests, setTests }: TeacherAppProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const handleTestCreated = (test: Test) => {
     setTests(prev => [...prev, test]);
-    setCurrentView('dashboard');
-    
+    navigate('/dashboard');
+
     // Show success message with test link using testKey (4-letter code)
     const testLink = `${window.location.origin}/${test.testKey}`;
     alert(`Test created successfully!\n\nShare this link with your students:\n${testLink}\n\nTest Code: ${test.testKey}`);
   };
 
-  const TeacherApp = () => {
-    switch (currentView) {
-      case 'landing':
-        return <LandingPage onLogin={() => setCurrentView('login')} />;
-      case 'login':
-        return <LoginPage onLogin={handleLogin} onBack={() => setCurrentView('landing')} />;
-      case 'dashboard':
-        return (
-          <Dashboard 
-            onCreateTest={() => setCurrentView('create')}
-            onLogout={handleLogout}
-            tests={tests}
-          />
-        );
-      case 'create':
-        return (
-          <CreateTest 
-            onBackToDashboard={() => setCurrentView('dashboard')}
-            onCreateTest={handleTestCreated}
-          />
-        );
-      default:
-        return <LandingPage onLogin={() => setCurrentView('login')} />;
-    }
-  };
+  switch (location.pathname) {
+    case '/login':
+      return <LoginPage onLogin={() => navigate('/dashboard')} onBack={() => navigate('/')} />;
+    case '/dashboard':
+      return (
+        <Dashboard
+          onCreateTest={() => navigate('/create-test')}
+          onLogout={() => navigate('/')}
+          tests={tests}
+        />
+      );
+    case '/create-test':
+      return (
+        <CreateTest
+          onBackToDashboard={() => navigate('/dashboard')}
+          onCreateTest={handleTestCreated}
+        />
+      );
+    default:
+      return <LandingPage onLogin={() => navigate('/login')} />;
+  }
+}
 
+function App() {
+  const [tests, setTests] = useState<Test[]>(() => {
+    try {
+      const stored = window.localStorage.getItem('mockmate.teacher.tests');
+      return stored ? (JSON.parse(stored) as Test[]) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem('mockmate.teacher.tests', JSON.stringify(tests));
+  }, [tests]);
   return (
     <Router>
       <div className="App">
         <Routes>
-          {/* Teacher routes */}
-          <Route path="/" element={<TeacherApp />} />
-          
-          {/* Student routes - 4-letter test codes */}
-          <Route path="/:testCode" element={<ExamRouteWrapper />} />
+          <Route path="/" element={<TeacherApp tests={tests} setTests={setTests} />} />
+          <Route path="/login" element={<TeacherApp tests={tests} setTests={setTests} />} />
+          <Route path="/dashboard" element={<TeacherApp tests={tests} setTests={setTests} />} />
+          <Route path="/create-test" element={<TeacherApp tests={tests} setTests={setTests} />} />
+
+          <Route path="/exam/:testCode" element={<LegacyExamRedirect />} />
+          <Route path="/exam/:testCode/entry" element={<ExamRouteWrapper />} />
+          <Route path="/exam/:testCode/test" element={<ExamRouteWrapper />} />
+          <Route path="/exam/:testCode/results" element={<ExamRouteWrapper />} />
+
+          {/* Preserve old four-character student links. */}
+          <Route path="/:testCode" element={<LegacyExamRedirect />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
     </Router>
