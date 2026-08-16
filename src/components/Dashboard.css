@@ -68,6 +68,7 @@
   }
 }
 
+
 .view-toggle {
   display: inline-flex;
   align-items: center;
@@ -2320,6 +2321,7 @@
 
 .header-actions {
   flex: 0 0 auto;
+  align-items: center;
   min-width: max-content;
   flex-wrap: nowrap;
 }
@@ -2340,6 +2342,8 @@
   align-items: center;
   justify-content: center;
   align-self: center;
+  margin: 0;
+  line-height: 1;
   padding: 0;
   border: 1px solid var(--gray-200);
   border-radius: 10px;
@@ -2412,5 +2416,253 @@
   .header-actions .btn-text {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+}
+
+/* ===== Final mobile dashboard layout ===== */
+@media (max-width: 768px) {
+  .dashboard-wrapper {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  .dashboard-header {
+    position: relative;
+    padding: 12px 0;
+  }
+
+  .header-content {
+    width: 100%;
+    padding-inline: 14px;
+  }
+
+  .header-main {
+    align-items: center;
+    flex-direction: row;
+    gap: 10px;
+  }
+
+  .brand-section {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .brand-icon {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+  }
+
+  .brand-title {
+    overflow: hidden;
+    font-size: clamp(18px, 5vw, 23px);
+    text-overflow: ellipsis;
+  }
+
+  .brand-badge {
+    display: none;
+  }
+
+  .header-actions {
+    width: auto;
+    min-width: 0;
+    gap: 6px;
+    justify-content: flex-end;
+  }
+
+  .header-actions > button {
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .header-actions .refresh-btn {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    flex: 0 0 44px;
+  }
+
+  .create-btn,
+  .logout-btn {
+    padding: 9px 11px;
+  }
+
+  .dashboard-main {
+    width: 100%;
+    padding: 18px 12px 34px;
+    gap: 18px;
+  }
+
+  .welcome-content {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 20px 16px;
+    text-align: left;
+  }
+
+  .welcome-text {
+    gap: 18px;
+  }
+
+  .greeting-title {
+    font-size: clamp(21px, 6vw, 28px);
+  }
+
+  .quick-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    text-align: center;
+  }
+
+  .quick-stat {
+    min-width: 0;
+    padding: 10px 4px;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    background: var(--gray-50);
+  }
+
+  .quick-stat .stat-value {
+    font-size: clamp(22px, 7vw, 30px);
+  }
+
+  .quick-stat .stat-label {
+    overflow-wrap: anywhere;
+    font-size: 10px;
+    line-height: 1.25;
+  }
+
+  .feature-highlights {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .highlight-card {
+    min-width: 0;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px 5px;
+    text-align: center;
+    font-size: 11px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 16px;
+  }
+
+  .tests-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .tests-title {
+    font-size: 23px;
+  }
+
+  .tests-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .search-box,
+  .search-input,
+  .filter-dropdown,
+  .filter-select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .view-toggle {
+    align-self: flex-start;
+  }
+
+  .tests-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .test-card {
+    min-width: 0;
+    padding: 16px;
+  }
+
+  .test-name,
+  .table-test-name {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .test-meta {
+    flex-wrap: wrap;
+    font-size: 12px;
+  }
+
+  .test-stats-row {
+    gap: 9px;
+  }
+
+  .test-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .test-actions .action-btn {
+    min-width: 0;
+    justify-content: center;
+    padding-inline: 7px;
+    font-size: 12px;
+  }
+
+  .tests-table-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .tests-table {
+    min-width: 620px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-actions .btn-text {
+    display: none;
+  }
+
+  .create-btn,
+  .logout-btn {
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .quick-stat .stat-label {
+    font-size: 9px;
+  }
+
+  .welcome-content {
+    padding-inline: 13px;
+  }
+
+  .feature-highlights {
+    gap: 5px;
+  }
+
+  .highlight-card {
+    font-size: 10px;
   }
 }

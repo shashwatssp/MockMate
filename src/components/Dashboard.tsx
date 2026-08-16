@@ -46,7 +46,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
   const [tests, setTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>(() => (
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+      ? 'cards'
+      : 'table'
+  ));
   const [attemptCounts, setAttemptCounts] = useState<Record<string, number>>({});
   const [insightsTest, setInsightsTest] = useState<Test | null>(null);
   const [insightsMode, setInsightsMode] = useState<'preview' | 'analytics'>('preview');
@@ -291,17 +295,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
             </div>
             
             <div className="header-actions">
-              <button onClick={fetchTests} className="refresh-btn" title="Refresh">
+              <button onClick={fetchTests} className="refresh-btn" title="Refresh" aria-label="Refresh dashboard">
                 <RefreshCw className="btn-icon" aria-hidden="true" />
                 <span className="sr-only">Refresh dashboard</span>
               </button>
               
-              <button onClick={onCreateTest} className="create-btn">
+              <button onClick={onCreateTest} className="create-btn" aria-label="Create test">
                 <Plus className="btn-icon" />
                 <span className="btn-text">Create Test</span>
               </button>
               
-              <button onClick={onLogout} className="logout-btn">
+              <button onClick={onLogout} className="logout-btn" aria-label="Log out">
                 <LogOut className="btn-icon" />
                 <span className="btn-text">Logout</span>
               </button>

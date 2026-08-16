@@ -97,6 +97,12 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
     }
     return `${minutes}m ${remainingSeconds}s`;
   };
+  const formatAnswer = (question: Test['questions'][number], optionIndex: number): string => {
+    if (!Number.isInteger(optionIndex) || optionIndex < 0) return 'Not answered';
+    const optionLabel = String.fromCharCode(65 + optionIndex);
+    const optionText = question.options[optionIndex];
+    return optionText ? `${optionLabel}- ${optionText}` : `Option ${optionLabel}`;
+  };
 
   const buildReport = () => {
     const topicLines = Object.entries(result.topicWiseScore || {})
@@ -108,9 +114,9 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
       const studentAnswer = result.answers.find(answer => answer.questionId === question.id);
       const wasAnswered = studentAnswer && studentAnswer.selectedOption >= 0;
       const selected = wasAnswered
-        ? String.fromCharCode(65 + studentAnswer.selectedOption)
+        ? formatAnswer(question, studentAnswer.selectedOption)
         : 'Not answered';
-      const correct = String.fromCharCode(65 + question.correctAnswer);
+      const correct = formatAnswer(question, question.correctAnswer);
       const outcome = wasAnswered && studentAnswer.selectedOption === question.correctAnswer
         ? 'Correct'
         : wasAnswered
@@ -232,7 +238,10 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(13);
         doc.text(heading, margin, cursorY);
-        cursorY += 24;
+        doc.setDrawColor(191, 219, 254);
+        doc.setLineWidth(1);
+        doc.line(margin, cursorY + 8, pageWidth - margin, cursorY + 8);
+        cursorY += 28;
       };
 
       sectionHeading('Topic performance');
@@ -243,21 +252,24 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
         cursorY += drawText('No topic data available.', margin, cursorY, contentWidth, 10);
       } else {
         topicEntries.forEach(([topic, stats]) => {
-          addPageIfNeeded(34);
           const percentage = stats.total ? Math.round((stats.correct / stats.total) * 100) : 0;
+          const topicLines = doc.splitTextToSize(topic, contentWidth - 120);
+          const topicHeight = Math.max(14, topicLines.length * 11);
+          addPageIfNeeded(topicHeight + 22);
           doc.setTextColor(36, 51, 77);
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(10);
-          doc.text(topic, margin, cursorY);
+          doc.setFontSize(9);
+          doc.text(topicLines, margin, cursorY);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(100, 116, 139);
+          doc.setFontSize(9);
           doc.text(`${stats.correct}/${stats.total}  (${percentage}%)`, pageWidth - margin, cursorY, { align: 'right' });
-          cursorY += 8;
+          cursorY += topicHeight - 3;
           doc.setFillColor(226, 232, 240);
           doc.roundedRect(margin, cursorY, contentWidth, 6, 3, 3, 'F');
           doc.setFillColor(5, 150, 105);
           doc.roundedRect(margin, cursorY, contentWidth * (percentage / 100), 6, 3, 3, 'F');
-          cursorY += 20;
+          cursorY += 18;
         });
       }
 
@@ -276,25 +288,75 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
             ? [220, 38, 38]
             : [100, 116, 139];
         const questionText = `${index + 1}. ${question.text}`;
-        const detailText = `Result: ${outcome}  •  Your answer: ${wasAnswered ? String.fromCharCode(65 + studentAnswer.selectedOption) : 'Not answered'}  •  Correct answer: ${String.fromCharCode(65 + question.correctAnswer)}  •  Topic: ${question.topic || 'Unspecified'}`;
-        const questionLines = doc.splitTextToSize(questionText, contentWidth - 24);
-        const detailLines = doc.splitTextToSize(detailText, contentWidth - 24);
-        const questionHeight = questionLines.length * 14 + 11;
-        const detailHeight = detailLines.length * 13;
-        addPageIfNeeded(questionHeight + detailHeight + 16);
+        const cardPadding = 14;
+        const cardWidth = contentWidth;
+        const innerWidth = cardWidth - cardPadding * 2;
+        const labelWidth = 84;
+        const valueWidth = innerWidth - labelWidth - 10;
+        const questionLines = doc.splitTextToSize(questionText, innerWidth);
+        const rows = [
+          { label: 'Result', value: outcome, color: outcomeColor },
+          { label: 'Your answer', value: wasAnswered ? formatAnswer(question, studentAnswer.selectedOption) : 'Not answered', color: [36, 51, 77] },
+          { label: 'Correct answer', value: formatAnswer(question, question.correctAnswer), color: [36, 51, 77] },
+          { label: 'Topic', value: question.topic || 'Unspecified', color: [36, 51, 77] }
+        ].map(row => ({
+          ...row,
+          lines: doc.splitTextToSize(row.value, valueWidth)
+        }));
+        const lineHeight = 12;
+        const questionBlockHeight = questionLines.length * 14;
+        const rowHeights = rows.map(row => Math.max(14, row.lines.length * lineHeight) + 8);
+        const cardHeight = cardPadding + questionBlockHeight + 10 + rowHeights.reduce((sum, height) => sum + height, 0) + cardPadding;
+        const maxCardHeight = pageHeight - margin * 2;
+
+        const drawQuestionRows = (x: number, availableWidth: number) => {
+          const rowLabelWidth = Math.min(labelWidth, availableWidth * 0.3);
+          const rowValueWidth = availableWidth - rowLabelWidth - 10;
+
+          rows.forEach(row => {
+            const wrappedLines = doc.splitTextToSize(row.value, rowValueWidth);
+            const height = Math.max(14, wrappedLines.length * lineHeight) + 8;
+            addPageIfNeeded(height);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(100, 116, 139);
+            doc.text(row.label.toUpperCase(), x, cursorY);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            doc.setTextColor(row.color[0], row.color[1], row.color[2]);
+            doc.text(wrappedLines, x + rowLabelWidth + 10, cursorY);
+            cursorY += height;
+          });
+          return cursorY;
+        };
+
+        if (cardHeight > maxCardHeight) {
+          addPageIfNeeded(36);
+          doc.setTextColor(36, 51, 77);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(10);
+          doc.text(questionLines, margin, cursorY);
+          cursorY += questionBlockHeight + 10;
+          cursorY = drawQuestionRows(margin, contentWidth);
+          cursorY += 8;
+          return;
+        }
+
+        addPageIfNeeded(cardHeight + 12);
+        const cardTop = cursorY;
         doc.setFillColor(248, 250, 252);
-        doc.roundedRect(margin, cursorY - 13, contentWidth, questionHeight + detailHeight + 12, 7, 7, 'F');
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.7);
+        doc.roundedRect(margin, cardTop, cardWidth, cardHeight, 8, 8, 'FD');
+        doc.setFillColor(30, 58, 138);
+        doc.roundedRect(margin, cardTop, 5, cardHeight, 3, 3, 'F');
         doc.setTextColor(36, 51, 77);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10);
-        doc.text(questionLines, margin + 12, cursorY);
-        cursorY += questionLines.length * 14;
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(outcomeColor[0], outcomeColor[1], outcomeColor[2]);
-        doc.setFontSize(9);
-        doc.text(detailLines, margin + 12, cursorY + 2);
-        cursorY += detailHeight;
-        cursorY += 16;
+        doc.text(questionLines, margin + cardPadding, cardTop + cardPadding + 1);
+        cursorY = cardTop + cardPadding + questionBlockHeight + 10;
+        drawQuestionRows(margin + cardPadding, innerWidth);
+        cursorY = cardTop + cardHeight + 14;
       });
 
       doc.setTextColor(148, 163, 184);
@@ -564,12 +626,12 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
                     <span className="question-topic">{question.topic}</span>
                     <span className="student-answer">
                       {wasAnswered 
-                        ? String.fromCharCode(65 + studentAnswer.selectedOption)
+                        ? formatAnswer(question, studentAnswer.selectedOption)
                         : 'Not Answered'
                       }
                     </span>
                     <span className="correct-answer">
-                      {String.fromCharCode(65 + question.correctAnswer)}
+                      {formatAnswer(question, question.correctAnswer)}
                     </span>
                     <span className={`result-status ${
                       isCorrect ? 'correct' : wasAnswered ? 'incorrect' : 'skipped'
