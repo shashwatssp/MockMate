@@ -15,7 +15,7 @@ import Dashboard from './components/Dashboard';
 import CreateTest from './components/CreateTest';
 import ExamWrapper from './components/Exam/ExamWrapper';
 import type { Test } from './types/exam.types';
-import { signOut } from './lib/auth';
+import { signOut, handleAuthCallback } from './lib/auth';
 import './App.css';
 
 const ExamRouteWrapper = () => {
@@ -79,6 +79,22 @@ function TeacherApp({ tests, setTests }: TeacherAppProps) {
   }
 }
 
+function AuthCallback() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    handleAuthCallback()
+      .then(() => navigate('/dashboard', { replace: true }))
+      .catch(() => navigate('/login', { replace: true }));
+  }, [navigate]);
+
+  return (
+    <div className="auth-callback">
+      <p>Completing sign-in...</p>
+    </div>
+  );
+}
+
 function App() {
   const [tests, setTests] = useState<Test[]>(() => {
     try {
@@ -105,6 +121,7 @@ function App() {
           <Route path="/exam/:testCode/entry" element={<ExamRouteWrapper />} />
           <Route path="/exam/:testCode/test" element={<ExamRouteWrapper />} />
           <Route path="/exam/:testCode/results" element={<ExamRouteWrapper />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
 
           {/* Preserve old four-character student links. */}
           <Route path="/:testCode" element={<LegacyExamRedirect />} />
