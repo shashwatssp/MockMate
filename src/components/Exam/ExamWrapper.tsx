@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ExamEntry } from './ExamEntry';
 import { ExamInterface } from './ExamInterface';
 import { ResultsDisplay } from './ResultsDisplay';
@@ -8,8 +8,8 @@ import { ErrorScreen } from './ErrorScreen';
 import { useExamState } from '../../hooks/useExamState';
 import { useExamTimer } from '../../hooks/useExamTimer';
 import { getTestByKey, saveTestResult } from '../../lib/database'; // Import your database functions
-import type { Test, ExamPhase, ExamSession, TestResult } from '../../types/exam.types';
-import { Clock, Shield, AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import type { Test, ExamSession, TestResult } from '../../types/exam.types';
+import { Clock, Shield, RefreshCw } from 'lucide-react';
 import './styles.css';
 
 interface ExamWrapperProps {
@@ -18,6 +18,49 @@ interface ExamWrapperProps {
 }
 
 type ExamState = 'loading' | 'entry' | 'active' | 'results' | 'invalid' | 'too-early';
+
+type PersistedExamSnapshot = {
+  phase: 'entry' | 'active' | 'results';
+  test: Test;
+  studentName: string;
+  startTime: string;
+  state?: {
+    currentQuestionIndex: number;
+    answers: ExamSession['state']['answers'];
+    timeRemaining: number;
+    isSubmitted: boolean;
+    bookmarkedQuestions: string[];
+    visitedQuestions: string[];
+    reviewMode: boolean;
+  };
+  deadline?: number;
+  result?: TestResult;
+};
+
+const getExamSnapshotKey = (testCode?: string) =>
+  testCode ? `mockmate.exam.${testCode.toUpperCase()}` : '';
+
+const readExamSnapshot = (testCode?: string): PersistedExamSnapshot | null => {
+  const key = getExamSnapshotKey(testCode);
+  if (!key) return null;
+
+  try {
+    const stored = window.localStorage.getItem(key);
+    return stored ? (JSON.parse(stored) as PersistedExamSnapshot) : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeExamSnapshot = (testCode: string | undefined, snapshot: PersistedExamSnapshot) => {
+  const key = getExamSnapshotKey(testCode);
+  if (!key) return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(snapshot));
+  } catch {
+    // Persistence is best-effort; the in-memory exam must continue to work.
+  }
+};
 
 interface TimeInfo {
   canEnter: boolean;
@@ -34,6 +77,8 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
   // Get testCode from URL params if not provided as prop
   const { testCode: urlTestCode } = useParams<{ testCode: string }>();
   const testCode = propTestCode || urlTestCode;
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [currentPhase, setCurrentPhase] = useState<ExamState>('loading');
   const [test, setTest] = useState<Test | null>(initialTest || null);
@@ -46,6 +91,18 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
 
   const examState = useExamState();
   const examTimer = useExamTimer();
+  const submittingRef = useRef(false);
+  const autoSubmittedRef = useRef(false);
+  const deadlineRef = useRef<number | null>(null);
+
+  const navigateToPhase = useCallback((phase: 'entry' | 'active' | 'results') => {
+    setCurrentPhase(phase);
+    if (!testCode) return;
+    const route = `/exam/${testCode.toUpperCase()}/${phase === 'active' ? 'test' : phase}`;
+    if (location.pathname !== route) {
+      navigate(route, { replace: true });
+    }
+  }, [location.pathname, navigate, testCode]);
 
   // Update time every second for real-time countdown
   useEffect(() => {
@@ -90,7 +147,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
       loadTest(testCode.toUpperCase());
     } else if (initialTest) {
       setTest(initialTest);
-      setCurrentPhase('entry');
+      navigateToPhase('entry');
     } else {
       setError('No test code provided. Please use a valid test link.');
       setCurrentPhase('invalid');
@@ -124,7 +181,67 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
       }
 
       setTest(testData);
-      
+
+      const saved = readExamSnapshot(code);
+      if (saved && saved.test?.id === testData.id) {
+        if (saved.phase === 'results' && saved.result) {
+          setStudentName(saved.studentName);
+          setTestResult({
+            ...saved.result,
+            completedAt: new Date(saved.result.completedAt),
+          });
+          navigateToPhase('results');
+          return;
+        }
+
+        if (saved.phase === 'active' && saved.state && saved.deadline) {
+          const remaining = Math.max(0, Math.ceil((saved.deadline - Date.now()) / 1000));
+          if (remaining > 0) {
+            const restoredSession: ExamSession = {
+              test: testData,
+              studentName: saved.studentName,
+              startTime: new Date(saved.startTime),
+              state: {
+                currentQuestionIndex: saved.state.currentQuestionIndex,
+                answers: saved.state.answers,
+                timeRemaining: remaining,
+                isSubmitted: saved.state.isSubmitted,
+                bookmarkedQuestions: new Set(saved.state.bookmarkedQuestions),
+                visitedQuestions: new Set(saved.state.visitedQuestions),
+                reviewMode: saved.state.reviewMode,
+              },
+              settings: {
+                showTimer: true,
+                showProgress: true,
+                allowNavigation: true,
+                confirmSubmit: true,
+              },
+            };
+            setStudentName(saved.studentName);
+            setExamSession(restoredSession);
+            examState.initialize(restoredSession.state);
+            examTimer.start(remaining);
+            deadlineRef.current = saved.deadline;
+            navigateToPhase('active');
+            return;
+          }
+
+          window.localStorage.removeItem(getExamSnapshotKey(code));
+        }
+
+        if (saved.phase === 'entry') {
+          navigateToPhase('entry');
+          return;
+        }
+      }
+
+      // A direct active/results URL without a valid saved session starts safely
+      // at entry rather than rendering a blank or partially initialized screen.
+      if (location.pathname.endsWith('/test') || location.pathname.endsWith('/results')) {
+        navigateToPhase('entry');
+        return;
+      }
+
       // Determine initial state based on time
       if (testData.startDate) {
         const testStart = new Date(testData.startDate);
@@ -145,12 +262,12 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
         }
         
         if (now >= entryWindow && now <= testStart) {
-          setCurrentPhase('entry');
+          navigateToPhase('entry');
           return;
         }
       }
       
-      setCurrentPhase('entry');
+      navigateToPhase('entry');
     } catch (err) {
       console.error('Error loading test:', err);
       setError('Unable to connect to the test server. Please check your internet connection and try again.');
@@ -161,9 +278,9 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
   // Auto-transition from too-early to entry when time window opens
   useEffect(() => {
     if (currentPhase === 'too-early' && test && timeInfo.canEnter) {
-      setCurrentPhase('entry');
+      navigateToPhase('entry');
     }
-  }, [currentPhase, test, timeInfo.canEnter]);
+  }, [currentPhase, navigateToPhase, test, timeInfo.canEnter]);
 
   // Handle fullscreen mode
   const enterFullscreen = async () => {
@@ -198,6 +315,59 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  useEffect(() => {
+    if (
+      currentPhase !== 'active' ||
+      !test ||
+      !examSession ||
+      !testCode ||
+      deadlineRef.current === null
+    ) {
+      return;
+    }
+
+    writeExamSnapshot(testCode, {
+      phase: 'active',
+      test,
+      studentName: examSession.studentName,
+      startTime: examSession.startTime.toISOString(),
+      deadline: deadlineRef.current,
+      state: {
+        currentQuestionIndex: examState.currentQuestionIndex,
+        answers: examState.answers,
+        timeRemaining: examTimer.timeRemaining,
+        isSubmitted: examState.isSubmitted,
+        bookmarkedQuestions: [...examState.bookmarkedQuestions],
+        visitedQuestions: [...examState.visitedQuestions],
+        reviewMode: examState.reviewMode,
+      },
+    });
+  }, [
+    currentPhase,
+    examSession,
+    examState.answers,
+    examState.bookmarkedQuestions,
+    examState.currentQuestionIndex,
+    examState.isSubmitted,
+    examState.reviewMode,
+    examState.visitedQuestions,
+    examTimer.timeRemaining,
+    test,
+    testCode,
+  ]);
+
+  useEffect(() => {
+    if (currentPhase !== 'results' || !test || !testResult || !testCode) return;
+
+    writeExamSnapshot(testCode, {
+      phase: 'results',
+      test,
+      studentName: testResult.studentName,
+      startTime: examSession?.startTime.toISOString() || new Date().toISOString(),
+      result: testResult,
+    });
+  }, [currentPhase, examSession, test, testCode, testResult]);
+
   // Handle student entry
   const handleStudentEntry = async (name: string) => {
     if (!test) return;
@@ -213,7 +383,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
         state: {
           currentQuestionIndex: 0,
           answers: [],
-          timeRemaining: test.timeLimit * 60, // Convert to seconds
+          timeRemaining: test.duration * 60, // Convert to seconds (duration is the exam length in minutes)
           isSubmitted: false,
           bookmarkedQuestions: new Set(),
           visitedQuestions: new Set([test.questions[0]?.id].filter(Boolean)),
@@ -230,11 +400,24 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
       setExamSession(session);
       examState.initialize(session.state);
       examTimer.start(session.state.timeRemaining);
+      deadlineRef.current = Date.now() + session.state.timeRemaining * 1000;
+      writeExamSnapshot(testCode, {
+        phase: 'active',
+        test,
+        studentName: session.studentName,
+        startTime: session.startTime.toISOString(),
+        deadline: deadlineRef.current,
+        state: {
+          ...session.state,
+          bookmarkedQuestions: [...session.state.bookmarkedQuestions],
+          visitedQuestions: [...session.state.visitedQuestions],
+        },
+      });
       
       // Enter fullscreen for better exam experience
       await enterFullscreen();
       
-      setCurrentPhase('active');
+      navigateToPhase('active');
     } catch (err) {
       setError('Failed to start exam. Please try again.');
     }
@@ -243,6 +426,8 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
   // Handle exam submission
   const handleExamSubmission = async (finalAnswers: any[]) => {
     if (!test || !examSession) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
 
     try {
       setCurrentPhase('loading');
@@ -270,21 +455,32 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
       // Exit fullscreen
       await exitFullscreen();
       
-      setCurrentPhase('results');
+      navigateToPhase('results');
     } catch (err) {
       console.error('Error saving test result:', err);
       setError('Failed to submit exam. Your answers have been saved locally. Please try again or contact support.');
       setCurrentPhase('active');
+    } finally {
+      submittingRef.current = false;
     }
   };
 
-  // Handle exam timeout
+  // Single, guarded no-arg entry point for manual + auto submission.
+  const submitExam = useCallback(() => {
+    void handleExamSubmission(examState.answers);
+  }, [examState.answers]);
+
+  // Handle exam timeout - single auto-submit owner, guarded against re-fire.
   useEffect(() => {
-    if (examTimer.timeRemaining <= 0 && currentPhase === 'active') {
-      // Auto-submit when time expires
-      handleExamSubmission(examState.answers);
+    if (
+      examTimer.timeRemaining <= 0 &&
+      currentPhase === 'active' &&
+      !autoSubmittedRef.current
+    ) {
+      autoSubmittedRef.current = true;
+      void handleExamSubmission(examState.answers);
     }
-  }, [examTimer.timeRemaining, currentPhase]);
+  }, [examTimer.timeRemaining, currentPhase, examState.answers]);
 
   // Calculate exam results
   const calculateResults = (test: Test, answers: any[], studentName: string): TestResult => {
@@ -315,7 +511,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
     });
 
     const percentage = Math.round((correctAnswers / test.questions.length) * 100);
-    const timeTaken = (test.timeLimit * 60) - examTimer.timeRemaining;
+    const timeTaken = (test.duration * 60) - examTimer.timeRemaining;
 
     return {
       testId: test.id,
@@ -399,7 +595,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
                   </span>
                   <span className="detail">
                     <Clock />
-                    {test.timeLimit ? `${test.timeLimit} minutes` : 'No time limit'}
+                    {test.duration ? `${test.duration} minutes` : 'No time limit'}
                   </span>
                 </div>
               </div>
@@ -432,7 +628,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
             examSession={examSession}
             examState={examState}
             examTimer={examTimer}
-            onSubmitExam={handleExamSubmission}
+            onSubmitExam={submitExam}
             onError={(error) => {
               setError(error);
             }}
@@ -447,7 +643,10 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
             test={test}
             result={testResult}
             onRetakeExam={() => {
-              setCurrentPhase('entry');
+              window.localStorage.removeItem(getExamSnapshotKey(testCode));
+              deadlineRef.current = null;
+              autoSubmittedRef.current = false;
+              navigateToPhase('entry');
               setTestResult(null);
               setExamSession(null);
               examState.reset();

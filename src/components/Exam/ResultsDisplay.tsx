@@ -8,7 +8,6 @@ import {
   Minus,
   BarChart3,
   Clock,
-  User,
   Download,
   Share2,
   RefreshCw,

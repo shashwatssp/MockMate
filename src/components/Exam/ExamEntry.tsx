@@ -4,8 +4,6 @@ import {
   Clock, 
   Users, 
   FileText, 
-  CheckCircle, 
-  AlertTriangle, 
   User,
   Timer,
   Target,
@@ -17,7 +15,6 @@ import {
   CheckCircle2,
   XCircle,
   Award,
-  Calendar,
   Globe,
   Zap
 } from 'lucide-react';
@@ -41,7 +38,6 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
   test, 
   onStartExam, 
   onError,
-  timeInfo
 }) => {
   const [studentName, setStudentName] = useState('');
   const [studentEmail, setStudentEmail] = useState('');
@@ -69,7 +65,7 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
       const checks = {
         browser: 'requestFullscreen' in document.documentElement,
         connection: navigator.onLine,
-        fullscreen: document.fullscreenEnabled || document.webkitFullscreenEnabled || false,
+        fullscreen: document.fullscreenEnabled,
         camera: false,
         microphone: false
       };

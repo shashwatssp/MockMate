@@ -1,31 +1,24 @@
-// ExamInterface.tsx - Main Exam Interface Component
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Brain, 
-  User, 
-  Clock, 
-  BarChart3, 
-  Menu, 
-  Minimize, 
-  Maximize, 
-  X,
-  Send,
-  AlertTriangle,
-  Shield
-} from 'lucide-react';
-import { QuestionNavigation } from './QuestionNavigation';
-import { TimerDisplay } from './TimerDisplay';
-import { QuestionDisplay } from './QuestionDisplay';
-import { SubmitDialog } from './SubmitDialog';
-import type { Test, ExamSession, StudentAnswer } from '../../types/exam.types';
+// ExamInterface.tsx - Single source of truth exam UI with persistent RHW navigator.
+import { useState } from 'react';
+import { Brain, User, BarChart3, Menu, AlertTriangle, X, Minimize2, Maximize2 } from 'lucide-react';
+import QuestionDisplay from './QuestionDisplay';
+import QuestionNavigation from './QuestionNavigation';
+import TimerDisplay from './TimerDisplay';
+import type { Test, ExamSession, Question, StudentAnswer } from '../../types/exam.types';
+import type { useExamState } from '../../hooks/useExamState';
+import type { useExamTimer } from '../../hooks/useExamTimer';
+import './styles.css';
+
+type ExamStateHook = ReturnType<typeof useExamState>;
+type ExamTimerHook = ReturnType<typeof useExamTimer>;
 
 interface ExamInterfaceProps {
   test: Test;
   examSession: ExamSession;
-  examState: any;
-  examTimer: any;
-  onSubmitExam: (answers: StudentAnswer[]) => void;
-  onError: (error: string) => void;
+  examState: ExamStateHook;
+  examTimer: ExamTimerHook;
+  onSubmitExam: () => void;
+  onError?: (error: string) => void;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
 }
@@ -36,292 +29,303 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
   examState,
   examTimer,
   onSubmitExam,
-  onError,
   isFullscreen,
-  onToggleFullscreen
+  onToggleFullscreen,
 }) => {
+  const questions: Question[] = test.questions;
   const [showSidebar, setShowSidebar] = useState(false);
-  const [showSubmitDialog, setShowSubmitDialog] = useState(false);
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState<StudentAnswer[]>([]);
-  const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(new Set());
-  const [visitedQuestions, setVisitedQuestions] = useState<Set<string>>(new Set([test.questions[0]?.id]));
-  const [showTimeWarning, setShowTimeWarning] = useState(false);
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
 
-  // Handle answer selection
-  const handleAnswerSelect = useCallback((questionId: string, selectedOption: number) => {
-    setAnswers(prevAnswers => {
-      const existingIndex = prevAnswers.findIndex(a => a.questionId === questionId);
-      const newAnswer: StudentAnswer = {
-        questionId,
-        selectedOption,
-        timeSpent: 0,
-        isBookmarked: bookmarkedQuestions.has(questionId)
-      };
+  // ---- Single source of truth: everything is read from / written to examState ----
+  const currentQuestionIndex = examState.currentQuestionIndex;
+  const answers: StudentAnswer[] = examState.answers;
+  const bookmarkedQuestions = examState.bookmarkedQuestions;
+  const visitedQuestions = examState.visitedQuestions;
 
-      if (existingIndex >= 0) {
-        const updated = [...prevAnswers];
-        updated[existingIndex] = newAnswer;
-        return updated;
-      } else {
-        return [...prevAnswers, newAnswer];
-      }
-    });
-  }, [bookmarkedQuestions]);
+  const currentQuestion = questions[currentQuestionIndex];
+  const currentAnswer = answers.find(
+    (a) => a.questionId === currentQuestion?.id,
+  );
+  const selectedAnswer = currentAnswer?.selectedOption;
+  const isBookmarked = !!currentQuestion && bookmarkedQuestions.has(currentQuestion.id);
 
-  // Handle question navigation
-  const handleQuestionNavigation = useCallback((questionIndex: number) => {
-    if (questionIndex >= 0 && questionIndex < test.questions.length) {
-      setCurrentQuestion(questionIndex);
-      const questionId = test.questions[questionIndex].id;
-      setVisitedQuestions(prev => new Set([...prev, questionId]));
+  const totalQuestions = questions.length;
+  const canGoNext = currentQuestionIndex < totalQuestions - 1;
+  const canGoPrevious = currentQuestionIndex > 0;
+
+  // Percentage progress (answered / total).
+  const progressPercentage =
+    totalQuestions === 0
+      ? 0
+      : Math.round(
+          (answers.filter((a) => a.selectedOption !== -1).length / totalQuestions) * 100,
+        );
+
+  // ---- Answer / navigation handlers delegate to examState ----
+  const handleAnswerSelect = (questionId: string, option: number) => {
+    examState.updateAnswer(questionId, option);
+    examState.markVisited(questionId);
+  };
+
+  const handleBookmarkToggle = () => {
+    if (!currentQuestion) return;
+    examState.toggleBookmark(currentQuestion.id);
+  };
+
+  const goToQuestion = (index: number) => {
+    if (index < 0 || index >= totalQuestions) return;
+    examState.setCurrentQuestion(index);
+    examState.markVisited(questions[index].id);
+  };
+
+  const handleNextQuestion = () => {
+    if (canGoNext) {
+      const next = currentQuestionIndex + 1;
+      examState.setCurrentQuestion(next);
+      examState.markVisited(questions[next].id);
     }
-  }, [test.questions]);
+  };
 
-  // Handle bookmark toggle
-  const handleBookmarkToggle = useCallback((questionId: string) => {
-    setBookmarkedQuestions(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(questionId)) {
-        newSet.delete(questionId);
-      } else {
-        newSet.add(questionId);
-      }
-      return newSet;
-    });
-
-    // Update answer if exists
-    setAnswers(prevAnswers => 
-      prevAnswers.map(answer => 
-        answer.questionId === questionId 
-          ? { ...answer, isBookmarked: !bookmarkedQuestions.has(questionId) }
-          : answer
-      )
-    );
-  }, [bookmarkedQuestions]);
-
-  // Handle next question
-  const handleNextQuestion = useCallback(() => {
-    if (currentQuestion < test.questions.length - 1) {
-      handleQuestionNavigation(currentQuestion + 1);
+  const handlePreviousQuestion = () => {
+    if (canGoPrevious) {
+      const prev = currentQuestionIndex - 1;
+      examState.setCurrentQuestion(prev);
+      examState.markVisited(questions[prev].id);
     }
-  }, [currentQuestion, test.questions.length, handleQuestionNavigation]);
+  };
 
-  // Handle previous question
-  const handlePreviousQuestion = useCallback(() => {
-    if (currentQuestion > 0) {
-      handleQuestionNavigation(currentQuestion - 1);
-    }
-  }, [currentQuestion, handleQuestionNavigation]);
+  const unansweredCount = totalQuestions - answers.length;
+  const markedCount = bookmarkedQuestions.size;
 
-  // Handle keyboard shortcuts
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      // Prevent certain keys during exam
-      if (['F12', 'F5', 'Tab'].includes(e.key)) {
-        e.preventDefault();
-      }
+  const handleSidebarSelect = (index: number) => {
+    goToQuestion(index);
+    // On mobile, close the drawer after jumping.
+    setShowSidebar(false);
+  };
 
-      // Navigation shortcuts
-      if (e.ctrlKey || e.metaKey) {
-        switch (e.key) {
-          case 'ArrowRight':
-            e.preventDefault();
-            handleNextQuestion();
-            break;
-          case 'ArrowLeft':
-            e.preventDefault();
-            handlePreviousQuestion();
-            break;
-          case 's':
-            e.preventDefault();
-            setShowSubmitDialog(true);
-            break;
-        }
-      }
+  const handleOpenSubmit = () => {
+    setSubmitDialogOpen(true);
+  };
 
-      // Number key navigation (1-9)
-      if (e.key >= '1' && e.key <= '9' && !e.ctrlKey && !e.altKey) {
-        const questionIndex = parseInt(e.key) - 1;
-        if (questionIndex < test.questions.length) {
-          handleQuestionNavigation(questionIndex);
-        }
-      }
-    };
+  const handleConfirmSubmit = () => {
+    setSubmitDialogOpen(false);
+    setShowSidebar(false);
+    onSubmitExam();
+  };
 
-    document.addEventListener('keydown', handleKeyPress);
-    return () => document.removeEventListener('keydown', handleKeyPress);
-  }, [handleNextQuestion, handlePreviousQuestion, handleQuestionNavigation, test.questions.length]);
-
-  // Handle time warnings
-  useEffect(() => {
-    const timeRemaining = examTimer.timeRemaining;
-    
-    if (timeRemaining <= 300 && timeRemaining > 0 && !showTimeWarning) { // 5 minutes
-      setShowTimeWarning(true);
-    }
-    
-    if (timeRemaining <= 0) {
-      // Auto-submit when time expires
-      handleExamSubmit();
-    }
-  }, [examTimer.timeRemaining, showTimeWarning]);
-
-  // Handle exam submission
-  const handleExamSubmit = useCallback(() => {
-    onSubmitExam(answers);
-  }, [answers, onSubmitExam]);
-
-  // Prevent page refresh/navigation
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = 'Are you sure you want to leave? Your exam progress will be lost.';
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
-
-  // Calculate progress
-  const answeredCount = answers.length;
-  const progressPercentage = Math.round((answeredCount / test.questions.length) * 100);
-  const currentQuestionData = test.questions[currentQuestion];
-  const currentAnswer = answers.find(a => a.questionId === currentQuestionData?.id);
+  // Timer warnings surface as an in-screen toast (does NOT submit).
+  const timerWarning =
+    examTimer.warnings.oneMinute || examTimer.warnings.fiveMinutes;
 
   return (
-    <div className="exam-app">
-      {/* Exam Header */}
+    <div className="exam-active-screen">
+      {/* ===== Header (always visible): brand + timer + progress + controls ==== */}
       <header className="exam-header">
         <div className="exam-header-content">
           <div className="exam-brand">
             <div className="exam-brand-icon">
-              <Brain size={24} />
+              <Brain size={28} />
             </div>
             <div>
               <h1 className="exam-title">{test.title || test.name}</h1>
               <p className="exam-subtitle">
-                <User size={14} />
-                {examSession.studentName}
+                <User size={14} /> {examSession.studentName}
               </p>
             </div>
           </div>
 
           <div className="exam-header-right">
-            <TimerDisplay 
+            <TimerDisplay
               timeRemaining={examTimer.timeRemaining}
-              totalTime={test.timeLimit * 60}
-              onWarning={setShowTimeWarning}
+              totalTime={test.duration * 60}
+              onWarning={() => {}}
             />
-            
             <div className="progress-indicator">
-              <BarChart3 className="progress-icon" />
+              <BarChart3 size={20} className="progress-icon" />
               <div className="progress-content">
-                <span className="progress-value">{answeredCount}/{test.questions.length}</span>
-                <span className="progress-label">Completed</span>
+                <span className="progress-value">{progressPercentage}%</span>
+                <span className="progress-label">Complete</span>
               </div>
             </div>
 
-            <div className="header-controls">
-              <button
-                onClick={() => setShowSidebar(!showSidebar)}
-                className="btn btn-secondary"
-                title="Toggle Navigation"
-              >
-                <Menu size={20} />
-              </button>
-              
-              <button
-                onClick={onToggleFullscreen}
-                className="btn btn-secondary"
-                title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-              >
-                {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
-              </button>
-            </div>
+            {/* Mobile: open the question-navigation drawer */}
+            <button
+              type="button"
+              className="nav-toggle-btn"
+              onClick={() => setShowSidebar((s) => !s)}
+              aria-label={showSidebar ? 'Close question navigation' : 'Open question navigation'}
+              aria-expanded={showSidebar}
+              aria-controls="question-navigation"
+            >
+              <Menu size={20} />
+            </button>
+
+            <button
+              type="button"
+              className="action-btn"
+              onClick={onToggleFullscreen}
+              title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            >
+              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Exam Content */}
-      <div className="exam-content">
-        {/* Sidebar */}
-        {showSidebar && (
-          <aside className="exam-sidebar">
-            <QuestionNavigation
-              questions={test.questions}
-              currentQuestion={currentQuestion}
-              answers={answers}
-              bookmarkedQuestions={bookmarkedQuestions}
-              visitedQuestions={visitedQuestions}
-              onQuestionSelect={handleQuestionNavigation}
-              onSubmitExam={() => setShowSubmitDialog(true)}
-            />
-          </aside>
-        )}
-
-        {/* Sidebar Overlay for Mobile */}
-        {showSidebar && (
-          <div 
-            className={`sidebar-overlay ${showSidebar ? 'active' : ''}`}
-            onClick={() => setShowSidebar(false)}
-          />
-        )}
-
-        {/* Main Content */}
-        <main className="exam-main">
-          <QuestionDisplay
-            question={currentQuestionData}
-            questionIndex={currentQuestion}
-            totalQuestions={test.questions.length}
-            selectedAnswer={currentAnswer?.selectedOption}
-            isBookmarked={bookmarkedQuestions.has(currentQuestionData?.id)}
-            onAnswerSelect={(option) => handleAnswerSelect(currentQuestionData.id, option)}
-            onBookmarkToggle={() => handleBookmarkToggle(currentQuestionData.id)}
-            onNextQuestion={handleNextQuestion}
-            onPreviousQuestion={handlePreviousQuestion}
-            canGoNext={currentQuestion < test.questions.length - 1}
-            canGoPrevious={currentQuestion > 0}
-          />
-        </main>
-      </div>
-
-      {/* Submit Dialog */}
-      {showSubmitDialog && (
-        <SubmitDialog
-          totalQuestions={test.questions.length}
-          answeredQuestions={answeredCount}
-          unansweredQuestions={test.questions.length - answeredCount}
-          timeRemaining={examTimer.timeRemaining}
-          onConfirm={handleExamSubmit}
-          onCancel={() => setShowSubmitDialog(false)}
-        />
-      )}
-
-      {/* Time Warning Toast */}
-      {showTimeWarning && examTimer.timeRemaining > 60 && examTimer.timeRemaining <= 300 && (
+      {/* ===== Time warning toast (non-blocking, dismissable) ==== */}
+      {timerWarning && (
         <div className="time-warning-toast">
           <div className="toast-content">
-            <AlertTriangle className="toast-icon" />
+            <AlertTriangle className="toast-icon" size={20} />
             <div className="toast-text">
-              <strong>5 minutes remaining!</strong>
-              <p>Please review your answers</p>
+              <strong>Hurry up!</strong>
+              <p>{examTimer.timeRemaining} seconds remaining</p>
             </div>
-            <button 
-              onClick={() => setShowTimeWarning(false)}
+            <button
+              type="button"
               className="toast-close"
+              onClick={() => {}}
+              aria-label="Dismiss warning"
             >
-              <X size={16} />
+              <X size={14} />
             </button>
           </div>
         </div>
       )}
 
-      {/* Security Indicator */}
-      <div className="security-indicator">
-        <Shield size={16} />
-        <span>Secure Session</span>
+      {/* ===== Two-area layout: LEFT = question, RIGHT = RHW navigator ==== */}
+      <div className="exam-content">
+        <main className="exam-main">
+          <QuestionDisplay
+            question={currentQuestion}
+            questionIndex={currentQuestionIndex}
+            totalQuestions={totalQuestions}
+            selectedAnswer={selectedAnswer}
+            isBookmarked={isBookmarked}
+            onAnswerSelect={(option) =>
+              handleAnswerSelect(currentQuestion.id, option)
+            }
+            onBookmarkToggle={handleBookmarkToggle}
+            onNextQuestion={handleNextQuestion}
+            onPreviousQuestion={handlePreviousQuestion}
+            canGoNext={canGoNext}
+            canGoPrevious={canGoPrevious}
+          />
+
+          <div className="exam-controls-below">
+            <div className="control-group">
+              <span className="exam-meta">
+                Unanswered: {unansweredCount} | Marked: {markedCount} |
+                Question {currentQuestionIndex + 1} of {totalQuestions}
+              </span>
+            </div>
+            <div className="control-group">
+              <button
+                onClick={handlePreviousQuestion}
+                disabled={!canGoPrevious}
+                className="nav-btn"
+                title="Previous question (Ctrl + Left Arrow)"
+              >
+                Previous
+              </button>
+              <button
+                onClick={handleNextQuestion}
+                disabled={!canGoNext}
+                className="nav-btn nav-btn-primary"
+                title="Next question (Ctrl + Right Arrow)"
+              >
+                Next
+              </button>
+              <button
+                onClick={handleOpenSubmit}
+                className="nav-btn nav-btn-primary"
+                title="Submit exam"
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </main>
+
+        {/* ===== RHW Question Navigation Palette (persistent on desktop, =====
+             drawer on mobile via the .open class) ===== */}
+        <QuestionNavigation
+          questions={questions}
+          currentQuestionIndex={currentQuestionIndex}
+          answers={answers}
+          bookmarkedQuestions={bookmarkedQuestions}
+          visitedQuestions={visitedQuestions}
+          onQuestionSelect={handleSidebarSelect}
+          isOpen={showSidebar}
+        />
+
+        {/* Mobile drawer overlay */}
+        <div
+          className={`sidebar-overlay${showSidebar ? ' active' : ''}`}
+          onClick={() => setShowSidebar(false)}
+          aria-hidden="true"
+        />
       </div>
+
+      {/* ===== Submit confirmation dialog ==== */}
+      {submitDialogOpen && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="submit-title">
+          <div className="modal-content exam-submit-dialog">
+            <div className="modal-header">
+              <div className="modal-icon">
+                <AlertTriangle size={32} />
+              </div>
+              <h2 id="submit-title" className="modal-title">
+                Submit Exam?
+              </h2>
+              <p className="modal-subtitle">
+                You have answered {answers.length} of {totalQuestions} questions.
+                Marked for review: {markedCount}. Unanswered: {unansweredCount}.
+              </p>
+            </div>
+            <div className="modal-body">
+              <p className="modal-text">
+                Once submitted, you cannot change your answers. Make sure all
+                questions are complete.
+              </p>
+              <div className="submission-summary">
+                <div className="summary-stats">
+                  <div className="summary-stat completed">
+                    <div className="stat-circle">
+                      <span className="stat-number">{answers.length}</span>
+                    </div>
+                    <div className="stat-label">Answered</div>
+                  </div>
+                  <div className="summary-stat pending">
+                    <div className="stat-circle">
+                      <span className="stat-number">{markedCount}</span>
+                    </div>
+                    <div className="stat-label">Marked</div>
+                  </div>
+                  <div className="summary-stat time">
+                    <div className="stat-circle">
+                      <span className="stat-time">{unansweredCount}</span>
+                    </div>
+                    <div className="stat-label">Unanswered</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-actions center">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setSubmitDialogOpen(false)}
+              >
+                Cancel
+              </button>
+              <button className="btn btn-error" onClick={handleConfirmSubmit}>
+                Submit Exam
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

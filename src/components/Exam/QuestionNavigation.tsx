@@ -1,277 +1,276 @@
-// QuestionNavigation.tsx - Question Navigation Sidebar Component
-import React from 'react';
-import { 
-  Target, 
-  CheckCircle, 
-  Clock, 
-  Send, 
-  Bookmark, 
-  Flag,
-  Eye,
-  BarChart3
-} from 'lucide-react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { Question, StudentAnswer } from '../../types/exam.types';
 
-interface QuestionNavigationProps {
+export type QuestionStatus =
+  | 'current' // the active question
+  | 'answered-review' // answered AND marked for review
+  | 'answered' // answered, not marked
+  | 'review' // marked for review but unanswered
+  | 'visited' // visited but unanswered, not marked
+  | 'unvisited'; // never touched
+
+export interface QuestionNavigationProps {
+  /** Full canonical list of questions for the exam (already shuffled if randomization is on). */
   questions: Question[];
-  currentQuestion: number;
+  /** Index of the question currently being edited. */
+  currentQuestionIndex: number;
+  /** Shared answer records keyed by questionId. */
   answers: StudentAnswer[];
+  /** "Mark for Review" bucket — same set as examState.bookmarkedQuestions. */
   bookmarkedQuestions: Set<string>;
+  /** Questions the student has visited at least once. */
   visitedQuestions: Set<string>;
-  onQuestionSelect: (questionIndex: number) => void;
-  onSubmitExam: () => void;
+  /** Jump to the given question index. */
+  onQuestionSelect: (index: number) => void;
+  /** On mobile the sidebar is a drawer; this controls the open state. */
+  isOpen?: boolean;
 }
 
-export const QuestionNavigation: React.FC<QuestionNavigationProps> = ({
-  questions,
-  currentQuestion,
-  answers,
-  bookmarkedQuestions,
-  visitedQuestions,
-  onQuestionSelect,
-  onSubmitExam
-}) => {
-  const answeredCount = answers.length;
-  const bookmarkedCount = bookmarkedQuestions.size;
-  const visitedCount = visitedQuestions.size;
-  const unansweredCount = questions.length - answeredCount;
+type StatusCounts = Record<QuestionStatus, number>;
 
-  const getQuestionStatus = (question: Question, index: number) => {
-    const isAnswered = answers.some(a => a.questionId === question.id);
-    const isBookmarked = bookmarkedQuestions.has(question.id);
-    const isVisited = visitedQuestions.has(question.id);
-    const isCurrent = index === currentQuestion;
+const initialCounts: StatusCounts = {
+  current: 0,
+  'answered-review': 0,
+  answered: 0,
+  review: 0,
+  visited: 0,
+  unvisited: 0,
+};
 
-    return {
-      isAnswered,
-      isBookmarked,
-      isVisited,
-      isCurrent
+/**
+ * Derive the status of every question from the shared source of truth.
+ * No answer state is duplicated here — statuses are recomputed on every
+ * change to answers / bookmarkedQuestions / visitedQuestions.
+ */
+function useQuestionStatuses(props: QuestionNavigationProps): QuestionStatus[] {
+  const {
+    questions,
+    currentQuestionIndex,
+    answers,
+    bookmarkedQuestions,
+    visitedQuestions,
+  } = props;
+
+  return useMemo(() => {
+    const answerMap = new Map<string, StudentAnswer>();
+    answers.forEach((a) => answerMap.set(a.questionId, a));
+
+    return questions.map((q, i) => {
+      const answered =
+        answerMap.has(q.id) && answerMap.get(q.id)!.selectedOption !== -1;
+      const marked = bookmarkedQuestions.has(q.id);
+      const visited = visitedQuestions.has(q.id) || i === currentQuestionIndex;
+      const current = i === currentQuestionIndex;
+
+      if (current) return 'current';
+      if (answered && marked) return 'answered-review';
+      if (answered) return 'answered';
+      if (marked) return 'review';
+      if (visited) return 'visited';
+      return 'unvisited';
+    });
+  }, [
+    questions,
+    currentQuestionIndex,
+    answers,
+    bookmarkedQuestions,
+    visitedQuestions,
+  ]);
+}
+
+/**
+ * Keep focus on the newly-current question button when the current question
+ * moves, so keyboard / screen-reader users follow navigation without relying
+ * on color alone. `<button>` already handles Enter/Space natively.
+ */
+function useFocusCurrentButton(
+  currentIndex: number,
+  questionCount: number,
+) {
+  const buttonRefs = useRef<Map<number, HTMLButtonElement | null>>(null);
+  const currentIdRef = useRef<string | null>(null);
+
+  if (!buttonRefs.current) {
+    buttonRefs.current = new Map();
+  }
+
+  const register = (index: number) => (el: HTMLButtonElement | null) => {
+    buttonRefs.current!.set(index, el);
+  };
+
+  useEffect(() => {
+    const key = `q-${currentIndex}`;
+    if (currentIdRef.current !== key) {
+      currentIdRef.current = key;
+      buttonRefs.current!.get(currentIndex)?.focus();
+    }
+  }, [currentIndex]);
+
+  // Drop stale refs when the question list itself changes shape.
+  useEffect(() => {
+    const store = buttonRefs.current;
+    if (!store) return;
+    return () => {
+      for (let i = 0; i < questionCount; i++) store.delete(i);
     };
-  };
+  }, [questionCount]);
 
-  const getQuestionButtonClass = (status: any) => {
-    let baseClass = 'question-btn';
-    
-    if (status.isCurrent) {
-      baseClass += ' current';
-    } else if (status.isAnswered) {
-      baseClass += ' answered';
-    } else if (status.isBookmarked) {
-      baseClass += ' bookmarked';
-    } else if (status.isVisited) {
-      baseClass += ' visited';
-    }
-    
-    return baseClass;
-  };
+  return register;
+}
 
-  // Group questions by topic for better organization
-  const questionsByTopic = questions.reduce((acc, question, index) => {
-    if (!acc[question.topic]) {
-      acc[question.topic] = [];
-    }
-    acc[question.topic].push({ question, index });
-    return acc;
-  }, {} as Record<string, Array<{ question: Question; index: number }>>);
+const QuestionNavigation = (props: QuestionNavigationProps) => {
+  const {
+    questions,
+    currentQuestionIndex,
+    onQuestionSelect,
+    isOpen = false,
+  } = props;
+
+  const statuses = useQuestionStatuses(props);
+
+  const statusCounts: StatusCounts = useMemo(() => {
+    const counts = { ...initialCounts };
+    statuses.forEach((s) => {
+      counts[s] += 1;
+    });
+    return counts;
+  }, [statuses]);
+
+  const register = useFocusCurrentButton(
+    currentQuestionIndex,
+    questions.length,
+  );
+
+  const answeredCount = statusCounts.answered + statusCounts['answered-review'];
+  const markedCount = statusCounts.review + statusCounts['answered-review'];
+  const visitedCount =
+    statusCounts.visited + answeredCount + markedCount;
+  const total = questions.length;
+  const progress = total === 0 ? 0 : Math.round((answeredCount / total) * 100);
+
+  const className = `exam-sidebar${isOpen ? ' open' : ''}`;
+
+  if (total === 0) {
+    return null;
+  }
 
   return (
-    <div className="question-nav">
-      {/* Header */}
-      <div className="nav-header">
-        <h2 className="nav-title">
-          <Target size={20} />
-          Question Navigator
-        </h2>
-        <p className="nav-subtitle">Click on any question to navigate</p>
-      </div>
+    <aside className={className} aria-label="Question navigation">
+      <nav
+        className="question-nav"
+        aria-label="Questions"
+        role="group"
+        aria-labelledby="nav-title"
+      >
+        <header className="nav-header">
+          <h2 id="nav-title" className="nav-title">
+            Questions
+          </h2>
+        </header>
 
-      {/* Statistics */}
-      <div className="nav-stats">
-        <div className="nav-stat answered">
-          <CheckCircle className="nav-stat-icon" />
-          <span className="nav-stat-value">{answeredCount}</span>
-          <span className="nav-stat-label">Answered</span>
-        </div>
-        
-        <div className="nav-stat remaining">
-          <Clock className="nav-stat-icon" />
-          <span className="nav-stat-value">{unansweredCount}</span>
-          <span className="nav-stat-label">Remaining</span>
-        </div>
-        
-        {bookmarkedCount > 0 && (
-          <div className="nav-stat bookmarked">
-            <Bookmark className="nav-stat-icon" />
-            <span className="nav-stat-value">{bookmarkedCount}</span>
-            <span className="nav-stat-label">Bookmarked</span>
-          </div>
-        )}
-      </div>
+        <ul className="nav-stats" aria-label="Answer summary">
+          <li className="nav-stat answered">
+            <span className="nav-stat-value">{answeredCount}</span>
+            <span className="nav-stat-label">Answered</span>
+          </li>
+          <li className="nav-stat">
+            <span className="nav-stat-value">{markedCount}</span>
+            <span className="nav-stat-label">Marked</span>
+          </li>
+          <li className="nav-stat">
+            <span className="nav-stat-value">{visitedCount}</span>
+            <span className="nav-stat-label">Visited</span>
+          </li>
+          <li className="nav-stat nav-stat--progress" aria-label="Progress">
+            <div
+              className="nav-progress-bar"
+              role="progressbar"
+              aria-valuenow={progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              style={{ width: `${progress}%` }}
+            />
+            <span className="nav-stat-value">{progress}%</span>
+            <span className="nav-stat-label">Complete</span>
+          </li>
+        </ul>
 
-      {/* Question Palette */}
-      <div className="question-palette">
-        <div className="palette-header">
-          <h3 className="palette-title">
-            <BarChart3 size={16} />
-            All Questions
-          </h3>
-        </div>
-        
-        <div className="question-grid">
-          {questions.map((question, index) => {
-            const status = getQuestionStatus(question, index);
-            
+        <ol className="question-grid" role="list">
+          {questions.map((q, i) => {
+            const status = statuses[i];
+            const classes = [
+              'question-btn',
+              `status-${status}`,
+              status === 'current' ? 'current' : '',
+              status === 'answered' || status === 'answered-review'
+                ? 'answered'
+                : '',
+              status === 'review' || status === 'answered-review'
+                ? 'bookmarked'
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
+
+            // Communicate full status non-visually (colors are reinforced with
+            // text via the aria-label, never color-only).
+            let statusWord: string;
+            if (status === 'current') statusWord = 'current question';
+            else if (status === 'answered' || status === 'answered-review')
+              statusWord = 'answered';
+            else if (status === 'review')
+              statusWord = 'marked for review';
+            else if (status === 'visited') statusWord = 'visited, unanswered';
+            else statusWord = 'not visited';
+
             return (
-              <button
-                key={question.id}
-                onClick={() => onQuestionSelect(index)}
-                className={getQuestionButtonClass(status)}
-                title={`Question ${index + 1}${status.isAnswered ? ' (Answered)' : ''}${status.isBookmarked ? ' (Bookmarked)' : ''}`}
-                aria-label={`Question ${index + 1}${status.isCurrent ? ' - Current' : ''}`}
-              >
-                <span className="question-number">{index + 1}</span>
-                
-                {status.isAnswered && (
-                  <div className="status-indicator answered">
-                    <CheckCircle size={12} />
-                  </div>
-                )}
-                
-                {status.isBookmarked && (
-                  <div className="status-indicator bookmarked">
-                    <Bookmark size={12} />
-                  </div>
-                )}
-                
-                {status.isCurrent && (
-                  <div className="current-indicator" />
-                )}
-              </button>
+              <li key={q.id}>
+                <button
+                  ref={register(i)}
+                  type="button"
+                  className={classes}
+                  aria-label={`Go to question ${i + 1}, ${statusWord}`}
+                  aria-current={status === 'current' ? 'step' : undefined}
+                  title={`Question ${i + 1} — ${statusWord}`}
+                  onClick={() => onQuestionSelect(i)}
+                >
+                  {i + 1}
+                </button>
+              </li>
             );
           })}
-        </div>
-      </div>
+        </ol>
 
-      {/* Topic-wise Breakdown */}
-      <div className="topic-breakdown">
-        <h3 className="breakdown-title">
-          <Flag size={16} />
-          Topic Progress
-        </h3>
-        
-        <div className="topic-list">
-          {Object.entries(questionsByTopic).map(([topic, topicQuestions]) => {
-            const topicAnsweredCount = topicQuestions.filter(({ question }) => 
-              answers.some(a => a.questionId === question.id)
-            ).length;
-            const topicPercentage = Math.round((topicAnsweredCount / topicQuestions.length) * 100);
-            
-            return (
-              <div key={topic} className="topic-item">
-                <div className="topic-header">
-                  <span className="topic-name">{topic}</span>
-                  <span className="topic-count">{topicAnsweredCount}/{topicQuestions.length}</span>
-                </div>
-                
-                <div className="topic-progress">
-                  <div className="progress-bar">
-                    <div 
-                      className="progress-fill"
-                      style={{ width: `${topicPercentage}%` }}
-                    />
-                  </div>
-                  <span className="progress-percentage">{topicPercentage}%</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="status-legend">
-        <h4 className="legend-title">Status Legend</h4>
-        <div className="legend-items">
-          <div className="legend-item">
-            <div className="legend-indicator current"></div>
-            <span>Current</span>
-          </div>
-          
-          <div className="legend-item">
-            <div className="legend-indicator answered"></div>
-            <span>Answered</span>
-          </div>
-          
-          <div className="legend-item">
-            <div className="legend-indicator bookmarked"></div>
-            <span>Bookmarked</span>
-          </div>
-          
-          <div className="legend-item">
-            <div className="legend-indicator visited"></div>
-            <span>Visited</span>
-          </div>
-          
-          <div className="legend-item">
-            <div className="legend-indicator unanswered"></div>
-            <span>Not Visited</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="quick-actions">
-        <button
-          onClick={() => {
-            // Find first unanswered question
-            const firstUnanswered = questions.findIndex(q => 
-              !answers.some(a => a.questionId === q.id)
-            );
-            if (firstUnanswered !== -1) {
-              onQuestionSelect(firstUnanswered);
-            }
-          }}
-          className="action-btn secondary"
-          disabled={answeredCount === questions.length}
-        >
-          <Eye size={16} />
-          <span>Next Unanswered</span>
-        </button>
-        
-        <button
-          onClick={() => {
-            // Find first bookmarked question
-            const firstBookmarked = questions.findIndex(q => 
-              bookmarkedQuestions.has(q.id)
-            );
-            if (firstBookmarked !== -1) {
-              onQuestionSelect(firstBookmarked);
-            }
-          }}
-          className="action-btn secondary"
-          disabled={bookmarkedCount === 0}
-        >
-          <Bookmark size={16} />
-          <span>Review Bookmarked</span>
-        </button>
-      </div>
-
-      {/* Submit Button */}
-      <div className="submit-section">
-        <button
-          onClick={onSubmitExam}
-          className="btn btn-primary btn-full submit-btn"
-        >
-          <Send size={20} />
-          <span>Submit Exam</span>
-        </button>
-        
-        <p className="submit-warning">
-          Make sure you have reviewed all your answers before submitting.
-        </p>
-      </div>
-    </div>
+        <footer className="nav-legend" aria-label="Legend">
+          <h3 className="legend-title">Status legend</h3>
+          <ul className="legend">
+            <li>
+              <span className="legend-swatch current" aria-hidden="true" />
+              <span>Current</span>
+            </li>
+            <li>
+              <span className="legend-swatch answered" aria-hidden="true" />
+              <span>Answered</span>
+            </li>
+            <li>
+              <span className="legend-swatch review" aria-hidden="true" />
+              <span>Marked for review</span>
+            </li>
+            <li>
+              <span className="legend-swatch visited" aria-hidden="true" />
+              <span>Visited</span>
+            </li>
+            <li>
+              <span className="legend-swatch unvisited" aria-hidden="true" />
+              <span>Not visited</span>
+            </li>
+          </ul>
+          <p className="legend-note">
+            Colors are reinforced with status text in each button label.
+          </p>
+        </footer>
+      </nav>
+    </aside>
   );
 };
 
