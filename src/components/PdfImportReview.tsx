@@ -262,34 +262,56 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
     setCropStart(null);
   };
 
-  const handleCropMouseDown = (e: React.MouseEvent) => {
-    if (!cropMode || selecting) return;
+  /** Converts a mouse *or* touch pointer event into image-natural-space
+   *  coordinates, so the same crop math works on laptop (mouse) and mobile
+   *  (touch). Uses the image's bounding rect so it is independent of the
+   *  overlay element size. */
+  const cropPointerPos = (
+    e: MouseEvent | TouchEvent,
+  ): { x: number; y: number } | null => {
     const img = imgRef.current;
-    if (!img) return;
+    if (!img) return null;
+    const rect = img.getBoundingClientRect();
+    let cx: number;
+    let cy: number;
+    if ('touches' in e && e.touches && e.touches.length) {
+      cx = e.touches[0].clientX;
+      cy = e.touches[0].clientY;
+    } else if ('changedTouches' in e && e.changedTouches && e.changedTouches.length) {
+      cx = e.changedTouches[0].clientX;
+      cy = e.changedTouches[0].clientY;
+    } else if ('clientX' in e) {
+      cx = e.clientX;
+      cy = e.clientY;
+    } else {
+      return null;
+    }
     const scale = img.naturalWidth / img.offsetWidth;
-    const x = e.nativeEvent.offsetX * scale;
-    const y = e.nativeEvent.offsetY * scale;
-    setCropStart({ x, y });
-    setSelecting(true);
-    setCropBox({ xMin: x, yMin: y, xMax: x, yMax: y });
+    return { x: (cx - rect.left) * scale, y: (cy - rect.top) * scale };
   };
 
-  const handleCropMouseMove = (e: React.MouseEvent) => {
+  const handleCropStart = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!cropMode || selecting) return;
+    const pos = cropPointerPos(e.nativeEvent);
+    if (!pos) return;
+    setCropStart(pos);
+    setSelecting(true);
+    setCropBox({ xMin: pos.x, yMin: pos.y, xMax: pos.x, yMax: pos.y });
+  };
+
+  const handleCropMove = (e: React.MouseEvent | React.TouchEvent) => {
     if (!cropMode || !selecting || !cropStart) return;
-    const img = imgRef.current;
-    if (!img) return;
-    const scale = img.naturalWidth / img.offsetWidth;
-    const x = e.nativeEvent.offsetX * scale;
-    const y = e.nativeEvent.offsetY * scale;
+    const pos = cropPointerPos(e.nativeEvent);
+    if (!pos) return;
     setCropBox({
-      xMin: Math.min(cropStart.x, x),
-      yMin: Math.min(cropStart.y, y),
-      xMax: Math.max(cropStart.x, x),
-      yMax: Math.max(cropStart.y, y),
+      xMin: Math.min(cropStart.x, pos.x),
+      yMin: Math.min(cropStart.y, pos.y),
+      xMax: Math.max(cropStart.x, pos.x),
+      yMax: Math.max(cropStart.y, pos.y),
     });
   };
 
-  const handleCropMouseUp = () => {
+  const handleCropEnd = () => {
     if (!cropMode || !selecting) return;
     setSelecting(false);
   };
@@ -457,9 +479,13 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
                 {cropMode && (
                   <div
                     className="crop-overlay"
-                    onMouseDown={handleCropMouseDown}
-                    onMouseMove={handleCropMouseMove}
-                    onMouseUp={handleCropMouseUp}
+                    onMouseDown={handleCropStart}
+                    onMouseMove={handleCropMove}
+                    onMouseUp={handleCropEnd}
+                    onMouseLeave={handleCropEnd}
+                    onTouchStart={handleCropStart}
+                    onTouchMove={handleCropMove}
+                    onTouchEnd={handleCropEnd}
                   />
                 )}
                 {cropMode && cropBox && (

@@ -431,6 +431,9 @@
   inset: 0;
   cursor: crosshair;
   background: rgba(0, 0, 0, 0.35);
+  /* Capture 1-finger drag for cropping instead of letting the browser
+     interpret it as a page scroll / double-tap zoom. */
+  touch-action: none;
   border-radius: 10px;
 }
 
