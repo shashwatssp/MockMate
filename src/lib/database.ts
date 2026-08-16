@@ -1,18 +1,49 @@
 import { supabase } from './supabase'
 import type { Question, Test, TestResult, TestSettings, TestResultInput } from '../types/exam.types'
+import { normalizeQuestionKey, normalizeQuestionText } from './questionImport'
 
 // Questions
 export const insertQuestions = async (questions: Omit<Question, 'id'>[]) => {
-  console.log("Questions to insert:", questions);
-  
-  const questionsWithDifficulty = questions.map(q => ({
+  if (questions.length === 0) return []
+
+  const incomingByKey = new Map<string, Omit<Question, 'id'>>()
+  questions.forEach(question => {
+    const key = normalizeQuestionKey(normalizeQuestionText(question.text))
+    if (key && !incomingByKey.has(key)) {
+      incomingByKey.set(key, question)
+    }
+  })
+
+  const { data: existingQuestions, error: existingError } = await supabase
+    .from('questions')
+    .select('text')
+
+  if (existingError) {
+    console.error('Error checking existing questions:', existingError)
+    throw existingError
+  }
+
+  const existingKeys = new Set(
+    (existingQuestions || [])
+      .map(question => normalizeQuestionKey(normalizeQuestionText(question.text)))
+      .filter(Boolean)
+  )
+  const newQuestions = [...incomingByKey.entries()]
+    .filter(([key]) => !existingKeys.has(key))
+    .map(([, question]) => question)
+
+  if (newQuestions.length === 0) return []
+
+  const questionsWithDifficulty = newQuestions.map(q => ({
     text: q.text,
     options: q.options,
     correct_answer: q.correctAnswer,
     topic: q.topic,
     subject: q.subject,        
     year: q.year,              
-    difficulty: getDifficulty(q) as 'easy' | 'medium' | 'hard'
+    difficulty: q.difficulty ?? getDifficulty(q) as 'easy' | 'medium' | 'hard',
+    ...(q.marks !== undefined ? { marks: q.marks } : {}),
+    ...(q.negativeMarks !== undefined ? { negative_marks: q.negativeMarks } : {})
   }))
 
   const { data, error } = await supabase
@@ -47,8 +78,24 @@ export const getQuestions = async () => {
     topic: q.topic,
     subject: q.subject,        
     year: q.year,              
-    difficulty: q.difficulty   
+    difficulty: q.difficulty,
+    marks: q.marks,
+    negativeMarks: q.negative_marks
   })) as Question[]
+}
+
+/** Return the question-bank size without downloading every question row. */
+export const getQuestionCount = async () => {
+  const { count, error } = await supabase
+    .from('questions')
+    .select('id', { count: 'exact', head: true })
+
+  if (error) {
+    console.error('Error counting questions:', error)
+    throw error
+  }
+
+  return count ?? 0
 }
 
 export const getQuestionsByFilters = async (filters: {
@@ -84,7 +131,9 @@ export const getQuestionsByFilters = async (filters: {
     topic: q.topic,
     subject: q.subject,       
     year: q.year,             
-    difficulty: q.difficulty   
+    difficulty: q.difficulty,
+    marks: q.marks,
+    negativeMarks: q.negative_marks
   })) as Question[]
 }
 
@@ -105,7 +154,8 @@ export const createTest = async (testData: Omit<Test, 'id' | 'createdAt'>) => {
       settings: testData.settings,
       start_date: testData.startDate?.toISOString(),
       duration: testData.duration,
-      time_limit: testData.timeLimit
+      // Keep the legacy column synchronized for older database consumers.
+      time_limit: testData.duration
     }])
     .select()
 
@@ -142,8 +192,8 @@ export const getTestByKey = async (testKey: string) => {
     createdAt: new Date(data.created_at),
     startDate: new Date(data.start_date),
     endDate: settings.endDate ? new Date(settings.endDate) : undefined,
-    duration: data.duration,
-    timeLimit: data.time_limit,
+    duration: data.duration ?? data.time_limit ?? 90,
+    timeLimit: data.duration ?? data.time_limit ?? 90,
     allowReview: settings.allowReview ?? true,
     maxAttempts: settings.maxAttempts ?? 1,
     passingScore: settings.passingScore ?? 70,
@@ -173,8 +223,8 @@ export const getAllTests = async () => {
       createdAt: new Date(test.created_at),
       startDate: new Date(test.start_date),
       endDate: settings.endDate ? new Date(settings.endDate) : undefined,
-      duration: test.duration,
-      timeLimit: test.time_limit,
+      duration: test.duration ?? test.time_limit ?? 90,
+      timeLimit: test.duration ?? test.time_limit ?? 90,
       allowReview: settings.allowReview ?? true,
       maxAttempts: settings.maxAttempts ?? 1,
       passingScore: settings.passingScore ?? 70,
@@ -201,6 +251,25 @@ export const saveTestResult = async (result: TestResultInput) => {
   return data[0]
 }
 
+export const hasStudentTakenTest = async (testId: string, studentName: string) => {
+  const normalizedName = studentName.trim().toLocaleLowerCase();
+  if (!testId || !normalizedName) return false;
+
+  const { data, error } = await supabase
+    .from('test_results')
+    .select('student_name')
+    .eq('test_id', testId);
+
+  if (error) {
+    console.warn('Unable to check previous test attempts:', error);
+    return false;
+  }
+
+  return (data || []).some(row =>
+    String(row.student_name || '').trim().toLocaleLowerCase() === normalizedName
+  );
+}
+
 export const getTestResults = async (testId: string) => {
   const { data, error } = await supabase
     .from('test_results')
@@ -213,13 +282,17 @@ export const getTestResults = async (testId: string) => {
   return data.map(result => {
     const total = result.total_questions ?? 0;
     const score = result.score ?? 0;
-    const answered = Array.isArray(result.answers) ? result.answers.length : 0;
+    const answers = Array.isArray(result.answers) ? result.answers : [];
+    const answered = answers.filter(answer => answer.selectedOption >= 0).length;
+    const recordedQuestionTime = answers.reduce((sum, answer) => (
+      sum + (Number.isFinite(answer.timeSpent) && answer.timeSpent > 0 ? answer.timeSpent : 0)
+    ), 0);
 
     return {
       id: result.id,
       testId: result.test_id,
       studentName: result.student_name,
-      answers: result.answers,
+      answers,
       score,
       totalMarks: total,
       totalQuestions: total,
@@ -227,7 +300,7 @@ export const getTestResults = async (testId: string) => {
       incorrectAnswers: Math.max(0, answered - score),
       unansweredQuestions: Math.max(0, total - answered),
       percentage: total ? Math.round((score / total) * 100) : 0,
-      timeTaken: result.time_taken ?? 0,
+      timeTaken: result.time_taken ?? recordedQuestionTime,
       completedAt: new Date(result.completed_at)
     } as TestResult;
   })

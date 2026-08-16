@@ -71,6 +71,8 @@ export type ExamPhase = 'loading' | 'entry' | 'instructions' | 'active' | 'pause
 
 export interface TestResult {
   id?: string;
+  /** Practice attempts are shown to the student but never persisted for teacher statistics. */
+  isPractice?: boolean;
   testId: string;
   studentName: string;
   studentEmail?: string;
@@ -93,7 +95,9 @@ export interface TestResult {
 export type TestResultInput = Pick<
   TestResult,
   'testId' | 'studentName' | 'answers' | 'score' | 'totalQuestions'
->;
+> & {
+  timeTaken?: number;
+};
 
 export interface Test {
   id: string;
