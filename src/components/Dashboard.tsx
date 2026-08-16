@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase'; // Import your supabase client
+import { getQuestionCount, getTestResults } from '../lib/database';
 import { 
   Plus, 
   LogOut, 
@@ -19,10 +20,14 @@ import {
   CheckCircle,
   AlertCircle,
   Activity,
+  RefreshCw,
   Zap,
-  Loader2
+  Loader2,
+  LayoutGrid,
+  List
 } from 'lucide-react';
-import type { Test } from '../types/exam.types';
+import type { Test, TestResult } from '../types/exam.types';
+import { TestInsightsModal } from './TestInsightsModal';
 import './Dashboard.css';
 
 interface DashboardProps {
@@ -41,6 +46,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
   const [tests, setTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+  const [attemptCounts, setAttemptCounts] = useState<Record<string, number>>({});
+  const [insightsTest, setInsightsTest] = useState<Test | null>(null);
+  const [insightsMode, setInsightsMode] = useState<'preview' | 'analytics'>('preview');
+  const [insightsResults, setInsightsResults] = useState<TestResult[]>([]);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [questionBankCount, setQuestionBankCount] = useState(0);
 
   // Fetch tests from Supabase
   const fetchTests = async () => {
@@ -66,13 +79,44 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
         questions: test.questions || [],
         settings: test.settings,
         createdAt: new Date(test.created_at),
-        duration: test.duration,
-        timeLimit: test.time_limit,
+        duration: test.duration ?? test.time_limit,
+        timeLimit: test.duration ?? test.time_limit,
         description: test.description || undefined,
         startDate: test.start_date ? new Date(test.start_date) : undefined
       })) || [];
 
       setTests(transformedTests);
+      try {
+        setQuestionBankCount(await getQuestionCount());
+      } catch (questionCountError) {
+        console.warn('Unable to load question-bank count:', questionCountError);
+        setQuestionBankCount(new Set(
+          transformedTests.flatMap(test => test.questions.map(question => question.id))
+        ).size);
+      }
+
+      // Count distinct student names per test. This is intentionally best-effort:
+      // a restrictive RLS policy should not prevent teachers from seeing tests.
+      const { data: resultRows, error: resultsError } = await supabase
+        .from('test_results')
+        .select('test_id, student_name');
+
+      if (resultsError) {
+        console.warn('Unable to load test attempt counts:', resultsError);
+        setAttemptCounts({});
+      } else {
+        const studentsByTest = (resultRows || []).reduce<Record<string, Set<string>>>((acc, row, index) => {
+          if (!row.test_id) return acc;
+          if (!acc[row.test_id]) acc[row.test_id] = new Set<string>();
+          const studentName = String(row.student_name || '').trim();
+          // Keep unnamed attempts countable without collapsing all of them together.
+          acc[row.test_id].add(studentName || `attempt-${index}`);
+          return acc;
+        }, {});
+        setAttemptCounts(Object.fromEntries(
+          Object.entries(studentsByTest).map(([testId, students]) => [testId, students.size])
+        ));
+      }
     } catch (err) {
       console.error('Error fetching tests:', err);
       setError('Failed to load tests. Please try again.');
@@ -80,6 +124,45 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
       setLoading(false);
       setIsLoaded(true);
     }
+  };
+
+  const loadTestAnalytics = async (test: Test) => {
+    setInsightsLoading(true);
+    setInsightsError(null);
+    try {
+      const results = await getTestResults(test.id);
+      setInsightsResults(results.filter(result => !result.isPractice));
+    } catch (err) {
+      console.error('Failed to load test analytics:', err);
+      setInsightsError('Unable to load analytics for this test.');
+    } finally {
+      setInsightsLoading(false);
+    }
+  };
+
+  const openTestInsights = (test: Test, mode: 'preview' | 'analytics') => {
+    setInsightsTest(test);
+    setInsightsMode(mode);
+    setInsightsResults([]);
+    setInsightsError(null);
+    if (mode === 'analytics') {
+      void loadTestAnalytics(test);
+    }
+  };
+
+  const closeTestInsights = () => {
+    setInsightsTest(null);
+    setInsightsResults([]);
+    setInsightsError(null);
+  };
+
+  const formatDateOnly = (date?: Date) => {
+    if (!date || Number.isNaN(date.getTime())) return '—';
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    }).format(date);
   };
 
   // Fetch data on component mount
@@ -157,8 +240,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
     return matchesSearch;
   });
 
-  const totalQuestions = tests.reduce((sum, test) => sum + test.questions.length, 0);
-  const averageQuestions = tests.length > 0 ? Math.round(totalQuestions / tests.length) : 0;
+  const averageQuestions = tests.length > 0
+    ? Math.round(tests.reduce((sum, test) => sum + test.questions.length, 0) / tests.length)
+    : 0;
   const recentTests = tests.filter(test => 
     (new Date().getTime() - test.createdAt.getTime()) < (7 * 24 * 60 * 60 * 1000)
   ).length;
@@ -208,7 +292,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
             
             <div className="header-actions">
               <button onClick={fetchTests} className="refresh-btn" title="Refresh">
-                <Activity className="btn-icon" />
+                <RefreshCw className="btn-icon" aria-hidden="true" />
+                <span className="sr-only">Refresh dashboard</span>
               </button>
               
               <button onClick={onCreateTest} className="create-btn">
@@ -249,8 +334,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
                   <div className="stat-label">Tests Created</div>
                 </div>
                 <div className="quick-stat">
-                  <div className="stat-value">{totalQuestions}</div>
-                  <div className="stat-label">Total Questions</div>
+                  <div className="stat-value">{questionBankCount}</div>
+                  <div className="stat-label">Question Bank</div>
                 </div>
                 <div className="quick-stat">
                   <div className="stat-value">{recentTests}</div>
@@ -381,6 +466,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
                   <option value="recent">Recent</option>
                 </select>
               </div>
+
+              <div className="view-toggle" role="group" aria-label="Test list view">
+                <button
+                  type="button"
+                  className={`view-toggle-btn ${viewMode === 'cards' ? 'active' : ''}`}
+                  onClick={() => setViewMode('cards')}
+                  aria-label="Show tests as cards"
+                  aria-pressed={viewMode === 'cards'}
+                >
+                  <LayoutGrid className="view-toggle-icon" />
+                </button>
+                <button
+                  type="button"
+                  className={`view-toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
+                  onClick={() => setViewMode('table')}
+                  aria-label="Show tests as a table"
+                  aria-pressed={viewMode === 'table'}
+                >
+                  <List className="view-toggle-icon" />
+                </button>
+              </div>
             </div>
           </div>
           
@@ -426,6 +532,67 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
               </div>
             </div>
           ) : (
+            viewMode === 'table' ? (
+              <div className="tests-table-wrapper">
+                <table className="tests-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Test name</th>
+                      <th scope="col">Date created</th>
+                      <th scope="col">Date of exam</th>
+                      <th scope="col">Duration</th>
+                      <th scope="col">Students attempted</th>
+                      <th scope="col"><span className="sr-only">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTests.map((test) => (
+                      <tr key={test.id}>
+                        <th scope="row">
+                          <span className="table-test-name">{test.name || test.title}</span>
+                          <span className="table-test-key">{test.testKey}</span>
+                        </th>
+                        <td>{formatDateOnly(test.createdAt)}</td>
+                        <td>{formatDateOnly(test.startDate)}</td>
+                        <td>{test.duration || test.timeLimit || 30} min</td>
+                        <td>
+                          <span className="attempt-count">
+                            <Users className="attempt-count-icon" />
+                            {attemptCounts[test.id] ?? 0}
+                          </span>
+                        </td>
+                        <td className="table-actions">
+                          <button
+                            type="button"
+                            onClick={() => openTestInsights(test, 'preview')}
+                            className="table-insights-btn preview"
+                          >
+                            <Eye className="table-action-icon" />
+                            <span>Preview</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openTestInsights(test, 'analytics')}
+                            className="table-insights-btn analytics"
+                          >
+                            <BarChart3 className="table-action-icon" />
+                            <span>Analytics</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => copyTestLink(test.testKey)}
+                            className={`table-copy-btn ${copiedTestId === test.testKey ? 'copied' : ''}`}
+                          >
+                            {copiedTestId === test.testKey ? <CheckCircle className="table-action-icon" /> : <Copy className="table-action-icon" />}
+                            <span>{copiedTestId === test.testKey ? 'Copied' : 'Copy link'}</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
             <div className="tests-grid">
               {filteredTests.map((test, index) => (
                 <div 
@@ -485,11 +652,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
                   </div>
                   
                   <div className="test-actions">
-                    <button className="action-btn secondary">
+                    <button
+                      type="button"
+                      className="action-btn secondary"
+                      onClick={() => openTestInsights(test, 'preview')}
+                    >
                       <Eye className="action-icon" />
                       <span>Preview</span>
                     </button>
                     
+                    <button
+                      type="button"
+                      className="action-btn analytics"
+                      onClick={() => openTestInsights(test, 'analytics')}
+                    >
+                      <BarChart3 className="action-icon" />
+                      <span>Analytics</span>
+                    </button>
                     <button
                       onClick={() => copyTestLink(test.testKey)}
                       className={`action-btn primary ${copiedTestId === test.testKey ? 'copied' : ''}`}
@@ -514,6 +693,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
                 </div>
               ))}
             </div>
+            )
           )}
           
           {filteredTests.length === 0 && tests.length > 0 && (
@@ -527,6 +707,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onLogout }) 
           )}
         </section>
       </main>
+
+      {insightsTest && (
+        <TestInsightsModal
+          test={insightsTest}
+          mode={insightsMode}
+          results={insightsResults}
+          isLoading={insightsLoading}
+          error={insightsError}
+          onModeChange={(mode) => {
+            setInsightsMode(mode);
+            if (mode === 'analytics') {
+              void loadTestAnalytics(insightsTest);
+            }
+          }}
+          onClose={closeTestInsights}
+          onRetry={() => void loadTestAnalytics(insightsTest)}
+        />
+      )}
     </div>
   );
 };
