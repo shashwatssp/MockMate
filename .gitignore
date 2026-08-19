@@ -25,3 +25,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Questify — standalone Python extraction service (deployed separately on Render;
+# NOT part of the Netlify site build). Kept out of this repo's history.
+questify/

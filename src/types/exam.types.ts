@@ -78,6 +78,8 @@ export interface TestResult {
   testId: string;
   studentName: string;
   studentEmail?: string;
+  studentId?: string;
+  batchId?: string;
   answers: StudentAnswer[];
   score: number;
   totalMarks?: number;
@@ -97,6 +99,7 @@ export interface TestResult {
 export type TestResultInput = Pick<
   TestResult,
   'testId' | 'studentName' | 'answers' | 'score' | 'totalQuestions'
+  | 'studentId' | 'batchId' | 'studentEmail'
 > & {
   timeTaken?: number;
 };
