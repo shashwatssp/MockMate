@@ -15,8 +15,10 @@ import { TestConfigSection } from './TestConfigSection';
 import { QuestionSelectionSection } from './QuestionSelectionSection';
 import { SelectedQuestionsSection } from './SelectedQuestionsSection';
 import { VoiceModeModal } from './VoiceModeModal';
-import { createTest, getPaginatedQuestions } from '../lib/database';
+import { createTest, getPaginatedQuestions, getBatchesForTeacher, assignTestToBatches } from '../lib/database';
 import type { Question, Test } from '../types/exam.types';
+import type { BatchRow } from '../lib/database';
+import { getTeacherSession } from '../lib/localAuth';
 import './CreateTest.css';
 
 interface CreateTestProps {
@@ -86,6 +88,8 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onImp
   const [isLoaded, setIsLoaded] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [teacherBatches, setTeacherBatches] = useState<BatchRow[]>([]);
+  const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
   const [randomizeQuestions, setRandomizeQuestions] = useState(false);
   const [allowReview, setAllowReview] = useState(true);
   const [showCorrectAnswers, setShowCorrectAnswers] = useState(true);
@@ -143,6 +147,18 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onImp
     setIsLoaded(true);
     void loadPage({ offset: 0 });
   }, [loadPage]);
+
+  // Load the teacher's batches so a test can be assigned at creation time.
+  useEffect(() => {
+    (async () => {
+      try {
+        const teacher = getTeacherSession();
+        if (teacher) setTeacherBatches(await getBatchesForTeacher());
+      } catch {
+        /* non-blocking */
+      }
+    })();
+  }, []);
 
   // Get available filter options for AI context
   const getAvailableFilters = () => {
@@ -247,27 +263,25 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onImp
     setIsProcessingVoice(true);
 
     try {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
-      
+      let GoogleGenAI: any;
+      try {
+        ({ GoogleGenAI } = await import('@google/genai'));
+      } catch {
+        alert('Voice processing is unavailable. The @google/genai package is not installed. Please enter details manually.');
+        setIsProcessingVoice(false);
+        return;
+      }
+
       const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-      
+
       if (!GEMINI_API_KEY) {
         throw new Error('Gemini API key not found');
       }
+
+      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
       
-      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-      
-      // Use gemini-3.6-flash (current GA model) with generation config for JSON output
-      const model = genAI.getGenerativeModel({ 
-        model: 'gemini-3.6-flash',
-        generationConfig: {
-          temperature: 0.1,
-          topP: 0.8,
-          topK: 40,
-          maxOutputTokens: 2048,
-          responseMimeType: "application/json"
-        }
-      });
+      // gemini-3.6-flash with a JSON-output generation config (passed inline
+      // to generateContent below).
 
       const availableFilters = getAvailableFilters();
 
@@ -305,9 +319,18 @@ Rules:
 - Subject and topic must match available options or use "General" as fallback
 `;
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const rawText = response.text();
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.6-flash',
+        contents: prompt,
+        config: {
+          temperature: 0.1,
+          topP: 0.8,
+          topK: 40,
+          maxOutputTokens: 2048,
+          responseMimeType: "application/json"
+        },
+      });
+      const rawText = response.text;
       
       try {
         // Clean the response to extract JSON
@@ -619,6 +642,13 @@ const applyVoiceData = async (data: VoiceData) => {
       const result = await createTest(testData);
       
       if (result) {
+        if (selectedBatchIds.length) {
+          try {
+            await assignTestToBatches(result.id, selectedBatchIds);
+          } catch (assignError) {
+            console.warn('Assign to batches failed:', assignError);
+          }
+        }
         const createdTest: Test = {
           id: result.id,
           testKey: result.test_key,
@@ -823,6 +853,27 @@ const applyVoiceData = async (data: VoiceData) => {
               selectedQuestionsCount={selectedQuestions.length}
               isLoaded={isLoaded}
             />
+
+            <section style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+              <h2 style={{ marginTop: 0, fontSize: 16 }}>Assign to batches (optional)</h2>
+              <p style={{ fontSize: 12, color: '#64748b' }}>Share this test with one or more of your batches. Students in those batches must be approved to access it.</p>
+              {teacherBatches.length === 0 ? (
+                <p style={{ color: '#64748b' }}>No batches yet. Create one in /batches to assign this test.</p>
+              ) : (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {teacherBatches.map(b => {
+                    const on = selectedBatchIds.includes(b.id);
+                    return (
+                      <button key={b.id} type="button"
+                        onClick={() => setSelectedBatchIds(on ? selectedBatchIds.filter(x => x !== b.id) : [...selectedBatchIds, b.id])}
+                        style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid ' + (on ? '#2563eb' : '#cbd5e1'), background: on ? '#eff6ff' : 'transparent', cursor: 'pointer', fontSize: 12 }}>
+                        {b.name} ({b.code})
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
 
             {/* Selected Questions Section */}
             <SelectedQuestionsSection

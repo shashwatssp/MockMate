@@ -309,8 +309,20 @@
 
 .header-actions {
   display: flex;
+  align-items: stretch;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Force every header control to the same rendered height and keep its
+   icon/text centered. min-height guarantees the Batches link (an <a>) matches
+   its <button> siblings vertically instead of rendering shorter; uniform on
+   laptop and mobile. */
+.header-actions > button,
+.header-actions > a {
+  display: inline-flex;
   align-items: center;
-  gap: 1.25rem; /* Increased gap */
+  min-height: 52px;
 }
 
 .create-btn {
@@ -380,6 +392,53 @@
   border-color: var(--gray-300);
   color: var(--gray-800);
   transform: translateY(-1px);
+}
+
+/* ===== Header action variants ===== */
+/* Scoped under .dashboard-wrapper so this specificity (0,3,1 on hover) beats
+   App.css's `.dashboard-wrapper .create-btn:hover { color:#fff }` which otherwise
+   washes the secondary hover text to white-on-white. */
+.dashboard-wrapper .create-btn.secondary {
+  background: var(--white);
+  color: var(--gray-800);
+  border: 2px solid var(--gray-200);
+  box-shadow: none;
+}
+.dashboard-wrapper .create-btn.secondary::before,
+.dashboard-wrapper .create-btn.secondary:hover::before {
+  opacity: 0;
+  background: transparent;
+}
+.dashboard-wrapper .create-btn.secondary:hover {
+  transform: translateY(-1px);
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+  color: var(--gray-900);
+}
+
+/* Refresh control is icon-only; size it to the button family so the
+   header group is uniform on every laptop / desktop width. */
+.refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 1rem 1rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--gray-700);
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.refresh-btn:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-300);
+  color: var(--gray-800);
 }
 
 /* ===== Main Content ===== */
@@ -2669,7 +2728,9 @@
   }
 
   .create-btn,
-  .logout-btn {
+  .create-btn.secondary,
+  .logout-btn,
+  .refresh-btn {
     width: 44px;
     min-width: 44px;
     padding: 0;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase'; // Import your supabase client
-import { getQuestionCount, getTestResults } from '../lib/database';
+import { getOwnedTestIds, getQuestionCount, getTestResults } from '../lib/database';
+import { getTeacherSession } from '../lib/localAuth';
 import { 
   Plus, 
   LogOut, 
@@ -65,26 +66,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
       setLoading(true);
       setError(null);
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const teacher = getTeacherSession();
       let query = supabase
         .from('tests')
         .select('*')
         .order('created_at', { ascending: false });
-      // Scope the dashboard to the logged-in teacher's own tests so teachers
-      // never see tests created by others. Students still reach tests via the
-      // shareable key (getTestByKey is intentionally unfiltered).
-      if (user) {
-        query = query.eq('created_by', user.id);
-      }
-
       const { data, error: fetchError } = await query;
 
       if (fetchError) {
         throw fetchError;
       }
 
+      const ownedIds = teacher ? new Set(getOwnedTestIds(teacher.id)) : new Set<string>();
+      const scopedRows = (data || []).filter((test) => {
+        if (!teacher) return true;
+        return ownedIds.has(test.id) || test.created_by === teacher.id;
+      });
+
       // Transform Supabase data to match your Test interface
-      const transformedTests: Test[] = data?.map(test => ({
+      const transformedTests: Test[] = scopedRows.map(test => ({
         id: test.id,
         testKey: test.test_key,
         name: test.name,
@@ -317,6 +317,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
                 <span className="btn-text">Create Question</span>
               </button>
               
+            <a href="/batches" className="create-btn secondary" aria-label="Manage batches" title="Manage batches">
+                <Users className="btn-icon" />
+                <span className="btn-text">Batches</span>
+              </a>
               <button onClick={onLogout} className="logout-btn" aria-label="Log out">
                 <LogOut className="btn-icon" />
                 <span className="btn-text">Logout</span>
@@ -333,7 +337,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
             <div className="welcome-text">
               <div className="welcome-greeting">
                 <h2 className="greeting-title">
-                  Welcome back, Teacher! 
+                  Welcome back, {getTeacherSession()?.name || 'Teacher'}! 
                   <span className="greeting-emoji">👋</span>
                 </h2>
                 <p className="greeting-subtitle">
