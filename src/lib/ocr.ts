@@ -26,16 +26,31 @@ type OcrWorker = {
 let worker: OcrWorker | null = null;
 let loading: Promise<OcrWorker> | null = null;
 
-/** Create (and cache) a single English worker shared across the session. */
+/** Create (and cache) a single worker shared across the session. Loads English
+ *  plus Greek so science papers that use Greek/math symbols (Δ, μ, Ω) — which
+ *  otherwise surface as PUA tofu in the text layer — are read correctly.
+ *  Greek is best-effort: if the model fails to load (offline / CDN blocked),
+ *  we fall back to English-only so OCR still works at reduced coverage. */
 export async function getOcrWorker(): Promise<OcrWorker> {
   if (worker) return worker;
   if (loading) return loading;
   loading = (async () => {
     const { createWorker } = await import('tesseract.js');
-    // Default English model. The teacher reviews / edits the OCR result, so we
-    // favour speed and a clean bundle over aggressive parameter tuning.
-    const w = await createWorker('eng');
-    worker = w as unknown as OcrWorker;
+    // tesseract.js v7: language models are passed to createWorker, which
+    // auto-loads the WASM core + models. The v4/v5 `load()` / `loadLanguages()`
+    // / `initialize()` calls were removed in v7 — calling them throws at runtime
+    // (`w.loadLanguages is not a function`), silently breaking every OCR
+    // salvage and returning the garbled fallback every time.
+    try {
+      const w = await createWorker('eng+ell');
+      worker = w as unknown as OcrWorker;
+    } catch (e) {
+      // Greek model unavailable/offline — fall back to English only so OCR
+      // still runs (the teacher reviews/edits the result afterwards).
+      console.warn('[ocr] eng+ell worker failed, falling back to eng-only:', e);
+      const w = await createWorker('eng');
+      worker = w as unknown as OcrWorker;
+    }
     return worker;
   })();
   return loading;

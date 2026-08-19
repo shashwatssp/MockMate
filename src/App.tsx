@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { Dispatch, SetStateAction } from 'react';
+import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import {
-  BrowserRouter as Router,
   Navigate,
   Route,
   Routes,
@@ -15,12 +14,31 @@ import Dashboard from './components/Dashboard';
 import CreateTest from './components/CreateTest';
 import CreateQuestionScreen from './components/CreateQuestionScreen';
 import PdfImportScreen from './components/PdfImportScreen';
+import PdfImportPremiumReview from './components/PdfImportPremiumReview';
+import type { GeminiQuestion } from './lib/geminiExtract';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import ExamWrapper from './components/Exam/ExamWrapper';
+import StudentAuth from './components/StudentAuth';
+import StudentDashboard from './components/StudentDashboard';
+import StudentProfile from './components/StudentProfile';
+import StudentResults from './components/StudentResults';
+import BatchesHome from './components/BatchesHome';
+import BatchDetail from './components/BatchDetail';
 import type { Test } from './types/exam.types';
-import { signOut, handleAuthCallback } from './lib/auth';
+import type { StudentIdentity } from './lib/database';
+import { signOut } from './lib/auth';
+import { setStudentSession } from './lib/studentSession';
+import { getTeacherSession } from './lib/auth';
+import SignUpPage from './components/SignUpPage';
+import { extractionHealth } from './lib/extractionClient';
+import { Toaster } from 'react-hot-toast';
 import './App.css';
+
+// AuthBridge is intentionally a no-op now that Clerk is optional.
+// The local auth system (localAuth.ts) manages all sessions directly.
+// Keep the component slot so the tree structure is unchanged.
+const AuthBridge = () => null;
 
 const ExamRouteWrapper = () => {
   const { testCode } = useParams();
@@ -37,15 +55,24 @@ interface TeacherAppProps {
   setTests: Dispatch<SetStateAction<Test[]>>;
 }
 
+/** Auth gate: requires a local teacher session (e.g. demo teacher 1234 or a
+ *  username registered via the local sign-up form). */
+const RequireTeacherAuth = ({ children }: { children: ReactNode }) => {
+  if (!getTeacherSession()) {
+    return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+};
+
 function TeacherApp({ tests, setTests }: TeacherAppProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
   const handleLogout = async () => {
     try {
-      await signOut();
+      await signOut(); // clears local sessions
     } catch (error) {
-      console.warn('Unable to sign out of Supabase:', error);
+      console.warn('Unable to sign out:', error);
     } finally {
       navigate('/');
     }
@@ -64,6 +91,9 @@ function TeacherApp({ tests, setTests }: TeacherAppProps) {
     case '/login':
       return <LoginPage onLogin={() => navigate('/dashboard')} onBack={() => navigate('/')} />;
     case '/dashboard':
+      if (!getTeacherSession()) {
+        return <LoginPage onLogin={() => navigate('/dashboard')} onBack={() => navigate('/')} />;
+      }
       return (
         <Dashboard
           onCreateTest={() => navigate('/create-test')}
@@ -91,6 +121,21 @@ function TeacherApp({ tests, setTests }: TeacherAppProps) {
         />
       );
     }
+    case '/import-premium': {
+      const premiumState = (location.state as {
+        questions?: GeminiQuestion[];
+        returnTo?: string;
+      }) ?? {};
+      const premiumReturnTo = premiumState.returnTo ?? '/create-test';
+      const premiumQuestions = premiumState.questions ?? [];
+      return (
+        <PdfImportPremiumReview
+          questions={premiumQuestions}
+          returnTo={premiumReturnTo}
+          onBack={() => navigate(premiumReturnTo, { replace: true })}
+        />
+      );
+    }
     case '/create-question':
       return (
         <CreateQuestionScreen
@@ -107,6 +152,8 @@ function TeacherApp({ tests, setTests }: TeacherAppProps) {
           onPasswordReset={() => navigate('/login')}
         />
       );
+    case '/signup':
+      return <SignUpPage onBack={() => navigate('/')} />;
     default:
       return <LandingPage onLogin={() => navigate('/login')} />;
   }
@@ -116,9 +163,7 @@ function AuthCallback() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    handleAuthCallback()
-      .then(() => navigate('/dashboard', { replace: true }))
-      .catch(() => navigate('/login', { replace: true }));
+    navigate(getTeacherSession() ? '/dashboard' : '/login', { replace: true });
   }, [navigate]);
 
   return (
@@ -129,30 +174,48 @@ function AuthCallback() {
 }
 
 function App() {
-  const [tests, setTests] = useState<Test[]>(() => {
-    try {
-      const stored = window.localStorage.getItem('mockmate.teacher.tests');
-      return stored ? (JSON.parse(stored) as Test[]) : [];
-    } catch {
-      return [];
-    }
-  });
+  const navigate = useNavigate();
 
+  // Probe the Questify extraction service on app open. Render's free tier
+  // cold-starts, so firing this on launch lets it become healthy before the user
+  // reaches the PDF import screen. Fire-and-forget only: it never blocks or
+  // breaks app load — PdfImportScreen re-checks `serviceReady` on its own mount.
   useEffect(() => {
-    window.localStorage.setItem('mockmate.teacher.tests', JSON.stringify(tests));
-  }, [tests]);
+    extractionHealth().catch(() => {});
+  }, []);
+
+  const handleStudentAuthenticated = (identity: StudentIdentity) => {
+    setStudentSession(identity);
+    navigate('/student/dashboard', { replace: true });
+  };
+
+  const [tests, setTests] = useState<Test[]>([]);
   return (
-    <Router>
-      <div className="App">
-        <Routes>
+    <div className="App">
+      <Toaster position="bottom-right" />
+      <AuthBridge />
+      <Routes>
           <Route path="/" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/login" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/dashboard" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/create-test" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/create-question" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/import-pdf" element={<TeacherApp tests={tests} setTests={setTests} />} />
+          <Route path="/import-premium" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/forgot-password" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/reset-password" element={<TeacherApp tests={tests} setTests={setTests} />} />
+          <Route path="/signup" element={<TeacherApp tests={tests} setTests={setTests} />} />
+
+          {/* Student batch-shell routes (auth-gated inside each component). */}
+          <Route path="/student/login" element={<StudentAuth onAuthenticated={handleStudentAuthenticated} onBack={() => navigate('/')} />} />
+          <Route path="/student/register" element={<StudentAuth onAuthenticated={handleStudentAuthenticated} onBack={() => navigate('/')} />} />
+          <Route path="/student/dashboard" element={<StudentDashboard batch={null} />} />
+          <Route path="/student/profile" element={<StudentProfile />} />
+          <Route path="/student/results/:testCode" element={<StudentResults />} />
+
+          {/* Teacher batch-management routes (Clerk + local guard). */}
+          <Route path="/batches" element={<RequireTeacherAuth><BatchesHome /></RequireTeacherAuth>} />
+          <Route path="/batches/:code" element={<RequireTeacherAuth><BatchDetail /></RequireTeacherAuth>} />
 
           <Route path="/exam/:testCode" element={<LegacyExamRedirect />} />
           <Route path="/exam/:testCode/entry" element={<ExamRouteWrapper />} />
@@ -163,9 +226,8 @@ function App() {
           {/* Preserve old four-character student links. */}
           <Route path="/:testCode" element={<LegacyExamRedirect />} />
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </div>
-    </Router>
+      </Routes>
+    </div>
   );
 }
 

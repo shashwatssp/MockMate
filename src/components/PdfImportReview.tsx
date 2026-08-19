@@ -117,6 +117,17 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
     .filter(v => v === 'discarded').length;
 
   const current = questions[index];
+  if (!current) {
+    return (
+      <div className="pdf-review-empty">
+        <AlertCircle className="icon" />
+        <p>No questions were found in this PDF. Try a different file.</p>
+        <button className="action-btn secondary" onClick={onComplete}>
+          <ArrowLeft size={16} /> Back
+        </button>
+      </div>
+    );
+  }
   const draft = drafts[index];
   const canAccept = draft.options.length >= 2;
 
@@ -396,18 +407,6 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
       );
     }
   };
-
-  if (!current) {
-    return (
-      <div className="pdf-review-empty">
-        <AlertCircle className="icon" />
-        <p>No questions were found in this PDF. Try a different file.</p>
-        <button className="action-btn secondary" onClick={onComplete}>
-          <ArrowLeft size={16} /> Back
-        </button>
-      </div>
-    );
-  }
 
   const st: Status = statusFor(index);
 

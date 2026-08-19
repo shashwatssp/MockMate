@@ -1,8 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FileText, Upload, RefreshCw, AlertCircle, ArrowLeft } from 'lucide-react';
 import PdfImportReview from './PdfImportReview';
-import { extractQuestionsFromFile, extractQuestionsFromImage } from '../lib/pdfExtract';
 import type { PdfExtractResult } from '../lib/pdfExtract';
+import type { ExtractionData, ExtractionSseFrame } from '../lib/extractionClient';
+import {
+  EXTRACTION_URL,
+  extractionHealth,
+  extractionExtractStream,
+  mapExtractionToExtracted,
+} from '../lib/extractionClient';
 import './PdfImport.css';
 
 interface PdfImportScreenProps {
@@ -15,18 +21,43 @@ const MAX_BYTES = 30 * 1024 * 1024; // 30 MB safety guard
 
 /**
  * Orchestrates the PDF import journey:
- *  1. pick a .pdf file (guarded by size/type)
- *  2. extract questions client-side with pdfjs-dist (lazy-loaded)
- *  3. hand off to the one-by-one review screen
+ *  1. pick a .pdf / image file (guarded by size/type)
+ *  2. upload it to the extraction service (server-side layout analysis)
+ *  3. hand off the structured questions to the one-by-one review screen
  *
- * pdfjs is only imported the moment a file is confirmed, so the heavy PDF
- * runtime stays out of the initial bundle / critical path.
+ * No LLM and no credits: text is read from the PDF layer (or the rendered image
+ * is returned for on-demand review-screen OCR), giving clean output with no
+ * PUA/garbled-symbol tofu.
  */
 export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, returnTo }) => {
   const [step, setStep] = useState<'upload' | 'extracting' | 'review'>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<PdfExtractResult | null>(null);
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [serviceReady, setServiceReady] = useState<boolean | null>(null);
+  const [progressMessage, setProgressMessage] = useState<string | null>(null);
+  const [progressTotal, setProgressTotal] = useState<number | null>(null);
+  const [progressCurrent, setProgressCurrent] = useState<number>(0);
+  const streamRef = useRef<AbortController | null>(null);
+
+  // Abort any in-flight upload on unmount.
+  useEffect(() => () => streamRef.current?.abort(), []);
+
+  // Probe the service once on mount. In dev the Vite proxy forwards
+  // /extraction/* to the service, so no restart or proxy config is required.
+  useEffect(() => {
+    let live = true;
+    extractionHealth()
+      .then(() => {
+        if (live) setServiceReady(true);
+      })
+      .catch(() => {
+        if (live) setServiceReady(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const validate = (f: File): string | null => {
     const isPdf = f.name.toLowerCase().endsWith('.pdf');
@@ -45,21 +76,87 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
     }
     setFile(f);
     setExtractError(null);
-    runExtract(f);
+    setProgressMessage(null);
+    runExtraction(f);
   };
 
-  const runExtract = async (f: File) => {
+  const runExtraction = async (f: File) => {
+    if (!serviceReady) {
+      setExtractError(
+        `Extraction service is not reachable at ${EXTRACTION_URL}. Please verify the deployment is online and try again.`,
+      );
+      setStep('upload');
+      return;
+    }
     setStep('extracting');
-    try {
-      const r = f.type.startsWith('image/')
-        ? await extractQuestionsFromImage(f)
-        : await extractQuestionsFromFile(f);
-      setResult(r);
-      setStep('review');
+    setProgressCurrent(0);
+    setProgressTotal(null);
+    setProgressMessage(`Sending ${f.name}…`);
+    setExtractError(null);
+
+    // Abort any prior in-flight extraction (e.g. a re-parse while one is running).
+    streamRef.current?.abort();
+
+  let finalResult: PdfExtractResult | null = null;
+
+  // Free-tier Questify cold-shuts while idle. If an extraction runs longer than
+  // the idle timeout, ping /health every 30s so the render service stays warm
+  // for the whole stream (prevents a mid-parse shutdown).
+  const keepAlive = setInterval(() => {
+    extractionHealth().catch(() => {});
+  }, 30000);
+  try {
+    await new Promise<void>((resolve, reject) => {
+        const controller = extractionExtractStream(
+          f,
+          (frame: ExtractionSseFrame) => {
+            const d = frame.data as ExtractionData & {
+              index?: number;
+              count?: number;
+              total?: number;
+              error?: string;
+            };
+            if (frame.event === 'progress-start') {
+              setProgressTotal(d.total_questions ?? null);
+              setProgressMessage(`Preparing ${d.total_questions ?? '?'} question(s)…`);
+            } else if (frame.event === 'progress-question') {
+              setProgressCurrent(d.count ?? d.index ?? 0);
+              setProgressMessage(
+                d.total
+                  ? `Extracting question ${d.count} of ${d.total}…`
+                  : `Extracting question ${d.count}…`,
+              );
+            } else if (frame.event === 'progress-done') {
+              finalResult = mapExtractionToExtracted(d);
+              setProgressMessage('Finishing up…');
+              resolve();
+            } else if (frame.event === 'progress-error') {
+              reject(new Error(d.error ?? 'Extraction failed.'));
+            }
+          },
+          (err: unknown) => {
+            if (err instanceof DOMException && err.name === 'AbortError') return;
+            const msg = err instanceof Error ? err.message : String(err);
+            reject(err instanceof Error ? err : new Error(msg));
+          },
+        );
+        streamRef.current = controller;
+      });
+      if (finalResult) {
+        setResult(finalResult);
+        setStep('review');
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setExtractError(msg);
       setStep('upload');
+    } finally {
+      clearInterval(keepAlive);
+      streamRef.current?.abort();
+      streamRef.current = null;
+      setProgressTotal(null);
+      setProgressCurrent(0);
+      setProgressMessage(null);
     }
   };
 
@@ -92,23 +189,41 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
 
   return (
     <div className="pdf-import-screen">
-      <button className="action-btn secondary" onClick={onBack} style={{ marginBottom: '1rem' }}>
+      <button
+        className="action-btn secondary"
+        onClick={onBack}
+        style={{ marginBottom: '1rem' }}
+      >
         <ArrowLeft size={16} /> Back to {returnTo === '/create-question' ? 'Create Question' : 'Create Test'}
       </button>
 
       <div className="pdf-import-card">
-<h1 className="pdf-import-title">Import questions from PDFs, images</h1>
+        <h1 className="pdf-import-title">Import questions from PDFs or images</h1>
         <p className="pdf-import-subtitle">
-          Upload a hand-written, scanned or typed question paper. Questions are
-          extracted on-device (no internet credits used) and presented one by one
-          for you to edit, accept or discard.
+          Upload a typed, hand-written or scanned question paper (PDF or image). Questions
+          are extracted server-side — no LLM, no credits, and Greek/math symbols stay
+          clean. Each question is rendered for review, where you can crop the image and run
+          on-demand OCR.
         </p>
 
         {step === 'extracting' && (
           <div className="extracting">
             <RefreshCw className="spin" size={28} />
-            <p>Analyzing {file?.name}</p>
-            <p className="note">This may take a moment for large files…</p>
+            <p>Processing {file?.name}…</p>
+            {progressTotal != null ? (
+              <>
+                <div className="progress-linear">
+                  <div
+                    style={{
+                      width: `${Math.min(100, (progressCurrent / progressTotal) * 100)}%`,
+                    }}
+                  />
+                </div>
+<p className="note">{progressMessage ?? 'Extracting questions…'}</p>
+              </>
+            ) : (
+              <p className="note">{progressMessage ?? 'This may take a moment — extraction runs server-side.'}</p>
+            )}
             {extractError && (
               <div className="error-msg">
                 <AlertCircle size={14} />
@@ -125,6 +240,13 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
           </div>
         )}
 
+        {serviceReady === false && (
+          <div className="error-msg">
+            <AlertCircle size={14} />
+            <span>Extraction service unreachable at {EXTRACTION_URL} — start it first.</span>
+          </div>
+        )}
+
         <div
           className={`upload-dropzone ${!file ? '' : 'has-file'}`}
           onDrop={handleDrop}
@@ -136,7 +258,7 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
             {file ? (
               <strong>{file.name}</strong>
             ) : (
-            <span>Drop a PDF or image here, or click to browse</span>
+              <span>Drop a PDF or image here, or click to browse</span>
             )}
           </div>
           <input
