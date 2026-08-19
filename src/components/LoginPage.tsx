@@ -1,21 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Eye, 
-  EyeOff, 
-  ArrowLeft, 
-  User, 
-  Lock, 
-  AlertCircle, 
-  CheckCircle,
+import {
+  ArrowLeft,
   BookOpen,
   Shield,
   Sparkles,
-  LogIn,
   Copy,
-  Info
+  CheckCircle,
+  Info,
+  User,
+  Lock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { signInWithEmail, signUpWithEmail } from '../lib/auth';
+import { teacherSignIn } from '../lib/auth';
+import { toast } from 'react-hot-toast';
 import './LoginPage.css';
 
 interface LoginPageProps {
@@ -24,69 +23,29 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
-  const [credentials, setCredentials] = useState({
-    id: '',
-    password: ''
-  });
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [copiedCredential, setCopiedCredential] = useState<string | null>(null);
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [authMessage, setAuthMessage] = useState('');
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
-    setAuthMessage('');
-
+  const handleDemoLogin = async () => {
+    setDemoLoading(true);
     try {
-      if (!isSignUp && credentials.id === '1234' && credentials.password === 'Testing') {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        onLogin();
-        return;
-      }
-
-      if (!credentials.id.includes('@')) {
-        throw new Error('Use an email address for your account.');
-      }
-      if (credentials.password.length < 6) {
-        throw new Error('Password must be at least 6 characters.');
-      }
-
-      if (isSignUp) {
-        const { session } = await signUpWithEmail(credentials.id, credentials.password);
-        if (session) {
-          onLogin();
-        } else {
-          setAuthMessage('Account created. Check your email to confirm it, then sign in.');
-          setIsSignUp(false);
-        }
-      } else {
-        await signInWithEmail(credentials.id, credentials.password);
-        onLogin();
-      }
-    } catch (authError) {
-      setError(authError instanceof Error ? authError.message : 'Authentication failed. Please try again.');
+      await teacherSignIn('1234', 'Testing');
+      toast.success('Signed in as demo teacher');
+      onLogin();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Demo sign-in failed');
     } finally {
-      setIsLoading(false);
+      setDemoLoading(false);
     }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCredentials({
-      ...credentials,
-      [e.target.name]: e.target.value
-    });
-    setError(''); // Clear error when user types
-    setAuthMessage('');
   };
 
   const copyCredential = async (type: 'id' | 'password', value: string) => {
@@ -94,19 +53,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
       await navigator.clipboard.writeText(value);
       setCopiedCredential(type);
       setTimeout(() => setCopiedCredential(null), 2000);
-    } catch (err) {
+    } catch {
       // Fallback for browsers that don't support clipboard API
       console.log(`${type}: ${value}`);
     }
   };
 
-  const fillDemoCredentials = () => {
-    setCredentials({
-      id: '1234',
-      password: 'Testing'
-    });
-    setError('');
-    setAuthMessage('');
+  const handleLocalLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (formLoading) return;
+    setFormLoading(true);
+    try {
+      await teacherSignIn(username, password);
+      toast.success('Signed in successfully');
+      onLogin();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Sign in failed');
+    } finally {
+      setFormLoading(false);
+    }
   };
 
   return (
@@ -124,10 +89,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
 
       <div className="login-container">
         {/* Back Button */}
-        <button
-          onClick={onBack}
-          className="back-button"
-        >
+        <button onClick={onBack} className="back-button">
           <ArrowLeft className="back-icon" />
           <span className="back-text">Back to Home</span>
         </button>
@@ -144,11 +106,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
                 Mock<span className="brand-highlight">Mate</span>
               </h1>
             </div>
-            
+
             <div className="welcome-text">
               <h2 className="welcome-title">Welcome Back!</h2>
               <p className="welcome-subtitle">
-                Sign in to continue creating amazing tests
+                Sign in with your email to continue creating tests
               </p>
             </div>
 
@@ -158,62 +120,42 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
             </div>
           </div>
 
-          {/* Login Form */}
-          <form onSubmit={handleSubmit} className="login-form">
-            {/* Account Email / Demo Teacher ID Field */}
+          {/* Local Teacher Sign-In Form */}
+          <form className="teacher-login-form" onSubmit={handleLocalLogin}>
             <div className="form-group">
-              <label htmlFor="id" className="form-label">
-                <User className="label-icon" />
-                {isSignUp ? 'Email Address' : 'Email or Teacher ID'}
-              </label>
-              <div className={`input-wrapper ${focusedField === 'id' ? 'focused' : ''}`}>
+              <label htmlFor="username" className="form-label">Teacher ID</label>
+              <div className="input-wrapper">
+                <User className="input-icon" />
                 <input
+                  id="username"
                   type="text"
-                  id="id"
-                  name="id"
-                  value={credentials.id}
-                  onChange={handleChange}
-                  onFocus={() => setFocusedField('id')}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder={isSignUp ? 'you@example.com' : 'Email or demo ID'}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   className="form-input"
-                  required
-                  disabled={isLoading}
+                  placeholder="Enter your teacher ID"
+                  autoComplete="username"
                 />
-                <div className="input-icon">
-                  <User className="icon" />
-                </div>
               </div>
             </div>
 
-            {/* Password Field */}
             <div className="form-group">
-              <label htmlFor="password" className="form-label">
-                <Lock className="label-icon" />
-                Password
-              </label>
-              <div className={`input-wrapper ${focusedField === 'password' ? 'focused' : ''}`}>
+              <label htmlFor="password" className="form-label">Password</label>
+              <div className="input-wrapper">
+                <Lock className="input-icon" />
                 <input
-                  type={showPassword ? 'text' : 'password'}
                   id="password"
-                  name="password"
-                  value={credentials.password}
-                  onChange={handleChange}
-                  onFocus={() => setFocusedField('password')}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder="Enter your password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="form-input"
-                  required
-                  disabled={isLoading}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
                 />
-                <div className="input-icon">
-                  <Lock className="icon" />
-                </div>
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="password-toggle"
-                  disabled={isLoading}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
                     <EyeOff className="toggle-icon" />
@@ -224,53 +166,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
               </div>
             </div>
 
-            {/* Error Message */}
-            {error && (
-              <div className="error-message">
-                <AlertCircle className="error-icon" />
-                <span className="error-text">{error}</span>
-              </div>
-            )}
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              className={`submit-button ${isLoading ? 'loading' : ''}`}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <div className="loading-spinner"></div>
-                  <span>{isSignUp ? 'Creating Account...' : 'Signing In...'}</span>
-                </>
+            <button type="submit" className="submit-button" disabled={formLoading}>
+              {formLoading ? (
+                <div className="loading-spinner"></div>
               ) : (
-                <>
-                  <LogIn className="submit-icon" />
-                  <span>{isSignUp ? 'Create Account' : 'Sign In'}</span>
-                </>
+                <User className="submit-icon" />
               )}
+              <span>{formLoading ? 'Signing in...' : 'Sign In'}</span>
             </button>
           </form>
-
-          {authMessage && (
-            <div className="success-message">
-              <CheckCircle className="success-icon" />
-              <span className="success-text">{authMessage}</span>
-            </div>
-          )}
-
-          <button
-            type="button"
-            className="auth-mode-toggle"
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setError('');
-              setAuthMessage('');
-            }}
-            disabled={isLoading}
-          >
-            {isSignUp ? 'Already have an account? Sign in' : 'New to MockMate? Create an account'}
-          </button>
 
           {/* Demo Credentials Section */}
           <div className="demo-section">
@@ -278,12 +182,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
               <Info className="demo-info-icon" />
               <h3 className="demo-title">Demo Credentials</h3>
             </div>
-            
+
             <div className="demo-content">
               <p className="demo-description">
-                Use these credentials to explore MockMate:
+                Use your existing demo teacher account to explore MockMate offline:
               </p>
-              
+
               <div className="credentials-grid">
                 <div className="credential-item">
                   <div className="credential-label">Teacher ID:</div>
@@ -302,7 +206,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
                     </button>
                   </div>
                 </div>
-                
+
                 <div className="credential-item">
                   <div className="credential-label">Password:</div>
                   <div className="credential-value">
@@ -321,33 +225,40 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
                   </div>
                 </div>
               </div>
-              
+
               <button
-                onClick={fillDemoCredentials}
+                onClick={handleDemoLogin}
                 className="auto-fill-button"
-                disabled={isLoading}
+                disabled={demoLoading}
               >
-                <Sparkles className="fill-icon" />
-                <span>Auto-fill credentials</span>
+                {demoLoading ? (
+                  <div className="loading-spinner"></div>
+                ) : (
+                  <Sparkles className="fill-icon" />
+                )}
+                <span>
+                  {demoLoading ? 'Signing in...' : 'Use demo teacher (offline)'}
+                </span>
               </button>
             </div>
           </div>
 
-          {/* Additional Links */}
+          {/* Footer */}
           <div className="login-footer">
             <div className="footer-links">
-              <Link to="/forgot-password" className="footer-link">Forgot Password?</Link>
-              <span className="link-divider">•</span>
-              <a href="#" className="footer-link">Contact Support</a>
+              <Link to="/signup" className="footer-link">Sign up as teacher</Link>
+              <span className="link-divider">·</span>
+              <span className="student-note">
+                Sign in with your email, or use the demo teacher account below.
+              </span>
             </div>
-            
+
             <div className="security-note">
               <Shield className="security-note-icon" />
               <span>Your data is encrypted and secure</span>
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );

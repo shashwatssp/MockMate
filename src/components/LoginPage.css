@@ -324,6 +324,15 @@
   height: 1.125rem;
 }
 
+.optional-hint {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-sm);
+}
+
 .input-wrapper {
   position: relative;
   transition: all var(--transition-normal);
@@ -366,6 +375,8 @@
   top: 50%;
   transform: translateY(-50%);
   color: var(--gray-400);
+  z-index: 2;
+  pointer-events: none;
   transition: color var(--transition-fast);
 }
 
@@ -489,6 +500,69 @@
 .auth-mode-toggle:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* ===== Clerk Auth Section ===== */
+.clerk-auth-section {
+  margin: 0 0 2rem 0;
+  display: flex;
+  justify-content: center;
+}
+
+.clerk-auth-section :global(.clerk-card) {
+  box-shadow: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  max-width: 100% !important;
+  width: 100%;
+}
+
+.clerk-auth-section :global(.clerk-form) {
+  padding: 0;
+}
+
+.clerk-auth-section :global(.clerk-input) {
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--gray-200);
+  background: var(--gray-50);
+  color: var(--gray-900);
+  transition: all var(--transition-normal);
+}
+
+.clerk-auth-section :global(.clerk-input:focus) {
+  border-color: var(--primary-color);
+  background: var(--white);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.clerk-auth-section :global(.clerk-form-button) {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%) !important;
+  color: var(--white) !important;
+  border-radius: var(--radius-lg) !important;
+  font-size: 1.125rem !important;
+  font-weight: 600 !important;
+  width: 100% !important;
+  padding: 0.9rem !important;
+  transition: all var(--transition-normal) !important;
+}
+
+.clerk-auth-section :global(.clerk-form-button:hover) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-xl);
+}
+
+.clerk-auth-section :global(.clerk-form-button:disabled) {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.clerk-auth-section :global(.clerk-link) {
+  color: var(--primary-color);
+}
+
+.clerk-auth-section :global(.clerk-link:hover) {
+  color: var(--primary-hover);
 }
 
 /* ===== Submit Button ===== */
@@ -1368,6 +1442,8 @@
 
 .login-wrapper .input-icon {
   left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 2;
   pointer-events: none;
 }
