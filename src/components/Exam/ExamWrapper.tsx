@@ -7,9 +7,11 @@ import { LoadingScreen } from './LoadingScreen';
 import { ErrorScreen } from './ErrorScreen';
 import { useExamState } from '../../hooks/useExamState';
 import { useExamTimer } from '../../hooks/useExamTimer';
-import { getTestByKey, hasStudentTakenTest, saveTestResult } from '../../lib/database';
+import { getTestByKey, hasStudentTakenTest, saveTestResult, isTestBatchScoped } from '../../lib/database';
+import { getStudentSession } from '../../lib/studentSession';
 import { scoreQuestions } from '../../lib/score'; // Import your database functions
 import type { Test, ExamSession, TestResult, StudentAnswer } from '../../types/exam.types';
+import type { StudentIdentity } from '../../lib/database';
 import { Clock, Shield, RefreshCw } from 'lucide-react';
 import './styles.css';
 
@@ -90,6 +92,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
   const [currentPhase, setCurrentPhase] = useState<ExamState>('loading');
   const [test, setTest] = useState<Test | null>(initialTest || null);
   const [studentName, setStudentName] = useState<string>('');
+  const [studentIdentity, setStudentIdentity] = useState<StudentIdentity | null>(getStudentSession());
   const [examSession, setExamSession] = useState<ExamSession | null>(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [isPracticeMode, setIsPracticeMode] = useState(false);
@@ -197,6 +200,23 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
       }
 
       setTest(testData);
+
+      // Batch-scoped tests (assigned to one or more batches) are gated behind
+      // student approval: an approved student is identified from their local
+      // session so they skip the name-entry form. Others are bounced to login.
+      const scoped = await isTestBatchScoped(testData.id);
+      // A student launching from their dashboard is identified on every test
+      // (scoped or not) — name locked and results attributed to their account.
+      const session = getStudentSession();
+      if (session?.isApproved) {
+        setStudentIdentity(session);
+        setStudentName(session.name || session.username || session.email);
+      }
+      // Batch-scoped tests still require an approved student session.
+      if (scoped && (!session || !session.isApproved)) {
+        navigate('/student/login', { replace: true });
+        return;
+      }
 
       // Once the wall-clock window has closed the test can no longer be taken
       // for credit — but it remains available in Practice Mode (results are
@@ -412,9 +432,11 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
     try {
       setStudentName(name.trim());
       const attemptMarker = getAttemptMarkerKey(testCode, name);
-      // A test past its window is only available in Practice Mode.
+      // A test past its window is only Practice Mode for anonymous students.
+      // Authenticated students (launched from their dashboard) can take expired
+      // tests for credit, and the result reflects back on their dashboard.
       const practiceMode = Boolean(
-        windowClosed ||
+        (windowClosed && !studentIdentity) ||
         (attemptMarker && window.localStorage.getItem(attemptMarker)) ||
         await hasStudentTakenTest(test.id, name)
       );
@@ -495,7 +517,14 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
           answers: finalAnswers,
           score: result.score,
           totalQuestions: test.questions.length,
-          timeTaken: result.timeTaken
+          timeTaken: result.timeTaken,
+          ...(studentIdentity
+            ? {
+                studentId: studentIdentity.id,
+                batchId: studentIdentity.batchId ?? undefined,
+                studentEmail: studentIdentity.username || studentIdentity.email,
+              }
+            : {}),
         });
         finalResult.completedAt = new Date(savedResult.completed_at);
         const attemptMarker = getAttemptMarkerKey(testCode, studentName);
@@ -537,21 +566,22 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
     }
   }, [examTimer.timeRemaining, currentPhase, examState.answers]);
 
-  // Auto-submit if the wall-clock test end time is reached while a student is
-  // actively taking the exam. Practice-mode runs (e.g. after the window closed)
-  // are exempt so students can review without an instant kill-switch.
+  // Auto-submit only while a still-open exam is in progress. Expired exams
+  // attempted for credit (windowClosed) are exempt so the student can work
+  // through the full allotted duration instead of being auto-killed.
   useEffect(() => {
     if (
       currentPhase === 'active' &&
       !isPracticeMode &&
+      !windowClosed &&
       test?.endTime &&
       Date.now() > new Date(test.endTime).getTime() &&
       !autoSubmittedRef.current
     ) {
       autoSubmittedRef.current = true;
       void submitExam();
-    }
-  }, [currentPhase, test, submitExam, currentTime, isPracticeMode]);
+ }
+  }, [currentPhase, test, submitExam, currentTime, isPracticeMode, windowClosed]);
 
   // Calculate exam results
   const calculateResults = (test: Test, answers: StudentAnswer[], studentName: string): TestResult => {
@@ -682,6 +712,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
               setCurrentPhase('invalid');
             }}
             timeInfo={timeInfo}
+            studentIdentity={studentIdentity ?? undefined}
           />
         ) : null;
 

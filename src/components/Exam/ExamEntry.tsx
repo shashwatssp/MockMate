@@ -16,15 +16,20 @@ import {
   XCircle,
   Award,
   Globe,
+  Mail,
   Zap
 } from 'lucide-react';
 import type { Test } from '../../types/exam.types';
+import type { StudentIdentity } from '../../lib/database';
 import './ExamEntry.css';
 
 interface ExamEntryProps {
   test: Test;
   onStartExam: (studentName: string) => void | Promise<void>;
   onError: (error: string) => void;
+  /** When provided, this student is already authenticated via the batch
+   *  system — the name/email fields are prefilled and locked. */
+  studentIdentity?: StudentIdentity;
   timeInfo?: {
     canEnter: boolean;
     timeUntilEntry: number;
@@ -38,12 +43,13 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
   test, 
   onStartExam, 
   onError,
+  studentIdentity,
 }) => {
-  const [studentName, setStudentName] = useState('');
-  const [studentEmail, setStudentEmail] = useState('');
+  const [studentName, setStudentName] = useState(studentIdentity ? (studentIdentity.name || studentIdentity.email) : '');
+  const [studentEmail, setStudentEmail] = useState(studentIdentity ? (studentIdentity.email) : '');
   const [isLoading, setIsLoading] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(!!studentIdentity);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [systemCheck, setSystemCheck] = useState({
     browser: true,
@@ -113,8 +119,8 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
       return;
     }
 
-    if (!trimmedEmail || !/\S+@\S+\.\S+/.test(trimmedEmail)) {
-      onError('Please enter a valid email address.');
+    if (!trimmedEmail || trimmedEmail.length < 3) {
+      onError('Please enter your email.');
       return;
     }
 
@@ -352,12 +358,12 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
               <input
                 type="text"
                 value={studentName}
-                onChange={(e) => setStudentName(e.target.value)}
+                onChange={(e) => !studentIdentity && setStudentName(e.target.value)}
                 onKeyPress={handleKeyPress}
                 className="form-input"
                 placeholder="Enter your full name as per ID"
                 required
-                disabled={isLoading}
+disabled={!!studentIdentity || isLoading}
                 autoComplete="name"
                 maxLength={100}
               />
@@ -365,18 +371,18 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
 
             <div className="form-group">
               <label className="form-label">
-                <Globe size={16} />
-                Email Address *
+              <Mail size={16} />
+                Email *
               </label>
               <input
                 type="email"
                 value={studentEmail}
-                onChange={(e) => setStudentEmail(e.target.value)}
+                onChange={(e) => !studentIdentity && setStudentEmail(e.target.value)}
                 onKeyPress={handleKeyPress}
                 className="form-input"
-                placeholder="Enter your email address"
+                placeholder="Enter your email"
                 required
-                disabled={isLoading}
+                disabled={!!studentIdentity || isLoading}
                 autoComplete="email"
                 maxLength={100}
               />
@@ -386,10 +392,10 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
               <label className="checkbox-label">
                 <input
                   type="checkbox"
-                  checked={agreedToTerms}
-                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  checked={studentIdentity ? true : agreedToTerms}
+                  onChange={(e) => !studentIdentity && setAgreedToTerms(e.target.checked)}
                   className="checkbox-input"
-                  disabled={isLoading}
+                  disabled={!!studentIdentity || isLoading}
                 />
                 <span className="checkbox-custom"></span>
                 <span className="checkbox-text">

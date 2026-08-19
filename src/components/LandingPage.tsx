@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   ArrowRight, 
   BookOpen, 
@@ -20,6 +21,7 @@ interface LandingPageProps {
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
+  const navigate = useNavigate();
   const [isVisible, setIsVisible] = useState(false);
   const [activeFeature, setActiveFeature] = useState(0);
 
@@ -133,6 +135,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
               <button className="cta-secondary">
                 <Play className="play-icon" />
                 <span>Watch Demo</span>
+              </button>
+              <button
+                className="cta-secondary"
+                onClick={() => navigate('/student/login')}
+              >
+                <Users className="play-icon" />
+                <span>Student Login</span>
               </button>
             </div>
             
