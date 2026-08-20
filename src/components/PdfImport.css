@@ -358,6 +358,17 @@
 .action-btn.accept {
   background: #2563eb;
   color: #fff;
+  /* Kill the mobile tap-highlight flash (white) on press. */
+  -webkit-tap-highlight-color: transparent;
+}
+/* Lock the blue background + white text on press/focus so the Accept
+   button never falls back to a white button surface while the handler
+   runs. :disabled below (same specificity, later in source) still wins. */
+.action-btn.accept:active,
+.action-btn.accept:focus-visible,
+.action-btn.accept:focus {
+  background: #2563eb;
+  color: #fff;
 }
 .action-btn.accept:disabled {
   opacity: 0.6;
