@@ -55,6 +55,18 @@ export interface ExtractionSseFrame {
   data: unknown;
 }
 
+/** Status payload returned by GET /extract/status/{job_id}. */
+export interface ExtractionJobStatus {
+  job_id: string;
+  status: "running" | "done" | "error";
+  processed: number;
+  total: number | null;
+  total_pages: number | null;
+  error: string | null;
+  estimated_seconds: number | null;
+  data?: ExtractionData;
+}
+
 function dataURLToBlob(dataURL: string): Blob {
   const parts = dataURL.split(',');
   const mime = parts[0].match(/:(.*?);/)?.[1] ?? 'image/png';
@@ -125,6 +137,51 @@ export async function extractionExtract(file: File): Promise<ExtractionData> {
     throw new Error(`Request failed (${res.status})${txt ? ': ' + txt : ''}`);
   }
   return (await res.json()) as ExtractionData;
+}
+
+/** POST /extract/start -- async job model. Saves the upload and returns a
+ *  job_id immediately; process_pdf() runs in a background thread on the
+ *  server. The client then polls GET /extract/status/{job_id}. This is the
+ *  recommended flow for large PDFs: no long-lived HTTP connection to drop. */
+export async function extractionStartJob(file: File): Promise<{
+  job_id: string;
+  status: string;
+  total: number | null;
+  total_pages: number | null;
+  estimated_seconds: number | null;
+}> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${EXTRACTION_URL}/extract/start`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Failed to start extraction (${res.status})${txt ? ": " + txt : ""}`);
+  }
+  return (await res.json()) as {
+    job_id: string;
+    status: string;
+    total: number | null;
+    total_pages: number | null;
+    estimated_seconds: number | null;
+  };
+}
+
+/** GET /extract/status/{job_id} -- poll an async extraction job. Returns the
+ *  full `data` payload once status == "done". */
+export async function extractionPollStatus(
+  jobId: string,
+): Promise<ExtractionJobStatus> {
+  const res = await fetch(`${EXTRACTION_URL}/extract/status/${encodeURIComponent(jobId)}`, {
+    method: "GET",
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Status request failed (${res.status})${txt ? ": " + txt : ""}`);
+  }
+  return (await res.json()) as ExtractionJobStatus;
 }
 
 /**

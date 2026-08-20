@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { FileText, Upload, RefreshCw, AlertCircle, ArrowLeft } from 'lucide-react';
 import PdfImportReview from './PdfImportReview';
 import type { PdfExtractResult } from '../lib/pdfExtract';
-import type { ExtractionData, ExtractionSseFrame } from '../lib/extractionClient';
+import type { ExtractionJobStatus } from '../lib/extractionClient';
 import {
   EXTRACTION_URL,
   extractionHealth,
-  extractionExtractStream,
+  extractionStartJob,
+  extractionPollStatus,
   mapExtractionToExtracted,
 } from '../lib/extractionClient';
 import './PdfImport.css';
@@ -91,57 +92,69 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
     setStep('extracting');
     setProgressCurrent(0);
     setProgressTotal(null);
-    setProgressMessage(`Sending ${f.name}…`);
+    setProgressMessage(`Starting extraction...`);
     setExtractError(null);
 
-    // Abort any prior in-flight extraction (e.g. a re-parse while one is running).
+    // Abort any prior in-flight upload controller (kept for safety; the polling
+    // model has no stream to abort).
     streamRef.current?.abort();
 
-  let finalResult: PdfExtractResult | null = null;
+    let finalResult: PdfExtractResult | null = null;
+    let pollTimer: ReturnType<typeof setInterval> | undefined;
 
-  // Free-tier Questify cold-shuts while idle. If an extraction runs longer than
-  // the idle timeout, ping /health every 30s so the render service stays warm
-  // for the whole stream (prevents a mid-parse shutdown).
-  const keepAlive = setInterval(() => {
-    extractionHealth().catch(() => {});
-  }, 30000);
-  try {
-    await new Promise<void>((resolve, reject) => {
-        const controller = extractionExtractStream(
-          f,
-          (frame: ExtractionSseFrame) => {
-            const d = frame.data as ExtractionData & {
-              index?: number;
-              count?: number;
-              total?: number;
-              error?: string;
-            };
-            if (frame.event === 'progress-start') {
-              setProgressTotal(d.total_questions ?? null);
-              setProgressMessage(`Preparing ${d.total_questions ?? '?'} question(s)…`);
-            } else if (frame.event === 'progress-question') {
-              setProgressCurrent(d.count ?? d.index ?? 0);
-              setProgressMessage(
-                d.total
-                  ? `Extracting question ${d.count} of ${d.total}…`
-                  : `Extracting question ${d.count}…`,
-              );
-            } else if (frame.event === 'progress-done') {
-              finalResult = mapExtractionToExtracted(d);
-              setProgressMessage('Finishing up…');
-              resolve();
-            } else if (frame.event === 'progress-error') {
-              reject(new Error(d.error ?? 'Extraction failed.'));
+    // Free-tier Questify cold-shuts while idle. If a job runs longer than the
+    // idle timeout, ping /health every 30s so the render service stays warm for
+    // the whole background extraction (a sleeping container would kill the
+    // worker thread).
+    const keepAlive = setInterval(() => {
+      extractionHealth().catch(() => {});
+    }, 30000);
+    try {
+      const startRes = await extractionStartJob(f);
+      const jobId = startRes.job_id;
+      if (startRes.total != null) setProgressTotal(startRes.total);
+      setProgressMessage(`Preparing ${f.name}...`);
+
+      await new Promise<void>((resolve, reject) => {
+        let settled = false;
+        const finish = (fn: () => void) => {
+          if (settled) return;
+          settled = true;
+          if (pollTimer) clearInterval(pollTimer);
+          fn();
+        };
+
+        const tick = async () => {
+          try {
+            const status: ExtractionJobStatus = await extractionPollStatus(jobId);
+            if (status.total != null) setProgressTotal(status.total);
+            setProgressCurrent(status.processed ?? 0);
+            if (status.status === 'done' && status.data) {
+              finalResult = mapExtractionToExtracted(status.data);
+              setProgressMessage(`Extracted ${status.data.questions.length} question(s).`);
+              finish(() => resolve());
+            } else if (status.status === 'error') {
+              finish(() => reject(new Error(status.error ?? 'Extraction failed.')));
+            } else if (status.total != null) {
+              if (status.estimated_seconds != null) {
+                setProgressMessage(
+                  `This may take up to ${Math.ceil(status.estimated_seconds / 60)} minutes...`,
+                );
+              } else {
+                setProgressMessage(`Extracting question ${status.processed ?? 0} of ${status.total}...`);
+              }
+            } else {
+              setProgressMessage(`Extracting question ${status.processed ?? 0}...`);
             }
-          },
-          (err: unknown) => {
-            if (err instanceof DOMException && err.name === 'AbortError') return;
-            const msg = err instanceof Error ? err.message : String(err);
-            reject(err instanceof Error ? err : new Error(msg));
-          },
-        );
-        streamRef.current = controller;
+          } catch (e: unknown) {
+            finish(() => reject(e instanceof Error ? e : new Error(String(e))));
+          }
+        };
+
+        pollTimer = setInterval(tick, 2000);
+        tick(); // fire once immediately so fast/image jobs don't wait 2s
       });
+
       if (finalResult) {
         setResult(finalResult);
         setStep('review');
@@ -152,6 +165,7 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
       setStep('upload');
     } finally {
       clearInterval(keepAlive);
+      if (pollTimer) clearInterval(pollTimer);
       streamRef.current?.abort();
       streamRef.current = null;
       setProgressTotal(null);
