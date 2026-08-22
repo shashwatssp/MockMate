@@ -4,8 +4,8 @@ import {
   Trash2,
   CheckCircle,
   AlertCircle,
-  ArrowLeft,
   Crop,
+  EyeOff,
   RefreshCw,
   Check,
   X,
@@ -41,8 +41,12 @@ interface Draft {
 
 interface PdfImportReviewProps {
   questions: ExtractedQuestion[];
-  /** Called once the teacher has reviewed every question (navigates away). */
-  onComplete: () => void;
+  /** True while the backend is still streaming in new questions. */
+  isGenerating?: boolean;
+  /** Total expected questions (from the backend); used for the live "k of N" copy. */
+  totalQuestions?: number;
+  /** Called with the accepted count once the teacher finishes (navigates away). */
+  onComplete: (accepted: number) => void;
 }
 
 type Status = 'pending' | 'accepted' | 'discarded';
@@ -69,31 +73,50 @@ function dataURLToBlob(dataURL: string): Blob {
  */
 export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
   questions,
+  isGenerating = false,
+  totalQuestions,
   onComplete,
 }) => {
-  const total = questions.length;
+  const total = totalQuestions ?? questions.length;
   const [index, setIndex] = useState(0);
   const [reviewed, setReviewed] = useState<Record<number, Status>>({});
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [drafts, setDrafts] = useState<Draft[]>(() =>
-    questions.map(q => ({
-      text: q.text,
-      options: q.options.length ? q.options.slice() : ['', '', '', ''],
-      correctAnswer: Math.min(
-        q.correctAnswer,
-        Math.max(0, (q.options.length || 4) - 1),
-      ),
-      attachImage: q.imageBlob != null,
-      imageBlob: q.imageBlob,
-      pageImage: q.pageImage,
-      ocrApplied: false,
-      cropApplied: false,
-      originalImageBlob: q.imageBlob,
-      originalPageImage: q.pageImage,
-    })),
-  );
+  // Shared factory so the lazy initializer and the growth effect below build one
+  // question's draft with exactly the same shape.
+  const makeDraft = (q: ExtractedQuestion): Draft => ({
+    text: q.text,
+    options: q.options.length ? q.options.slice() : ['', '', '', ''],
+    correctAnswer: Math.min(
+      q.correctAnswer,
+      Math.max(0, (q.options.length || 4) - 1),
+    ),
+    attachImage: q.imageBlob != null,
+    imageBlob: q.imageBlob,
+    pageImage: q.pageImage,
+    ocrApplied: false,
+    cropApplied: false,
+    originalImageBlob: q.imageBlob,
+    originalPageImage: q.pageImage,
+  });
+
+  const [drafts, setDrafts] = useState<Draft[]>(() => questions.map(makeDraft));
+  const prevQuestionsLenRef = useRef(questions.length);
+
+  // As the server streams in new questions, append a draft for each newly-arrived
+  // question WITHOUT resetting drafts already in flight (preserves edits). The
+  // initial render seeds all loaded questions; subsequent polls only append tail.
+  useEffect(() => {
+    const n = questions.length;
+    if (n > prevQuestionsLenRef.current) {
+      const tail = questions
+        .slice(prevQuestionsLenRef.current)
+        .map(makeDraft);
+      setDrafts(d => [...d, ...tail]);
+      prevQuestionsLenRef.current = n;
+    }
+  }, [questions, isGenerating, totalQuestions]);
 
   // --- Crop state -----------------------------------------------------------
   const imgWrapRef = useRef<HTMLDivElement>(null);
@@ -105,6 +128,9 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
 
   // --- OCR state ------------------------------------------------------------
   const [ocrLoading, setOcrLoading] = useState(false);
+  // Text-off toggle (garbled OCR / image-only papers): hides rendered text while
+  // still preserving edits so they persist on accept.
+  const [hideText, setHideText] = useState(false);
 
   // Free the worker + its WASM heap once the whole review screen is left.
   useEffect(() => {
@@ -117,19 +143,10 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
     .filter(v => v === 'discarded').length;
 
   const current = questions[index];
-  if (!current) {
-    return (
-      <div className="pdf-review-empty">
-        <AlertCircle className="icon" />
-        <p>No questions were found in this PDF. Try a different file.</p>
-        <button className="action-btn secondary" onClick={onComplete}>
-          <ArrowLeft size={16} /> Back
-        </button>
-      </div>
-    );
-  }
-  const draft = drafts[index];
-  const canAccept = draft.options.length >= 2;
+  // `draft` is undefined while the index points past what has arrived during live
+  // extraction; the main render shows a "still extracting" placeholder.
+  const draft = drafts[index] ?? (current ? makeDraft(current) : undefined);
+  const canAccept = !!draft && draft.options.length >= 2;
 
   // Natural->display scale for the currently shown image (naturalWidth/renderedWidth).
   const imgScale = (() => {
@@ -179,6 +196,22 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
         k === index ? { ...item, options: next, correctAnswer: correct } : item,
       );
     });
+  };
+
+  /** Remove OCR-extracted text from this question's options. Use this when the
+   *  question is answered from a photo: the option letter (A/B/C/D) is already
+   *  shown as a label, so clearing the option values turns each entry into just
+   *  its letter while the image carries the option text.
+   *  `correctAnswer` (an index) is preserved, so it still points at the right
+   *  option letter. */
+  const clearOptionText = () => {
+    setDrafts(d =>
+      d.map((item, i) =>
+        i === index
+          ? { ...item, options: Array(item.options.length).fill('') }
+          : item,
+      ),
+    );
   };
 
   const advance = () => setIndex(i => (i < total - 1 ? i + 1 : i));
@@ -233,7 +266,7 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
       } else if (index < total - 1) {
         advance();
       } else {
-        onComplete();
+        onComplete(acceptedCount);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -247,7 +280,7 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
   const handleDiscard = () => {
     setReviewed(r => ({ ...r, [index]: 'discarded' }));
     if (index < total - 1) advance();
-    else onComplete();
+    else onComplete(acceptedCount);
   };
 
   // --- Crop handlers --------------------------------------------------------
@@ -450,18 +483,35 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
           })}
         </div>
         <div className="pdf-review-meta">
-          <span className="meta-chip">Page {current.pageNumber}</span>
+          <span className="meta-chip">Page {current?.pageNumber ?? '—'}</span>
           <span className="meta-chip">Question {index + 1} of {total}</span>
           <span className="meta-chip success">Accepted: {acceptedCount}</span>
           <span className="meta-chip danger">Discarded: {discardedCount}</span>
           <span className={`meta-chip ${st === 'pending' ? 'success' : ''}`}>
             Status: {st}
           </span>
+          {isGenerating && questions.length < total && (
+            <span className="meta-chip extracting-pulse">
+              <RefreshCw size={12} className="spin" /> Extracting…
+            </span>
+          )}
         </div>
       </header>
 
       <main className="pdf-review-main">
-        <div className="pdf-review-card">
+        {!current && isGenerating && questions.length < total ? (
+          <div className="loading-next">
+            <RefreshCw className="spin" size={18} />
+            <span>
+              Still extracting question {index + 1} of {total}…
+            </span>
+          </div>
+        ) : !current ? (
+          <div className="loading-next">
+            <span>No questions have arrived yet.</span>
+          </div>
+        ) : (
+          <div className="pdf-review-card">
           <div className="review-media">
             {draft.attachImage && draft.pageImage ? (
               <div
@@ -533,7 +583,7 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
             <label className="field-label">Question text</label>
             <textarea
               className="text-area"
-              value={draft.text}
+              value={hideText ? '' : draft.text}
               onChange={e => updateDraft({ text: e.target.value })}
               placeholder="Edit the question stem…"
               rows={4}
@@ -558,7 +608,7 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
                   <span className="option-label">{LETTERS[i]}</span>
                   <input
                     className="option-input"
-                    value={opt}
+                    value={hideText ? '' : opt}
                     onChange={e => setOption(i, e.target.value)}
                     placeholder={`Option ${LETTERS[i]}`}
                   />
@@ -629,7 +679,26 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
                   <span>Attach question image</span>
                 </label>
               )}
-            </div>
+            <label className="checkbox-field hide-text-toggle">
+              <input
+                type="checkbox"
+                checked={hideText}
+                onChange={e => setHideText(e.target.checked)}
+                disabled={uploading || cropMode}
+              />
+              <EyeOff size={14} />
+              Hide question text
+            </label>
+            <button
+              type="button"
+              className="link-btn"
+              onClick={clearOptionText}
+              disabled={uploading || cropMode || !draft.options.some(o => o.trim())}
+              title="Remove the OCR-extracted text from every option. Use when the question is answered from a photo: the option letters (A/B/C/D) remain as labels and the image carries the option text."
+            >
+              <X size={14} /> Clear extracted option text
+            </button>
+          </div>
 
             {error && (
               <div className="error-msg">
@@ -665,7 +734,7 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>)} 
       </main>
 
       <footer className="pdf-review-footer">
@@ -689,7 +758,7 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
         <button
           type="button"
           className="action-btn secondary"
-          onClick={onComplete}
+          onClick={() => onComplete(acceptedCount)}
         >
           Finish ({acceptedCount} accepted, {discardedCount} discarded)
         </button>

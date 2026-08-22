@@ -1,14 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { FileText, Upload, RefreshCw, AlertCircle, ArrowLeft } from 'lucide-react';
 import PdfImportReview from './PdfImportReview';
-import type { PdfExtractResult } from '../lib/pdfExtract';
-import type { ExtractionJobStatus } from '../lib/extractionClient';
+import type { ExtractedQuestion } from '../lib/pdfExtract';
+import type {
+  ExtractionData,
+  ExtractionProgressFrame,
+  ExtractionSseFrame,
+} from '../lib/extractionClient';
 import {
   EXTRACTION_URL,
   extractionHealth,
-  extractionStartJob,
-  extractionPollStatus,
-  mapExtractionToExtracted,
+  extractionExtractStream,
+  mapExtractionQuestionToExtracted,
 } from '../lib/extractionClient';
 import './PdfImport.css';
 
@@ -33,7 +37,9 @@ const MAX_BYTES = 30 * 1024 * 1024; // 30 MB safety guard
 export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, returnTo }) => {
   const [step, setStep] = useState<'upload' | 'extracting' | 'review'>('upload');
   const [file, setFile] = useState<File | null>(null);
-  const [result, setResult] = useState<PdfExtractResult | null>(null);
+  const [accumulatedQuestions, setAccumulatedQuestions] = useState<ExtractedQuestion[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [totalQuestions, setTotalQuestions] = useState<number | null>(null);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [serviceReady, setServiceReady] = useState<boolean | null>(null);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
@@ -81,7 +87,7 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
     runExtraction(f);
   };
 
-  const runExtraction = async (f: File) => {
+  const runExtraction = (f: File) => {
     if (!serviceReady) {
       setExtractError(
         `Extraction service is not reachable at ${EXTRACTION_URL}. Please verify the deployment is online and try again.`,
@@ -92,86 +98,116 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
     setStep('extracting');
     setProgressCurrent(0);
     setProgressTotal(null);
-    setProgressMessage(`Starting extraction...`);
+    setProgressMessage(`Sending ${f.name}…`);
     setExtractError(null);
+    setAccumulatedQuestions([]);
+    setIsGenerating(false);
+    setTotalQuestions(null);
 
-    // Abort any prior in-flight upload controller (kept for safety; the polling
-    // model has no stream to abort).
+    // Abort any prior in-flight extraction (e.g. a re-parse while one is running).
     streamRef.current?.abort();
 
-    let finalResult: PdfExtractResult | null = null;
-    let pollTimer: ReturnType<typeof setInterval> | undefined;
-
-    // Free-tier Questify cold-shuts while idle. If a job runs longer than the
-    // idle timeout, ping /health every 30s so the render service stays warm for
-    // the whole background extraction (a sleeping container would kill the
-    // worker thread).
+    // Free-tier Questify cold-shuts while idle. If an extraction runs longer than
+    // the idle timeout, ping /health every 30s so the render service stays warm
+    // for the whole stream (prevents a mid-parse shutdown).
     const keepAlive = setInterval(() => {
       extractionHealth().catch(() => {});
     }, 30000);
-    try {
-      const startRes = await extractionStartJob(f);
-      const jobId = startRes.job_id;
-      if (startRes.total != null) setProgressTotal(startRes.total);
-      setProgressMessage(`Preparing ${f.name}...`);
 
-      await new Promise<void>((resolve, reject) => {
-        let settled = false;
-        const finish = (fn: () => void) => {
-          if (settled) return;
-          settled = true;
-          if (pollTimer) clearInterval(pollTimer);
-          fn();
-        };
-
-        const tick = async () => {
-          try {
-            const status: ExtractionJobStatus = await extractionPollStatus(jobId);
-            if (status.total != null) setProgressTotal(status.total);
-            setProgressCurrent(status.processed ?? 0);
-            if (status.status === 'done' && status.data) {
-              finalResult = mapExtractionToExtracted(status.data);
-              setProgressMessage(`Extracted ${status.data.questions.length} question(s).`);
-              finish(() => resolve());
-            } else if (status.status === 'error') {
-              finish(() => reject(new Error(status.error ?? 'Extraction failed.')));
-            } else if (status.total != null) {
-              if (status.estimated_seconds != null) {
-                setProgressMessage(
-                  `This may take up to ${Math.ceil(status.estimated_seconds / 60)} minutes...`,
-                );
-              } else {
-                setProgressMessage(`Extracting question ${status.processed ?? 0} of ${status.total}...`);
-              }
-            } else {
-              setProgressMessage(`Extracting question ${status.processed ?? 0}...`);
-            }
-          } catch (e: unknown) {
-            finish(() => reject(e instanceof Error ? e : new Error(String(e))));
-          }
-        };
-
-        pollTimer = setInterval(tick, 2000);
-        tick(); // fire once immediately so fast/image jobs don't wait 2s
-      });
-
-      if (finalResult) {
-        setResult(finalResult);
-        setStep('review');
-      }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setExtractError(msg);
-      setStep('upload');
-    } finally {
+    const cleanup = () => {
       clearInterval(keepAlive);
-      if (pollTimer) clearInterval(pollTimer);
       streamRef.current?.abort();
       streamRef.current = null;
-      setProgressTotal(null);
-      setProgressCurrent(0);
-      setProgressMessage(null);
-    }
+    };
+
+    const controller = extractionExtractStream(
+      f,
+      (frame: ExtractionSseFrame) => {
+        const d = frame.data as ExtractionProgressFrame;
+        if (frame.event === 'progress-start') {
+          const total = d.total_questions ?? null;
+          // Switch to the review screen immediately and flush synchronously so the
+          // teacher sees the review view without waiting for the next tick.
+          flushSync(() => {
+            setTotalQuestions(total);
+            setProgressTotal(total);
+            setProgressMessage(`Preparing ${total ?? '?'} question(s)…`);
+            setAccumulatedQuestions([]);
+            setIsGenerating(true);
+            setStep('review');
+          });
+        } else if (frame.event === 'progress-question') {
+          const count = d.count ?? d.index ?? 0;
+          // flushSync forces a synchronous re-render for each question so the
+          // teacher sees questions appear one-by-one. This defeats React 19's
+          // automatic batching, which would otherwise coalesce multiple SSE
+          // frames that arrive in the same network chunk into a single render —
+          // hiding all incremental updates until progress-done overwrites them.
+          flushSync(() => {
+            setProgressCurrent(count);
+            setProgressMessage(
+              d.total
+                ? `Extracting question ${count} of ${d.total}…`
+                : `Extracting question ${count}…`,
+            );
+            if (d.question) {
+              setAccumulatedQuestions(prev => [
+                ...prev,
+                mapExtractionQuestionToExtracted(d.question!),
+              ]);
+            }
+          });
+        } else if (frame.event === 'progress-done') {
+          // The streaming backend emits BOTH per-question `progress-question` events
+          // AND a final `progress-done` carrying the FULL question set. If questions
+          // were already accumulated incrementally, keep them — overwriting would just
+          // cause a jarring re-mount of identical content. Only fall back to the
+          // bundled payload when the stream was non-incremental (e.g. 404 fallback)
+          // and the accumulated array is still empty.
+          flushSync(() => {
+            if (d.question) {
+              setAccumulatedQuestions(prev => [
+                ...prev,
+                mapExtractionQuestionToExtracted(d.question!),
+              ]);
+            }
+            const data = d as unknown as ExtractionData;
+            if (data.questions && Array.isArray(data.questions)) {
+              setAccumulatedQuestions(prev =>
+                prev.length > 0
+                  ? prev
+                  : data.questions!.map(mapExtractionQuestionToExtracted),
+              );
+            }
+            setIsGenerating(false);
+            setProgressMessage(null);
+            setProgressTotal(null);
+            setProgressCurrent(0);
+          });
+          cleanup();
+        } else if (frame.event === 'progress-error') {
+          setExtractError(d.error ?? 'Extraction failed.');
+          setIsGenerating(false);
+          setStep('upload');
+          setProgressMessage(null);
+          setProgressTotal(null);
+          setProgressCurrent(0);
+          cleanup();
+        }
+      },
+      (err: unknown) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        const msg = err instanceof Error ? err.message : String(err);
+        setExtractError(msg);
+        setIsGenerating(false);
+        setStep('upload');
+        setProgressMessage(null);
+        setProgressTotal(null);
+        setProgressCurrent(0);
+        cleanup();
+      },
+    );
+    streamRef.current = controller;
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -182,14 +218,15 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => e.preventDefault();
 
-  if (step === 'review' && result) {
+  if (step === 'review') {
     return (
       <>
         <div className="pdf-review-backdrop">
           <PdfImportReview
-            questions={result.questions}
-            onComplete={() => {
-              const accepted = result.questions.length; // rough count until review marks them
+            questions={accumulatedQuestions}
+            isGenerating={isGenerating}
+            totalQuestions={totalQuestions ?? undefined}
+            onComplete={(accepted) => {
               alert(
                 `Import complete! ${accepted} question(s) processed. Accepted questions are now in your question bank.`,
               );
@@ -304,10 +341,9 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
           </button>
         )}
 
-        {result && step === 'upload' && (
+        {accumulatedQuestions.length > 0 && step === 'upload' && (
           <p className="note-list">
-            Found {result.pageCount} page(s). {result.questions.length} question(s)
-            parsed. {result.errors.length > 0 && `${result.errors.length} warning(s).`}
+            Found {accumulatedQuestions.length} question(s) parsed.
           </p>
         )}
       </div>

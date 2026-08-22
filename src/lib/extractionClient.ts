@@ -15,14 +15,11 @@
 
 import type { ExtractedQuestion, PdfExtractResult } from './pdfExtract';
 
-const isDev =
-  typeof import.meta !== 'undefined' &&
-  (import.meta as any).env?.DEV;
+const isDev = import.meta.env?.DEV;
 export const EXTRACTION_URL =
   isDev
     ? '/extraction'
-    : (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_QUESTIFY_URL) ||
-      'https://questify-ul4h.onrender.com';
+    : import.meta.env?.VITE_QUESTIFY_URL || 'https://questify-ul4h.onrender.com';
 
 export interface ExtractionQuestion {
   id: number | string;
@@ -55,16 +52,15 @@ export interface ExtractionSseFrame {
   data: unknown;
 }
 
-/** Status payload returned by GET /extract/status/{job_id}. */
-export interface ExtractionJobStatus {
-  job_id: string;
-  status: "running" | "done" | "error";
-  processed: number;
-  total: number | null;
-  total_pages: number | null;
-  error: string | null;
-  estimated_seconds: number | null;
-  data?: ExtractionData;
+/** Payload shape for a `progress-question` SSE frame. */
+export interface ExtractionProgressFrame {
+  index?: number;
+  count?: number;
+  total?: number;
+  total_questions?: number;
+  total_pages?: number;
+  question?: ExtractionQuestion;
+  error?: string;
 }
 
 function dataURLToBlob(dataURL: string): Blob {
@@ -74,6 +70,21 @@ function dataURLToBlob(dataURL: string): Blob {
   const u8 = new Uint8Array(bstr.length);
   for (let i = 0; i < bstr.length; i++) u8[i] = bstr.charCodeAt(i);
   return new Blob([u8], { type: mime });
+}
+
+/** Map a single backend question object to the review screen's `ExtractedQuestion` shape. */
+export function mapExtractionQuestionToExtracted(
+  q: ExtractionQuestion,
+): ExtractedQuestion {
+  const b64: string | undefined = q.rendered_image_b64;
+  return {
+    pageNumber: q.page ?? 1,
+    text: q.text ?? '',
+    options: optionsToArray(q.options),
+    correctAnswer: 0, // not exposed by the service (answer-key lines are redacted)
+    imageBlob: b64 ? dataURLToBlob(b64) : null,
+    pageImage: b64 ?? null,
+  };
 }
 
 /** Collapse the options map (e.g. {"1":"a","2":"b"}) into an ordered array. */
@@ -96,17 +107,9 @@ function optionsToArray(
 
 /** Map the service's `data` dict to the PdfExtractResult shape used by the review screen. */
 export function mapExtractionToExtracted(data: ExtractionData): PdfExtractResult {
-  const questions: ExtractedQuestion[] = (data.questions ?? []).map(q => {
-    const b64: string | undefined = q.rendered_image_b64;
-    return {
-      pageNumber: q.page ?? 1,
-      text: q.text ?? '',
-      options: optionsToArray(q.options),
-      correctAnswer: 0, // not exposed by the service (answer-key lines are redacted)
-      imageBlob: b64 ? dataURLToBlob(b64) : null,
-      pageImage: b64 ?? null,
-    };
-  });
+  const questions: ExtractedQuestion[] = (data.questions ?? []).map(
+    mapExtractionQuestionToExtracted,
+  );
   const last = questions.length ? (questions[questions.length - 1].pageNumber ?? 1) : 1;
   return {
     questions,
@@ -137,51 +140,6 @@ export async function extractionExtract(file: File): Promise<ExtractionData> {
     throw new Error(`Request failed (${res.status})${txt ? ': ' + txt : ''}`);
   }
   return (await res.json()) as ExtractionData;
-}
-
-/** POST /extract/start -- async job model. Saves the upload and returns a
- *  job_id immediately; process_pdf() runs in a background thread on the
- *  server. The client then polls GET /extract/status/{job_id}. This is the
- *  recommended flow for large PDFs: no long-lived HTTP connection to drop. */
-export async function extractionStartJob(file: File): Promise<{
-  job_id: string;
-  status: string;
-  total: number | null;
-  total_pages: number | null;
-  estimated_seconds: number | null;
-}> {
-  const form = new FormData();
-  form.append("file", file);
-  const res = await fetch(`${EXTRACTION_URL}/extract/start`, {
-    method: "POST",
-    body: form,
-  });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Failed to start extraction (${res.status})${txt ? ": " + txt : ""}`);
-  }
-  return (await res.json()) as {
-    job_id: string;
-    status: string;
-    total: number | null;
-    total_pages: number | null;
-    estimated_seconds: number | null;
-  };
-}
-
-/** GET /extract/status/{job_id} -- poll an async extraction job. Returns the
- *  full `data` payload once status == "done". */
-export async function extractionPollStatus(
-  jobId: string,
-): Promise<ExtractionJobStatus> {
-  const res = await fetch(`${EXTRACTION_URL}/extract/status/${encodeURIComponent(jobId)}`, {
-    method: "GET",
-  });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Status request failed (${res.status})${txt ? ": " + txt : ""}`);
-  }
-  return (await res.json()) as ExtractionJobStatus;
 }
 
 /**
