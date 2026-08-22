@@ -516,6 +516,19 @@
   to { transform: rotate(360deg); }
 }
 
+/* ============== pdf import create-test CTA (styled via CreateTest.css FAB tokens) ============== */
+.pdf-create-test-cta {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+@media (max-width: 640px) {
+  .pdf-create-test-cta {
+    width: 100%;
+  }
+}
+
 /* ============== extraction mode toggle ============== */
 .extract-mode-toggle {
   display: flex;
@@ -581,6 +594,80 @@
   gap: 0.3rem;
 }
 
+/* ============== classification fields on review card ============== */
+.classify-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+@media (max-width: 640px) {
+  .classify-row {
+    grid-template-columns: 1fr;
+  }
+}
+.classify-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.classify-field .field-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-ink-secondary);
+  gap: 0.25rem;
+}
+.classify-input {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  background: var(--color-bg-card);
+  color: var(--color-ink);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.classify-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.classify-input::placeholder {
+  color: var(--color-text-tertiary);
+}
+.classify-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ============== polished Finish button ============== */
+.finish-btn {
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 180px;
+  padding-top: 0.65rem;
+  padding-bottom: 0.4rem;
+}
+.finish-count {
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  text-align: center;
+}
+.finish-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  animation: none;
+}
+.finish-btn:disabled::before {
+  background: none;
+}
+.finish-btn:disabled:hover {
+  transform: none !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
 @media (prefers-color-scheme: dark) {
   .pdf-import-card,
   .pdf-review-card {
@@ -588,5 +675,10 @@
   }
   .crop-rect {
     border-color: var(--color-bg-card);
+  }
+  .classify-input {
+    background: var(--color-bg-field);
+    color: var(--color-text);
+    border-color: var(--color-border-strong);
   }
 }

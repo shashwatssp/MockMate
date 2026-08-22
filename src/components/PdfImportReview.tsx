@@ -9,6 +9,11 @@ import {
   RefreshCw,
   Check,
   X,
+  Layers,
+  FileText,
+  Calendar,
+  Sparkles,
+  ArrowRight,
 } from 'lucide-react';
 import type { Question } from '../types/exam.types';
 import { insertQuestions, uploadQuestionImage } from '../lib/database';
@@ -18,6 +23,9 @@ import { ocrImageText, terminateOcrWorker } from '../lib/ocr';
 import './PdfImport.css';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+
+const YEARS = Array.from({ length: 30 }, (_, i) => (2025 - i).toString());
+const SUBJECTS = ['Physics', 'Chemistry', 'Biology', 'Mathematics', 'English', 'History', 'Geography', 'Computer Science'];
 
 interface Draft {
   text: string;
@@ -29,24 +37,44 @@ interface Draft {
   imageBlob: Blob | null;
   /** Mutable per-question preview (updated by the crop tool). */
   pageImage: string | null;
+  /** Uploaded public URL of the question image (populated on accept). */
+  imageUrl?: string;
   /** True once OCR text has been applied to this question. */
   ocrApplied: boolean;
   /** True once the crop tool has produced a cropped image for this question. */
   cropApplied: boolean;
   /** Snapshot of the original image captured when crop mode was entered, so a
-   *  second question can be carved out of the same photo after accepting. */
+   *  second question can be carved out of the same photo after accepting.
+   */
   originalImageBlob: Blob | null;
   originalPageImage: string | null;
+  /** Subject auto-classified from extraction data. */
+  subject: string;
+  /** Topic auto-classified from extraction data. */
+  topic: string;
+  /** Year extracted from document metadata. */
+  year: string;
 }
-
 interface PdfImportReviewProps {
   questions: ExtractedQuestion[];
   /** True while the backend is still streaming in new questions. */
   isGenerating?: boolean;
   /** Total expected questions (from the backend); used for the live "k of N" copy. */
   totalQuestions?: number;
-  /** Called with the accepted count once the teacher finishes (navigates away). */
-  onComplete: (accepted: number) => void;
+  /** When true, accepted questions are collected in-memory and passed to
+   *  `onComplete` so the parent can build a test directly. Bank insertion still
+   *  happens regardless (with deduplication via `insertQuestions`). */
+  createTestMode?: boolean;
+  /** Document-level subject classification from the extraction service. */
+  docSubject?: string;
+  /** Document-level topic classification from the extraction service. */
+  docTopic?: string;
+  /** Document-level year extracted from metadata. */
+  docYear?: string;
+  /** Called with the accepted count (+ accepted question drafts) once the
+   *  teacher finishes. The parent decides whether to build a test directly.
+   */
+  onComplete: (accepted: number, acceptedQuestions?: Question[]) => void;
 }
 
 type Status = 'pending' | 'accepted' | 'discarded';
@@ -71,10 +99,14 @@ function dataURLToBlob(dataURL: string): Blob {
  * collapses to a single column on mobile and a two-column grid on
  * laptop/tablet.
  */
+
 export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
   questions,
   isGenerating = false,
   totalQuestions,
+  docSubject,
+  docTopic,
+  docYear,
   onComplete,
 }) => {
   const total = totalQuestions ?? questions.length;
@@ -95,11 +127,31 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
     attachImage: q.imageBlob != null,
     imageBlob: q.imageBlob,
     pageImage: q.pageImage,
+    imageUrl: undefined,
     ocrApplied: false,
     cropApplied: false,
     originalImageBlob: q.imageBlob,
     originalPageImage: q.pageImage,
+    subject: q.subject || docSubject || 'General',
+    topic: q.topic || docTopic || 'General',
+    year: q.year || docYear || '',
   });
+
+  // Backfill document-level subject/topic/year into drafts that still carry the
+  // 'General' / empty default — runs when doc-level metadata arrives after the
+  // questions have already been accumulated during streaming extraction.
+  useEffect(() => {
+    if (!docSubject && !docTopic && !docYear) return;
+    setDrafts(d =>
+      d.map(draft => ({
+        ...draft,
+        subject:
+          draft.subject === 'General' && docSubject ? docSubject : draft.subject,
+        topic: draft.topic === 'General' && docTopic ? docTopic : draft.topic,
+        year: draft.year === '' && docYear ? docYear : draft.year,
+      })),
+    );
+  }, [docSubject, docTopic, docYear]);
 
   const [drafts, setDrafts] = useState<Draft[]>(() => questions.map(makeDraft));
   const prevQuestionsLenRef = useRef(questions.length);
@@ -235,14 +287,21 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
         text: d.text.trim() || `Page ${current.pageNumber} question`,
         options: d.options,
         correctAnswer: d.correctAnswer,
-        topic: 'General',
-        subject: 'General',
-        year: '',
+        topic: d.topic,
+        subject: d.subject,
+        year: d.year,
         // `marks`/`negative_marks` are no longer stored on the question bank
         // (they are decided when a test is built), so they are intentionally omitted.
         ...(imageUrl ? { imageUrl } : {}),
       };
+      // Deduplication is handled inside `insertQuestions` (normalised text-key
+      // lookup against the existing bank), so it's safe to always persist to the
+      // bank — even in create-test mode. The in-memory collection for test
+      // creation is built separately by `collectAcceptedQuestions`.
       await insertQuestions([payload]);
+      // Persist the uploaded image URL on the draft so create-test mode can
+      // carry it into the test payload without a second DB round-trip.
+      if (imageUrl) updateDraft({ imageUrl });
       setReviewed(r => ({ ...r, [index]: 'accepted' }));
       if (d.cropApplied) {
         // A crop was used for this photo: do NOT advance to the next
@@ -266,7 +325,7 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
       } else if (index < total - 1) {
         advance();
       } else {
-        onComplete(acceptedCount);
+        onComplete(acceptedCount, collectAcceptedQuestions());
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -280,7 +339,31 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
   const handleDiscard = () => {
     setReviewed(r => ({ ...r, [index]: 'discarded' }));
     if (index < total - 1) advance();
-    else onComplete(acceptedCount);
+    else onComplete(acceptedCount, collectAcceptedQuestions());
+  };
+
+  /**
+   * Build a `Question[]` from every accepted draft + its original `pageNumber`.
+   * Used in 'create-test' mode so the parent can build a test straight from
+   * the review screen without re-fetching from the question bank.
+   */
+  const collectAcceptedQuestions = (): Question[] => {
+    return questions
+      .map((q, i) => {
+        const d = drafts[i];
+        if (!d || reviewed[i] !== 'accepted') return null;
+        return {
+          id: `pdf-${i}-${q.pageNumber}`,
+          text: d.text.trim() || `Page ${q.pageNumber} question`,
+          options: d.options,
+          correctAnswer: d.correctAnswer,
+          topic: d.topic,
+          subject: d.subject,
+          year: d.year,
+          ...(d.imageUrl ? { imageUrl: d.imageUrl } : {}),
+        } as Question;
+      })
+      .filter(Boolean) as Question[];
   };
 
   // --- Crop handlers --------------------------------------------------------
@@ -589,6 +672,53 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
               rows={4}
             />
 
+            <div className="classify-row">
+              <div className="classify-field">
+                <label className="field-label">
+                  <Layers size={14} /> Subject
+                </label>
+                <input
+                  type="text"
+                  className="classify-input"
+                  value={draft.subject}
+                  onChange={e => updateDraft({ subject: e.target.value })}
+                  placeholder="e.g. Physics"
+                  list="pdf-review-subjects"
+                  disabled={uploading}
+                />
+                <datalist id="pdf-review-subjects">
+                  {SUBJECTS.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
+              <div className="classify-field">
+                <label className="field-label">
+                  <FileText size={14} /> Topic
+                </label>
+                <input
+                  type="text"
+                  className="classify-input"
+                  value={draft.topic}
+                  onChange={e => updateDraft({ topic: e.target.value })}
+                  placeholder="e.g. Mechanics"
+                  disabled={uploading}
+                />
+              </div>
+              <div className="classify-field">
+                <label className="field-label">
+                  <Calendar size={14} /> Year
+                </label>
+                <select
+                  className="classify-input"
+                  value={draft.year}
+                  onChange={e => updateDraft({ year: e.target.value })}
+                  disabled={uploading}
+                >
+                  <option value="">Use document year</option>
+                  {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
+
             <div className="options-block">
               <div className="options-header">
                 <span className="field-label">
@@ -679,26 +809,26 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
                   <span>Attach question image</span>
                 </label>
               )}
-            <label className="checkbox-field hide-text-toggle">
-              <input
-                type="checkbox"
-                checked={hideText}
-                onChange={e => setHideText(e.target.checked)}
-                disabled={uploading || cropMode}
-              />
-              <EyeOff size={14} />
-              Hide question text
-            </label>
-            <button
-              type="button"
-              className="link-btn"
-              onClick={clearOptionText}
-              disabled={uploading || cropMode || !draft.options.some(o => o.trim())}
-              title="Remove the OCR-extracted text from every option. Use when the question is answered from a photo: the option letters (A/B/C/D) remain as labels and the image carries the option text."
-            >
-              <X size={14} /> Clear extracted option text
-            </button>
-          </div>
+  <label className="checkbox-field hide-text-toggle">
+            <input
+              type="checkbox"
+              checked={hideText}
+              onChange={e => setHideText(e.target.checked)}
+              disabled={uploading || cropMode}
+            />
+            <EyeOff size={14} />
+            Hide question text
+          </label>
+          <button
+            type="button"
+            className="link-btn"
+            onClick={clearOptionText}
+            disabled={uploading || cropMode || !draft.options.some(o => o.trim())}
+            title="Remove the OCR-extracted text from every option. Use when the question is answered from a photo: the option letters (A/B/C/D) remain as labels and the image carries the option text."
+          >
+            <X size={14} /> Clear extracted option text
+          </button>
+        </div>
 
             {error && (
               <div className="error-msg">
@@ -757,10 +887,18 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
         )}
         <button
           type="button"
-          className="action-btn secondary"
-          onClick={() => onComplete(acceptedCount)}
+          className="create-test-fab finish-btn"
+          onClick={() => onComplete(acceptedCount, collectAcceptedQuestions())}
+          disabled={acceptedCount === 0}
         >
-          Finish ({acceptedCount} accepted, {discardedCount} discarded)
+          <div className="fab-content">
+            <Sparkles className="fab-icon" size={18} />
+            <span className="fab-text">Save and Finish</span>
+            <ArrowRight className="fab-arrow" size={18} />
+          </div>
+          <span className="finish-count">
+            {acceptedCount} accepted, {discardedCount} discarded
+          </span>
         </button>
       </footer>
     </div>
