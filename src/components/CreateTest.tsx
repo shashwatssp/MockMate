@@ -16,7 +16,7 @@ import { TestConfigSection } from './TestConfigSection';
 import { QuestionSelectionSection } from './QuestionSelectionSection';
 import { SelectedQuestionsSection } from './SelectedQuestionsSection';
 import { VoiceModeModal } from './VoiceModeModal';
-import { createTest, getPaginatedQuestions, getBatchesForTeacher, assignTestToBatches } from '../lib/database';
+import { createTest, getPaginatedQuestions, getBatchesForTeacher, assignTestToBatches, generateTestKey } from '../lib/database';
 import type { Question, Test } from '../types/exam.types';
 import type { BatchRow } from '../lib/database';
 import { getTeacherSession } from '../lib/localAuth';
@@ -61,6 +61,7 @@ interface QuestionContextType {
 
 const QuestionContext = createContext<QuestionContextType | null>(null);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useQuestions = () => {
   const context = useContext(QuestionContext);
   if (!context) {
@@ -69,16 +70,6 @@ export const useQuestions = () => {
   return context;
 };
 
-// Generate 4-letter random key function
-const generateTestKey = (): string => {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < 4; i++) {
-    const randomIndex = Math.floor(Math.random() * characters.length);
-    result += characters.charAt(randomIndex);
-  }
-  return result;
-};
 
 export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onImportPdf, onCreateTest }) => {
   
@@ -222,19 +213,22 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onImp
       return;
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
+    const SpeechRecognitionCtor = (window as unknown as {
+      SpeechRecognition?: unknown;
+      webkitSpeechRecognition?: unknown;
+    }).SpeechRecognition || (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
+    const recognition = new (SpeechRecognitionCtor as new () => unknown)();
 
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    (recognition as { continuous: boolean }).continuous = true;
+    (recognition as { interimResults: boolean }).interimResults = true;
+    (recognition as { lang: string }).lang = 'en-US';
 
     recognition.onstart = () => {
       setIsListening(true);
       setVoiceTranscript('');
     };
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: { resultIndex: number; results: unknown[] }) => {
       let finalTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         if (event.results[i].isFinal) {
@@ -268,7 +262,7 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onImp
     setIsProcessingVoice(true);
 
     try {
-      let GoogleGenAI: any;
+      let GoogleGenAI: unknown;
       try {
         ({ GoogleGenAI } = await import('@google/genai'));
       } catch {
@@ -348,11 +342,13 @@ Rules:
         await applyVoiceData(validatedData);
         
       } catch (parseError) {
+        void parseError;
         // Try manual extraction as fallback
         try {
           const fallbackData = extractDataManually(transcript);
           await applyVoiceData(fallbackData);
         } catch (fallbackError) {
+          void fallbackError;
           alert('Failed to process voice input. Please try again or enter details manually.');
         }
       }
@@ -463,7 +459,7 @@ const applyVoiceData = async (data: VoiceData) => {
   };
 
   // Enhanced validate response data
-  const validateResponseData = (data: any): VoiceData => {
+    const validateResponseData = (data: Record<string, unknown>): VoiceData => {
     const requestedCount = Number(data?.questionCount ?? data?.count ?? data?.numberOfQuestions);
     const duration = Number.isFinite(Number(data?.duration))
       ? Math.min(180, Math.max(8, Math.round(Number(data.duration))))
@@ -474,10 +470,10 @@ const applyVoiceData = async (data: VoiceData) => {
     const testTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(data?.testTime || ''))
       ? String(data.testTime)
       : new Date(Date.now() + 3600000).toTimeString().slice(0, 5);
-    const questionCriteria = Array.isArray(data?.questions) && data.questions.length > 0
-      ? data.questions
+    const questionCriteria = Array.isArray(data?.questions) && (data?.questions as unknown[]).length > 0
+      ? data.questions as unknown[]
       : [{ subject: 'General', topic: 'General', difficulty: 'easy' }];
-    const questions = questionCriteria.map((q: any) => {
+    const questions = questionCriteria.map((q: Record<string, unknown>) => {
         const useRequestedTotal = Number.isFinite(requestedCount)
           && questionCriteria.length === 1
           && (!Number.isFinite(Number(q?.count)) || Number(q.count) === 5);
@@ -627,7 +623,6 @@ const applyVoiceData = async (data: VoiceData) => {
     
     try {
       const testKey = generateTestKey();
-
       const testData = {
         testKey,
         name: testName.trim(),

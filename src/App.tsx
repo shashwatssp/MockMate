@@ -118,6 +118,7 @@ function TeacherApp({ tests, setTests }: TeacherAppProps) {
         <PdfImportScreen
           returnTo={returnTo}
           onBack={() => navigate(returnTo, { replace: true })}
+          onCreateTest={handleTestCreated}
         />
       );
     }

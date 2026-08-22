@@ -32,6 +32,10 @@ export interface Question {
   negativeMarks?: number;
   /** Optional image URL for image-backed questions (stored on the public `questions` bucket). */
   imageUrl?: string;
+  /** Whether the teacher flagged this question for issues (wrong option, wrong answer, etc.). */
+  flagged?: boolean;
+  /** Reason the question was flagged (e.g. "wrong option", "unclear question"). */
+  flagReason?: string;
 }
 
 export interface StudentAnswer {

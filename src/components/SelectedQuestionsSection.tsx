@@ -16,7 +16,8 @@ import {
   List,
   ChevronDown,
   Trash2,
-  Download
+  Download,
+  Flag,
 } from 'lucide-react';
 import { QuestionImage } from './QuestionImage';
 import type { Question } from '../types/exam.types';
@@ -63,9 +64,10 @@ export const SelectedQuestionsSection: React.FC<SelectedQuestionsSectionProps> =
         return a.topic.localeCompare(b.topic);
       case 'subject':
         return a.subject.localeCompare(b.subject);
-      case 'difficulty':
+      case 'difficulty': {
         const diffOrder = { easy: 1, medium: 2, hard: 3 };
         return diffOrder[getDifficulty(a)] - diffOrder[getDifficulty(b)];
+      }
       case 'selection-order':
       default:
         return selectedQuestions.indexOf(a) - selectedQuestions.indexOf(b);
@@ -443,10 +445,15 @@ export const SelectedQuestionsSection: React.FC<SelectedQuestionsSectionProps> =
                                   className="checkbox"
                                 />
                               </div>
-                              <span className="question-number">#{globalIndex}</span>
+                            <span className="question-number">#{globalIndex}</span>
                               <span className="subject-badge">{question.subject}</span>
                               <span className="topic-badge">{question.topic}</span>
                               {question.year && <span className="year-badge">{question.year}</span>}
+                              {question.flagged && (
+                                <span className="flag-chip" title={question.flagReason || 'Flagged'}>
+                                  <Flag size={10} /> {question.flagReason || 'Flagged'}
+                                </span>
+                              )}
                               <span className={`difficulty-badge ${difficulty}`}>
                                 <Star className="difficulty-icon" />
                                 {difficulty}

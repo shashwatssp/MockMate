@@ -178,6 +178,17 @@ export const getQuestions = async () => {
   })) as Question[]
 }
 
+/** Generates a 4-letter random test key (e.g. "A3F9"). */
+export const generateTestKey = (): string => {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 4; i += 1) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    result += characters.charAt(randomIndex);
+  }
+  return result;
+};
+
 /** Return the question-bank size without downloading every question row. */
 export const getQuestionCount = async () => {
   const { count, error } = await supabase
@@ -914,7 +925,7 @@ export const getBatchesForTest = async (testId: string): Promise<BatchRow[]> => 
   return callRpc<BatchRow[]>('app_batches_for_test', { p_test_id: testId, p_token: token });
 };
 
-const mapRowToTest = (test: Record<string, any>): Test => {
+const mapRowToTest = (test: Record<string, unknown>): Test => {
   const settings = (test.settings ?? {}) as TestSettings;
   return {
     id: test.id,

@@ -22,7 +22,8 @@ import {
   Upload,
   AlertCircle,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  Flag,
 } from 'lucide-react';
 import { QuestionImage } from './QuestionImage';
 import { useQuestions } from './CreateTest';
@@ -1050,6 +1051,11 @@ export const QuestionSelectionSection: React.FC<QuestionSelectionSectionProps> =
                   <span className="subject-badge">{question.subject || 'No Subject'}</span>
                   <span className="topic-badge">{question.topic || 'No Topic'}</span>
                   {question.year && <span className="year-badge">{question.year}</span>}
+                  {question.flagged && (
+                    <span className="flag-chip" title={question.flagReason || 'Flagged'}>
+                      <Flag size={10} /> {question.flagReason || 'Flagged'}
+                    </span>
+                  )}
                   <span className={`difficulty-badge ${difficulty}`}>
                     <Star className="difficulty-icon" />
                     {difficulty}

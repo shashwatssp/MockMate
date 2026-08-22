@@ -2072,6 +2072,22 @@ SELECTED QUESTIONS SECTION
   height: 12px;
 }
 
+.flag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--error-50);
+  color: var(--error-700);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-lg);
+  font-size: 0.625rem;
+  font-weight: 600;
+}
+.flag-chip svg {
+  width: 10px;
+  height: 10px;
+}
+
 /* ===== Per-question marks editor (test instance) ===== */
 .marks-editor {
   display: flex;
