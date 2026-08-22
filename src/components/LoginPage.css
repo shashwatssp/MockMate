@@ -46,6 +46,39 @@
   --gradient-success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
 }
 
+/* ===== Dark Mode (core tokens + surfaces) =====
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary-color: #60a5fa;
+    --primary-light: #3b82f6;
+    --primary-hover: #818cf8;
+    --success-color: #34d399;
+    --success-light: #064e35;
+    --warning-color: #fbbf24;
+    --warning-light: #451a03;
+    --error-color: #f87171;
+    --error-light: #450a0a;
+    --info-color: #38bdf8;
+    --info-light: #073142;
+    --gray-50: #0f1117;
+    --gray-100: #171b26;
+    --gray-200: #1f2330;
+    --gray-300: #9ca3af;
+    --gray-400: #6b7280;
+    --gray-500: #7b8794;
+    --gray-600: #94a3b8;
+    --gray-700: #cbd5e1;
+    --gray-800: #e2e5ea;
+    --gray-900: #e4e6eb;
+    --white: #0f1117;
+    --black: #e4e6eb;
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5);
+    --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.6);
+  }
+
+  .login-card, .features-preview { background: #111827; }
+}
+
 /* ===== Base Styles ===== */
 * {
   box-sizing: border-box;
@@ -167,7 +200,7 @@
   gap: 0.5rem;
   padding: 0.75rem 1.25rem;
   background: rgba(255, 255, 255, 0.15);
-  color: var(--white);
+  color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: var(--radius-lg);
   font-weight: 500;
@@ -247,7 +280,7 @@
 .brand-icon .icon {
   width: 2.25rem; /* Increased icon size */
   height: 2.25rem;
-  color: var(--white);
+  color: #fff;
 }
 
 .brand-title {
@@ -538,7 +571,7 @@
 
 .clerk-auth-section :global(.clerk-form-button) {
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%) !important;
-  color: var(--white) !important;
+  color: #fff !important;
   border-radius: var(--radius-lg) !important;
   font-size: 1.125rem !important;
   font-weight: 600 !important;
@@ -574,7 +607,7 @@
   gap: 0.75rem;
   padding: 1.25rem 2rem; /* Increased padding */
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
-  color: var(--white);
+  color: #fff;
   border: none;
   border-radius: var(--radius-lg);
   font-size: 1.25rem; /* Increased font size */
@@ -757,7 +790,7 @@
 
 .auto-fill-button:hover:not(:disabled) {
   background: var(--primary-color);
-  color: var(--white);
+  color: #fff;
 }
 
 .auto-fill-button:disabled {
@@ -1260,19 +1293,19 @@
 @media (prefers-color-scheme: dark) {
   .features-preview {
     background: rgba(0, 0, 0, 0.8);
-    color: var(--white);
+    color: #fff;
   }
   
   .feature-name {
-    color: var(--white);
+    color: #fff;
   }
   
   .feature-description {
-    color: var(--gray-300);
+    color: var(--gray-500);
   }
   
   .features-title {
-    color: var(--white);
+    color: #fff;
   }
 }
 

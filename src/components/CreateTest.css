@@ -105,6 +105,45 @@ CREATE TEST - MODERN UI DESIGN WITH VOICE & ADVANCED FEATURES
   --bp-lg: 1024px;
   --bp-xl: 1280px;
   --bp-2xl: 1536px;
+
+  /* Surface & text tokens (theme-aware; flipped in dark mode below) */
+  --white: #ffffff;
+  --black: #000000;
+  --color-bg: #f6f8fc;
+  --color-bg-card: rgba(255, 255, 255, 0.9);
+  --color-bg-field: #f8fafc;
+  --color-bg-elevated: #f1f5f9;
+  --color-text: #16233b;
+  --color-text-secondary: #64748b;
+  --color-text-tertiary: #94a3b8;
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+}
+
+/* ===== Dark Mode Support =====
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary-500: #3b82f6;
+    --primary-600: #2563eb;
+    --primary-700: #1d4ed8;
+    --gray-50: #0f1117;
+    --gray-100: #171b26;
+    --gray-200: #1f2330;
+    --gray-300: #2a2f3a;
+    --gray-400: #33415b;
+    --gray-500: #4b5563;
+    --gray-600: #6b7280;
+    --gray-700: #94a3b8;
+    --gray-800: #cbd5e1;
+    --gray-900: #e4e6eb;
+    --white: #0f1117;
+    --black: #e4e6eb;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5);
+    --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.6);
+  }
 }
 
 .chevron {
@@ -652,7 +691,7 @@ HEADER STYLES WITH VOICE MODE
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0), transparent);
   transition: left var(--transition-normal);
 }
 
@@ -680,6 +719,38 @@ HEADER STYLES WITH VOICE MODE
 .action-btn.secondary:hover {
   background: var(--gray-200);
   transform: translateY(-1px);
+}
+
+/* ===== Wizard Call-to-Action (Next/Back stepper buttons) =====
+.wizard-cta {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-4);
+  gap: var(--space-3);
+}
+
+/* The wizard "Next: select questions" button is semantically disabled when
+   required fields are empty. Without an explicit :disabled style it kept
+   rendering as a full blue/white button that looked clickable. Force a greyed-out,
+   non-white appearance in both light and dark modes. */
+.action-btn.primary:disabled {
+  background: var(--gray-400);
+  color: var(--gray-700);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.action-btn.primary:disabled:hover {
+  background: var(--gray-400);
+  color: var(--gray-700);
+  transform: none;
+  box-shadow: none;
+}
+/* Suppress the white shimmer pseudo-element on disabled buttons so they
+   never wash to white on hover/focus. */
+.action-btn:disabled::before,
+.action-btn.primary:disabled:hover::before {
+  background: none;
 }
 
 /* Voice Mode Button — clean icon (+ "Voice Mode" text on desktop).
@@ -2553,7 +2624,7 @@ QUESTION SELECTION SECTION (ENHANCED)
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
   transition: left var(--transition-normal);
 }
 
@@ -4069,18 +4140,141 @@ ACCESSIBILITY & ANIMATIONS
   }
 }
 
+/* ===== Comprehensive Dark Mode =====
+   Surfaces hard-coded to white / #fff / rgba(255,255,255,…) never flip
+   under prefers-color-scheme, which left white blocks and invisible text in
+   dark mode. This block reroutes every card / panel / input surface to
+   theme-aware variables so the CreateTest screen goes uniformly dark.
+   Control elements that should remain light-on-brand (step circles,
+   switch handles, icons-on-blue) keep their white keyword on purpose. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --gray-50: #1f2937;
-    --gray-100: #374151;
-    --gray-200: #4b5563;
-    --gray-300: #6b7280;
-    --gray-400: #9ca3af;
-    --gray-500: #d1d5db;
-    --gray-600: #e5e7eb;
-    --gray-700: #f3f4f6;
-    --gray-800: #f9fafb;
-    --gray-900: #ffffff;
+    --gray-50: #0f1117;
+    --gray-100: #171b26;
+    --gray-200: #1f2330;
+    --gray-300: #9ca3af;
+    --gray-400: #6b7280;
+    --gray-500: #7b8794;
+    --gray-600: #94a3b8;
+    --gray-700: #cbd5e1;
+    --gray-800: #e2e5ea;
+    --gray-900: #e4e6eb;
+    --white: #0f1117;
+    --black: #e4e6eb;
+    --color-bg: #0f1117;
+    --color-bg-card: rgba(21, 25, 39, 0.95);
+    --color-bg-field: #111827;
+    --color-bg-elevated: #1e293b;
+    --color-text: #e5e7eb;
+    --color-text-secondary: #94a3b8;
+    --color-text-tertiary: #64748b;
+    --color-border: #33415b;
+    --color-border-strong: #4b5563;
+    --voice-bg: #1e1b2e;
+    --primary-50: #0f1f33;
+    --primary-100: #1e3a66;
+    --success-50: #022c26;
+    --success-100: #043c34;
+    --warning-50: #321d00;
+    --warning-100: #583101;
+    --error-50: #450a0a;
+    --error-100: #7f1d1d;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5);
+    --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.6);
+  }
+
+  /* Page background gradient pastels (were hard-coded light pastels) */
+  .create-test-wrapper::before {
+    background:
+      radial-gradient(circle at 20% 80%, var(--primary-100) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, var(--success-100) 0%, transparent 50%),
+      radial-gradient(circle at 40% 40%, var(--warning-100) 0%, transparent 50%);
+  }
+
+  /* Card / panel / sheet surfaces that use literal white in light mode */
+  .create-test-header,
+  .config-card,
+  .selection-card,
+  .selected-question-card,
+  .question-card,
+  .search-filter-bar,
+  .quick-actions,
+  .empty-state,
+  .stat-item,
+  .summary-item,
+  .preset-card,
+  .suggestion-item,
+  .voice-modal,
+  .voice-modal .modal-content,
+  .voice-modal .instructions-panel,
+  .voice-modal .format-item,
+  .voice-modal .pro-tips,
+  .voice-modal .transcript-panel,
+  .voice-modal .recording-visualization,
+  .voice-modal .transcript-header,
+  .view-btn.active,
+  .expand-toggle,
+  .format-item,
+  .pro-tips,
+  .transcript-panel,
+  .transcript-header {
+    background: var(--color-bg-card);
+  }
+
+  /* Voice modal header (was a hard-coded light pastel gradient) */
+  .voice-modal .modal-header {
+    background: linear-gradient(135deg, var(--voice-bg) 0%, var(--primary-100) 100%);
+  }
+
+  /* Input / field surfaces that use literal white backgrounds */
+  .field-input,
+  .field-textarea,
+  .search-input,
+  .group-select,
+  .sort-select,
+  .filter-select,
+  .stat-card,
+  .stat-icon-wrapper,
+  .time-option,
+  .option-item {
+    background: var(--color-bg-field);
+  }
+
+  /* Borders: switch hard-coded light borders to a subtle dark tint so cards
+     keep definition without glowing white. */
+  .config-card,
+  .selection-card,
+  .question-card,
+  .selected-question-card,
+  .search-filter-bar,
+  .voice-modal,
+  .voice-modal .modal-content,
+  .filter-select,
+  .group-select,
+  .sort-select,
+  .field-input,
+  .field-textarea,
+  .search-input,
+  .tests-table th,
+  .tests-table td,
+  .tests-table thead th {
+    border-color: var(--color-border);
+  }
+
+  /* Text that was hard-coded white-on-light is now theme text tokens */
+  .voice-modal .modal-title,
+  .voice-modal .modal-subtitle,
+  .voice-modal .panel-title,
+  .voice-modal .tips-title,
+  .voice-modal .format-label,
+  .voice-modal .stat-value,
+  .voice-modal .stat-label,
+  .voice-modal .option-text,
+  .voice-modal .suggestion-text {
+    color: var(--color-text);
   }
 }
 

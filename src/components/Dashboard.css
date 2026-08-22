@@ -47,6 +47,37 @@
   --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
+/* ===== Dark Mode Support (token flip, no rewrite) =====
+@media (prefers-color-scheme: dark) {
+  :root {
+    --gray-50: #0f1117;
+    --gray-100: #171b26;
+    --gray-200: #1f2330;
+    --gray-300: #2a2f3a;
+    --gray-400: #33415b;
+    --gray-500: #4b5563;
+    --gray-600: #6b7280;
+    --gray-700: #94a3b8;
+    --gray-800: #cbd5e1;
+    --gray-900: #e4e6eb;
+    --white: #0f1117;
+    --black: #e4e6eb;
+    --primary-light: #3b82f6;
+    --primary-hover: #818cf8;
+    --success-light: #064e35;
+    --warning-light: #451a03;
+    --info-light: #073142;
+    --error-light: #450a0a;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5);
+    --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.6);
+  }
+
+  .tests-table tbody tr:hover { background: #171b26; }
+}
+
 @media (max-width: 560px) {
   .tests-table-wrapper {
     margin-inline: -2px;
@@ -130,7 +161,7 @@
 }
 
 .tests-table thead th {
-  color: var(--gray-500);
+  color: var(--gray-700);
   background: var(--gray-50);
   font-size: 0.72rem;
   font-weight: 700;
@@ -144,7 +175,7 @@
 }
 
 .tests-table tbody tr:hover {
-  background: #fafbff;
+  background: var(--gray-100);
 }
 
 .tests-table tbody th {
@@ -207,7 +238,7 @@
 
 .table-copy-btn:hover,
 .table-copy-btn.copied {
-  color: var(--white);
+  color: #fff;
   background: var(--primary-color);
 }
 
@@ -237,7 +268,7 @@
 
 /* ===== Header Styles ===== */
 .dashboard-header {
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--white);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--gray-200);
   position: sticky;
@@ -278,7 +309,7 @@
 .brand-icon .icon {
   width: 1.75rem; /* Increased icon size */
   height: 1.75rem;
-  color: var(--white);
+  color: #fff;
 }
 
 .brand-title {
@@ -331,7 +362,7 @@
   gap: 0.75rem; /* Increased gap */
   padding: 1rem 2rem; /* Increased padding */
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
-  color: var(--white);
+  color: #fff;
   border: none;
   border-radius: var(--radius-lg);
   font-weight: 600;
@@ -807,13 +838,13 @@
 .tests-title {
   font-size: 2.25rem; /* Increased font size */
   font-weight: 700;
-  color: var(--white);
+  color: var(--gray-900);
   margin: 0 0 0.75rem 0; /* Increased margin */
 }
 
 .tests-subtitle {
   font-size: 1.125rem; /* Increased font size */
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--gray-600);
   margin: 0;
 }
 
@@ -893,12 +924,12 @@
 
 /* ===== Empty State ===== */
 .empty-state {
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--white);
   border-radius: var(--radius-2xl);
   padding: 5rem 3rem; /* Increased padding */
   text-align: center;
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--gray-200);
 }
 
 .empty-visual {
@@ -980,7 +1011,7 @@
   gap: 1rem; /* Increased gap */
   padding: 1.25rem 2.5rem; /* Increased padding */
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
-  color: var(--white);
+  color: #fff;
   border: none;
   border-radius: var(--radius-lg);
   font-weight: 600;
@@ -1206,7 +1237,7 @@
 
 .action-btn.primary {
   background: var(--primary-color);
-  color: var(--white);
+  color: #fff;
 }
 
 .action-btn.primary:hover {
@@ -1248,7 +1279,7 @@
 .no-results {
   text-align: center;
   padding: 4rem 3rem; /* Increased padding */
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--white);
   border-radius: var(--radius-xl);
   backdrop-filter: blur(10px);
 }
@@ -1658,7 +1689,7 @@
   min-height: 100vh;
   background:
     radial-gradient(circle at 10% 0%, rgba(99, 102, 241, 0.09), transparent 28%),
-    #f6f8fc;
+    var(--gray-50);
 }
 
 .dashboard-header {
@@ -1903,7 +1934,7 @@
 }
 
 .table-insights-btn:hover {
-  color: var(--white);
+  color: #fff;
   background: var(--primary-color);
 }
 
@@ -1914,7 +1945,7 @@
 }
 
 .test-actions .action-btn.analytics:hover {
-  color: var(--white);
+  color: #fff;
   background: var(--primary-color);
 }
 
@@ -2046,7 +2077,7 @@
   height: 28px;
   padding: 0 8px;
   border-radius: 8px;
-  color: var(--white);
+  color: #fff;
   background: var(--primary-color);
   font-size: 0.75rem;
   font-weight: 800;
@@ -2113,7 +2144,7 @@
 }
 
 .preview-options > div.correct > span {
-  color: var(--white);
+  color: #fff;
   background: var(--success-color);
 }
 
@@ -2177,16 +2208,16 @@
   margin-bottom: 12px;
 }
 
-.analytics-section-heading select {
-  min-width: 160px;
-  padding: 9px 10px;
-  border: 1px solid var(--gray-300);
-  border-radius: 8px;
-  color: var(--gray-700);
-  background: var(--white);
-  font-size: 0.78rem;
-  font-weight: 700;
-}
+  .analytics-section-heading select {
+    min-width: 160px;
+    padding: 9px 10px;
+    border: 1px solid var(--gray-300);
+    border-radius: 8px;
+    color: var(--gray-700);
+    background: var(--white);
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
 
 .analytics-range {
   color: var(--gray-500);
@@ -2308,7 +2339,7 @@
   padding: 8px 14px;
   border: 0;
   border-radius: 8px;
-  color: var(--white);
+  color: #fff;
   background: var(--primary-color);
   font-weight: 700;
   cursor: pointer;
@@ -2751,5 +2782,90 @@
 
   .highlight-card {
     font-size: 10px;
+  }
+}
+
+/* ===== Uniform dark mode for the Dashboard =====
+   The :root dark flip at the top of this file handles var(--white/--gray-*)
+   surfaces, but several hard-coded legacy colours stay invisible on the dark
+   canvas: --gray-5xx text grays are too dark for #0f1117, `.tests-title`
+   uses #1c2d4c, `.tests-subtitle` uses #64748b, the insights question card is
+   #fbfcff, and badge/primary text reuses var(--white) (which flips dark-on-violet).
+   Re-assert readable tokens here (these rules come last, so they win). */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --gray-300: #9ca3af;
+    --gray-400: #6b7280;
+    --gray-500: #7b8794;
+    --gray-600: #94a3b8;
+    --gray-700: #cbd5e1;
+    --gray-800: #e2e5ea;
+  }
+
+  .dashboard-wrapper {
+    background: radial-gradient(circle at 10% 0%, rgba(99, 102, 241, 0.12), transparent 28%),
+      var(--color-bg);
+    color: var(--color-text);
+  }
+
+  .tests-title { color: var(--color-text); }
+  .tests-subtitle { color: var(--color-text-secondary); }
+  .preview-question-card { background: var(--color-bg-card); border-color: var(--color-border); }
+  .preview-question-heading > span {
+    color: #fff;
+  }
+  .preview-options > div.correct {
+    background: var(--color-success-soft);
+    border-color: var(--color-success-border);
+  }
+
+  /* Primary/insights buttons were var(--primary-color) on a light-blue dark bg
+     with white text -> unreadable. Re-base them on the saturated accent. */
+  .test-actions .action-btn.analytics,
+  .table-insights-btn.analytics,
+  .table-insights-btn:hover {
+    color: var(--color-text);
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+
+  .header-actions .refresh-btn {
+    background: var(--color-bg-card);
+    color: var(--color-ink-secondary);
+    border-color: var(--color-border);
+  }
+  .header-actions .refresh-btn:hover {
+    background: var(--color-bg-elevated);
+    color: var(--color-accent);
+    border-color: var(--color-border);
+  }
+
+  .tests-table tbody tr:hover { background: var(--color-bg-elevated); }
+  .analytics-table tbody tr:hover { background: var(--color-bg-elevated); }
+  .analytics-table thead th, .analytics-summary-grid > div { background: var(--color-bg-elevated); }
+  .analytics-summary-grid strong { color: var(--color-text); }
+
+  .rank-1 { color: #78350f; background: #fde68a; }
+  .rank-2 { color: #0f172a; background: #cbd5e1; }
+  .rank-3 { color: #78350f; background: #fed7aa; }
+
+  .insights-modal, .welcome-content, .stat-card, .test-card, .tests-table-wrapper,
+  .empty-state, .no-results, .highlight-card, .quick-stat, .view-toggle, .preview-options > div {
+    background: var(--color-bg-card);
+    border-color: var(--color-border);
+  }
+
+  .search-input, .filter-select, .analytics-section-heading select {
+    background: var(--color-bg-field);
+    color: var(--color-text);
+    border-color: var(--color-border-strong);
+  }
+
+  /* Stat icons inside their colored accent circles use dark text on a light
+     accent bg -> flip to canvas-black for contrast. */
+  .stat-icon-small.questions .stat-icon-xs,
+  .stat-icon-small.duration .stat-icon-xs,
+  .stat-icon-small.status .stat-icon-xs {
+    color: var(--color-bg);
   }
 }

@@ -41,6 +41,47 @@
   --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
+/* ===== Dark Mode Support =====
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary-color: #818cf8;
+    --primary-light: #3b82f6;
+    --primary-hover: #a78bfa;
+    --success-color: #34d399;
+    --success-light: #064e35;
+    --warning-color: #fbbf24;
+    --warning-light: #451a03;
+    --error-color: #f87171;
+    --error-light: #450a0a;
+    --gray-50: #0f1117;
+    --gray-100: #171b26;
+    --gray-200: #1f2330;
+    --gray-300: #2a2f3a;
+    --gray-400: #33415b;
+    --gray-500: #4b5563;
+    --gray-600: #6b7280;
+    --gray-700: #94a3b8;
+    --gray-800: #cbd5e1;
+    --gray-900: #e4e6eb;
+    --white: #0f1117;
+    --black: #e4e6eb;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5);
+  }
+
+  .batch-shell {
+    background:
+      radial-gradient(circle at 12% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 24%),
+      radial-gradient(circle at 88% 80%, rgba(118, 75, 162, 0.12) 0%, transparent 28%),
+      #0f1117;
+    color: #cbd5e1;
+  }
+  .tests-table tbody tr:hover { background: #171b26; }
+  .batch-shell .student-error-inline { background: #450a0a; border-color: #7f1d1d; color: #fca5a5; }
+}
+
 html { font-feature-settings: "rlig" 1, "calt" 1; }
 
 /* ===== Shell / layout ===== */
@@ -284,7 +325,7 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   border-radius: var(--radius-md);
   border: none;
   background: var(--gradient-primary);
-  color: var(--white);
+  color: #fff;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -366,7 +407,7 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   border-radius: var(--radius-md);
   border: 1px solid var(--primary-color);
   background: var(--primary-color);
-  color: var(--white);
+  color: #fff;
   text-decoration: none;
   font-size: 13px;
   font-weight: 600;
@@ -500,7 +541,7 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   border-radius: var(--radius-sm);
   border: none;
   background: var(--success-color);
-  color: var(--white);
+  color: #fff;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -517,7 +558,7 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   border-radius: var(--radius-sm);
   border: none;
   background: var(--error-color);
-  color: var(--white);
+  color: #fff;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -552,7 +593,7 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   border-radius: var(--radius-sm);
   border: none;
   background: var(--primary-color);
-  color: var(--white);
+  color: #fff;
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
@@ -755,4 +796,63 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   .batch-shell .batch-card { padding: 16px; }
   .batch-item { padding: 12px; }
   .batch-results-table { min-width: 480px; font-size: 11px; }
+}
+
+/* ===== Uniform dark mode for the batch screens =====
+   The :root dark flip at the top of this file flips --white/--gray-* and
+   re-bases --primary-color to #818cf8 (light blue). That light-blue accent is
+   used as the SAVE button colour with var(--white) text, which becomes
+   dark-on-light-blue (unreadable). The amber `.batch-results-top` callout and
+   the pink/red remove-button hover also stay light. Re-assert readable tokens.
+   These rules come last, so they win. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --gray-300: #9ca3af;
+    --gray-400: #6b7280;
+    --gray-500: #7b8794;
+    --gray-600: #94a3b8;
+    --gray-700: #cbd5e1;
+    --gray-800: #e2e5ea;
+  }
+
+  .batch-shell {
+    background: radial-gradient(circle at 12% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 24%),
+      radial-gradient(circle at 88% 80%, rgba(118, 75, 162, 0.10) 0%, transparent 28%),
+      var(--color-bg);
+    color: var(--color-text);
+  }
+
+  /* primary/confirm buttons: text must sit on a saturated accent, not the
+     light-blue --primary-color that the base dark block re-based to. */
+  .batch-save-btn, .batch-save-btn:hover { background: var(--color-accent); color: #fff; }
+  .batch-approve-btn, .batch-approve-btn:hover { background: var(--color-success); color: #fff; }
+  .batch-reject-btn, .batch-reject-btn:hover { background: var(--color-danger); color: #fff; }
+  .batch-save-btn:disabled, .batch-approve-btn:disabled, .batch-reject-btn:disabled, .batch-remove-btn:disabled {
+    opacity: 0.6;
+  }
+
+  /* remove button: keep a dark-readable red instead of light pink */
+  .batch-remove-btn { border-color: var(--color-danger-border); background: var(--color-danger-soft); color: var(--color-danger); }
+  .batch-remove-btn:hover { background: #7f1d1d; }
+
+  /* amber results callout -> dark amber that is readable on a dark canvas */
+  .batch-results-top { background: #29251e; border-color: #453a1f; color: #f5e9c9; }
+  .batch-results-top .batch-results-trophy { color: #fcd34d; }
+
+  .batch-results-table, .batch-results-table th, .batch-results-table td { color: var(--color-text); }
+  .batch-results-table thead th { color: var(--color-text-secondary); background: var(--color-bg-elevated); }
+  .batch-results-table tbody tr:hover { background: var(--color-bg-elevated); }
+  .batch-detail-row .row-name, .batch-detail-name, .batch-results-student { color: var(--color-text); }
+  .batch-detail-row .row-sub, .batch-detail-sub { color: var(--color-text-secondary); }
+  .student-btn-ghost:hover, .student-btn-plain:hover { background: var(--color-bg-elevated); color: var(--color-text); }
+  .batch-footer-stats { color: var(--color-text-secondary); }
+  .batch-toggle-btn { background: var(--color-bg-elevated); color: var(--color-ink-secondary); border-color: var(--color-border); }
+  .batch-toggle-btn.active { background: var(--color-accent); color: #fff; border-color: var(--color-accent-hover); }
+  .batch-add-form { background: var(--color-bg-elevated); border-color: var(--color-border); }
+
+  .student-form-field input, .student-form-field select, .student-form-field-input {
+    background: var(--color-bg-field);
+    color: var(--color-text);
+    border-color: var(--color-border-strong);
+  }
 }

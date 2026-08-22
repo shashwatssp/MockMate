@@ -5,8 +5,8 @@
   padding: 2rem 1rem;
 }
 .pdf-import-card {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 1.5rem;
   box-shadow: 0 6px 22px rgba(0, 0, 0, 0.05);
@@ -18,36 +18,36 @@
 }
 .pdf-import-subtitle {
   margin: 0 0 1.25rem;
-  color: #6b7280;
+  color: var(--color-text-secondary);
   font-size: 0.9rem;
 }
 
 .upload-dropzone {
-  border: 2px dashed #cbd5e1;
+  border: 2px dashed var(--color-border-strong);
   border-radius: 12px;
   padding: 2.5rem 1rem;
   text-align: center;
-  background: #f8fafc;
+  background: var(--color-bg-field);
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
   user-select: none;
 }
 .upload-dropzone.dragover {
-  border-color: #2563eb;
-  background: #eff6ff;
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
 }
 .upload-dropzone input {
   display: none;
 }
 .upload-dropzone .dz-icon {
   margin-bottom: 0.5rem;
-  color: #64748b;
+  color: var(--color-text-tertiary);
 }
 .upload-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  background: #2563eb;
+  background: var(--color-accent);
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -57,7 +57,7 @@
   margin-top: 0.75rem;
 }
 .upload-btn:hover {
-  background: #1d4ed8;
+  background: var(--color-accent-hover);
 }
 .upload-btn:disabled {
   opacity: 0.6;
@@ -66,20 +66,20 @@
 
 .progress-linear {
   height: 6px;
-  background: #e5e7eb;
+  background: var(--color-border);
   border-radius: 999px;
   overflow: hidden;
   margin-top: 1rem;
 }
 .progress-linear > div {
   height: 100%;
-  background: #2563eb;
+  background: var(--color-accent);
   transition: width 0.2s;
 }
 .note-list {
   margin-top: 0.75rem;
   font-size: 0.82rem;
-  color: #4b5563;
+  color: var(--color-ink-secondary);
 }
 
 /* ============== one-by-one review ============== */
@@ -101,9 +101,9 @@
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  border: 1px solid #d1d5db;
-  background: #f1f5f9;
-  color: #33415b;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-elevated);
+  color: var(--color-ink-secondary);
   font-size: 0.78rem;
   display: inline-flex;
   align-items: center;
@@ -111,18 +111,18 @@
   cursor: pointer;
 }
 .marker.active {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--color-accent);
   outline-offset: 1px;
 }
 .marker-accepted {
-  background: #dcfce7;
-  border-color: #86efac;
-  color: #16a34a;
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
+  color: var(--color-success);
 }
 .marker-discarded {
-  background: #fee2e2;
-  border-color: #fca5a1;
-  color: #dc2626;
+  background: var(--color-danger-soft);
+  border-color: var(--color-danger-border);
+  color: var(--color-danger);
 }
 .pdf-review-meta {
   display: flex;
@@ -130,30 +130,30 @@
   gap: 0.5rem;
 }
 .meta-chip {
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-stronger);
   border-radius: 999px;
   padding: 0.25rem 0.7rem;
   font-size: 0.8rem;
-  color: #33415b;
+  color: var(--color-ink-secondary);
 }
 .meta-chip.success {
-  background: #dcfce7;
-  border-color: #86efac;
-  color: #15803d;
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
+  color: var(--color-success);
 }
 .meta-chip.danger {
-  background: #fee2e2;
-  border-color: #fca5a1;
-  color: #b91c1c;
+  background: var(--color-danger-soft);
+  border-color: var(--color-danger-border);
+  color: var(--color-danger);
 }
 
 .pdf-review-card {
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 1.5rem;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 1.25rem;
   box-shadow: 0 6px 22px rgba(0, 0, 0, 0.04);
@@ -167,23 +167,23 @@
 .review-image {
   max-width: 100%;
   height: auto;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   object-fit: contain;
 }
 .review-thumb {
   max-width: 100%;
   max-height: 120px;
-  border: 1px dashed #e5e7eb;
+  border: 1px dashed var(--color-border);
   border-radius: 8px;
   object-fit: cover;
 }
 .review-image-placeholder {
   padding: 1.5rem;
-  border: 1px dashed #e5e7eb;
+  border: 1px dashed var(--color-border);
   border-radius: 10px;
   text-align: center;
-  color: #6b7280;
+  color: var(--color-text-secondary);
   font-size: 0.85rem;
 }
 
@@ -195,18 +195,18 @@
 .field-label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--color-ink);
 }
 .text-area {
   width: 100%;
   padding: 0.6rem 0.7rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border-strong);
   border-radius: 10px;
   font-size: 0.9rem;
   resize: vertical;
 }
 .text-area:focus {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--color-accent);
   outline-offset: 1px;
 }
 
@@ -233,12 +233,12 @@
 }
 .option-label {
   font-weight: 700;
-  color: #2563eb;
+  color: var(--color-accent);
 }
 .option-input {
   width: 100%;
   padding: 0.4rem 0.55rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border-strong);
   border-radius: 8px;
   font-size: 0.85rem;
 }
@@ -255,20 +255,20 @@
   height: 30px;
   border-radius: 8px;
   border: none;
-  background: #f1f5f9;
-  color: #b91c1c;
+  background: var(--color-bg-elevated);
+  color: var(--color-danger);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .icon-btn.danger:hover {
-  background: #fee2e2;
+  background: var(--color-danger-soft);
 }
 .link-btn {
   background: none;
   border: none;
-  color: #2563eb;
+  color: var(--color-accent);
   font-size: 0.85rem;
   cursor: pointer;
 }
@@ -290,11 +290,11 @@
 }
 .marks-field label {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--color-text-secondary);
 }
 .marks-field input {
   padding: 0.4rem 0.55rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border-strong);
   border-radius: 8px;
   font-size: 0.85rem;
 }
@@ -312,10 +312,10 @@
   align-items: flex-start;
   gap: 0.4rem;
   padding: 0.5rem 0.7rem;
-  background: #fef2f2;
-  border: 1px solid #fca5a1;
+  background: var(--color-danger-soft);
+  border: 1px solid var(--color-danger-border);
   border-radius: 8px;
-  color: #991b1b;
+  color: var(--color-danger);
   font-size: 0.82rem;
 }
 
@@ -340,17 +340,17 @@
   font-size: 0.88rem;
 }
 .action-btn.secondary {
-  background: #f1f5f9;
-  color: #33415b;
-  border: 1px solid #d1d5db;
+  background: var(--color-bg-elevated);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border-strong);
 }
 .action-btn.secondary:hover {
-  background: #e2e8f0;
+  background: var(--color-border-stronger);
 }
 .action-btn.discard {
-  background: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fca5a1;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger-border);
 }
 .action-btn.discard:hover {
   background: #fecaca;
@@ -361,14 +361,16 @@
   /* Kill the mobile tap-highlight flash (white) on press. */
   -webkit-tap-highlight-color: transparent;
 }
-/* Lock the blue background + white text on press/focus so the Accept
-   button never falls back to a white button surface while the handler
-   runs. :disabled below (same specificity, later in source) still wins. */
-.action-btn.accept:active,
-.action-btn.accept:focus-visible,
-.action-btn.accept:focus {
+/* Explicit hover guard: the Accept & next button keeps its blue background
+   and white text on hover so it never washes to a white surface (the global
+   App.css hover text rules no longer reach `.accept`). The old :active/:focus
+   lock it replaces was redundant (those states already inherit the base color). */
+.action-btn.accept:hover {
   background: #2563eb;
   color: #fff;
+}
+.action-btn.accept:disabled:hover {
+  opacity: 0.6;
 }
 .action-btn.accept:disabled {
   opacity: 0.6;
@@ -382,11 +384,11 @@
 .pdf-review-empty {
   text-align: center;
   padding: 2rem 1rem;
-  color: #6b7280;
+  color: var(--color-text-secondary);
 }
 .pdf-review-empty .icon {
   margin-bottom: 0.75rem;
-  color: #dc2626;
+  color: var(--color-danger);
 }
 .spinner {
   width: 16px;
@@ -407,7 +409,7 @@
   align-items: center;
   gap: 0.6rem;
   padding: 2rem 1rem;
-  color: #33415b;
+  color: var(--color-ink-secondary);
 }
 .extracting .spin {
   animation: spin 1s linear infinite;
@@ -415,7 +417,7 @@
 .note {
   margin: 0;
   font-size: 0.82rem;
-  color: #6b7280;
+  color: var(--color-text-secondary);
   text-align: center;
 }
 .pdf-review-backdrop { padding: 1rem; }
@@ -424,9 +426,9 @@
 .crop-wrapper {
   position: relative;
   display: inline-block;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
-  background: #f8fafc;
+  background: var(--color-bg-field);
 }
 
 .crop-wrapper .review-image {
@@ -449,13 +451,13 @@
 }
 
 .crop-wrapper.crop-active {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
 .crop-rect {
   position: absolute;
-  border: 2px dashed #ffffff;
+  border: 2px dashed var(--color-bg-card);
   border-radius: 6px;
   background: rgba(37, 99, 235, 0.12);
   box-sizing: border-box;
@@ -486,9 +488,9 @@
 }
 
 .crop-active {
-  outline: 2px solid #2563eb;
-  background: #eff6ff;
-  color: #1d4ed8;
+  outline: 2px solid var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-hover);
 }
 
 .ocr-toggle {
@@ -501,7 +503,7 @@
 
 .ocr-toggle .ocr-note {
   margin-left: 0.4rem;
-  color: #6b7280;
+  color: var(--color-text-secondary);
   font-size: 0.78rem;
 }
 
@@ -523,9 +525,9 @@
 .mode-option {
   flex: 1;
   padding: 0.6rem 1rem;
-  border: 2px solid #d1d5db;
+  border: 2px solid var(--color-border-strong);
   border-radius: 10px;
-  background: #fff;
+  background: var(--color-bg-card);
   cursor: pointer;
   font-size: 0.88rem;
   display: flex;
@@ -534,13 +536,57 @@
   transition: border-color 0.2s, background 0.2s;
 }
 .mode-option:hover {
-  border-color: #94a3b8;
+  border-color: var(--color-text-tertiary);
 }
 .mode-option input[type="radio"] {
   margin: 0;
 }
 .mode-option.active {
-  border-color: #2563eb;
-  background: #eff6ff;
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
 }
 .pdf-premium-review { padding: 1rem; }
+
+/* ===== live review additions ===== */
+.hide-text-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hide-text-toggle input[type="checkbox"] {
+  margin: 0;
+}
+.loading-next {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--color-text-secondary);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 12px;
+  background: var(--color-bg-field);
+}
+.loading-next .spin {
+  animation: spin 1s linear infinite;
+}
+.pdf-review-meta .extracting-pulse {
+  align-items: center;
+  gap: 0.3rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pdf-import-card,
+  .pdf-review-card {
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4);
+  }
+  .crop-rect {
+    border-color: var(--color-bg-card);
+  }
+}

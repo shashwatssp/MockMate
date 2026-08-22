@@ -417,3 +417,127 @@
   .student-test-item { align-items: stretch; flex-direction: column; }
   .student-test-btn { margin-left: 0; width: 100%; }
 }
+
+/* ===== Dark mode ===== */
+@media (prefers-color-scheme: dark) {
+  .student-shell {
+    background: linear-gradient(135deg, #1e293b 0%, #0f1117 100%);
+    color: #e4e6eb;
+  }
+
+  /* White/light backgrounds \u2192 dark surfaces */
+  .student-shell .student-card,
+  .student-shell .student-stat,
+  .student-shell .student-test,
+  .student-stat-card,
+  .student-test-item,
+  .student-result-card,
+  .student-profile-card,
+  .student-progress-card,
+  .entry-form-panel,
+  .batch-tab-inactive {
+    background: #1f2937;
+  }
+
+  /* Button & form-field backgrounds */
+  .student-btn-secondary,
+  .batch-tab-active,
+  .student-form-shell input,
+  .student-form-shell select,
+  .student-form-field input,
+  .student-form-field select,
+  .student-form-field-input {
+    background: #374151;
+  }
+
+  /* Hover backgrounds */
+  .student-btn-plain:hover { background: #4b5563; }
+
+  /* Stat card svg icon bg */
+  .stat-value > svg { background: #3b4251; }
+
+  /* Results table & leaderboard */
+  .batch-results-test { background: #1f2937; border-color: #4b5563; }
+  .batch-results-table th { color: #94a3b8; border-color: #4b5563; }
+  .batch-results-summary { color: #94a3b8; }
+  .batch-results-table tbody tr:hover { background: #374151; }
+  .batch-results-top { background: #29251e; border-color: #453a1f; }
+  .batch-results-trophy { color: #fcd34d; }
+
+  /* Error boxes: darken bg, lighten red text */
+  .student-error { background: #7f1d1d; color: #fecaca; }
+  .student-error-inline { color: #fca5a1; }
+
+  /* Light code/badge backgrounds */
+  .batch-code,
+  .batch-item .batch-code,
+  .batch-toggle-btn.active {
+    background: #374151;
+  }
+
+  /* Borders: light \u2192 dark-subtle */
+  .student-shell .student-card,
+  .student-shell .student-stat,
+  .student-shell .student-test,
+  .student-stat-card,
+  .student-test-item,
+  .student-result-card,
+  .student-profile-card,
+  .batch-item,
+  .batch-detail-row,
+  .batch-tabs,
+  .batch-tab,
+  .batch-row-actions select,
+  .batch-toggle-btn,
+  .student-form-field input,
+  .student-form-field select,
+  .student-form-field-input,
+  .batch-code,
+  .batch-item .batch-code {
+    border-color: #4b5563;
+  }
+
+  /* Primary heading text: dark \u2192 light */
+  .student-header h1,
+  .student-stat strong,
+  .student-test h3,
+  .student-profile-header h1,
+  .student-form-header h1,
+  .batch-header h1 {
+    color: #e4e6eb;
+  }
+
+  /* Secondary / muted text */
+  .student-stat span,
+  .student-stat .stat-label,
+  .student-stat-card .stat-label,
+  .student-muted,
+  .student-page-header .student-muted,
+  .student-empty-text,
+  .student-test-info,
+  .student-test-percentile,
+  .student-profile-label,
+  .student-mini-stat .stat-label,
+  .batch-item .batch-meta,
+  .student-awaiting-text,
+  .batch-detail-sub,
+  .batch-header-sub,
+  .batch-footer-stats,
+  .input-icon,
+  .profile-item-icon {
+    color: #94a3b8;
+  }
+
+  /* Form labels */
+  .student-form-field label,
+  .student-form-field-label {
+    color: #cbd5e1;
+  }
+
+  /* Button text: dark \u2192 light */
+  .student-btn-secondary { color: #e4e6eb; }
+
+  /* Status icons: keep hue, lighten for dark mode */
+  .status-approved .status-icon { color: #4ade80; }
+  .status-pending .status-icon { color: #fbbf24; }
+}

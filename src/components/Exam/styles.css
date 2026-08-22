@@ -76,6 +76,36 @@
   --transition-slow: 350ms ease-in-out;
 }
 
+/* ========== DARK MODE ========== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary-blue: #3b82f6;
+    --primary-blue-light: #60a5fa;
+    --primary-blue-dark: #2563eb;
+    --success-green: #34d399;
+    --success-light: #064e35;
+    --warning-orange: #fbbf24;
+    --warning-light: #451a03;
+    --error-red: #f87171;
+    --error-light: #450a0a;
+    --info-blue: #38bdf8;
+    --info-light: #073142;
+    --gray-50: #0f1117;
+    --gray-100: #171b26;
+    --gray-200: #1f2330;
+    --gray-300: #2a2f3a;
+    --gray-400: #33415b;
+    --gray-500: #4b5563;
+    --gray-600: #6b7280;
+    --gray-700: #94a3b8;
+    --gray-800: #cbd5e1;
+    --gray-900: #e4e6eb;
+  }
+
+  .exam-header, .exam-sidebar, .entry-card { background: #111827; }
+  .practice-mode-pill { background: #1e2330; border-color: #33415b; color: #fbbf24; }
+}
+
 /* ========== GLOBAL UTILITIES ========== */
 .container {
   margin: 0 auto;
@@ -1451,7 +1481,12 @@
     --gray-50: #1f2937;
     --gray-100: #374151;
     --gray-200: #4b5563;
-    --gray-300: #6b7280;
+    --gray-300: #9ca3af;
+    --gray-400: #6b7280;
+    --gray-500: #7b8794;
+    --gray-600: #94a3b8;
+    --gray-700: #cbd5e1;
+    --gray-800: #e2e5ea;
     --gray-900: #f9fafb;
   }
   
@@ -3498,5 +3533,84 @@
   .exam-submit-dialog .modal-actions .btn {
     width: 100%;
     min-height: 48px;
+  }
+}
+
+/* ===== Dark mode: override hard-coded light-mode colors =====
+   The "Reference-aligned" section above uses hard-coded light-mode
+   colors (#16233b, #1b2b4b, #24334d, #1c2d4c, #51617b, #67758d) that become
+   invisible on dark backgrounds. This block runs last in the cascade. */
+@media (prefers-color-scheme: dark) {
+  /* Overall exam surface */
+  .exam-app {
+    background: #111827;
+    color: #e4e6eb;
+  }
+  .exam-active-screen { background: #111827; }
+  .exam-header {
+    border-bottom-color: #33415b;
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
+  }
+  .exam-content { background: #171b26; }
+  .exam-main { background: #171b26; }
+  .exam-sidebar {
+    background: #171b26;
+    border-left-color: #33415b;
+  }
+
+  /* Timer & progress displays */
+  .timer-display,
+  .progress-indicator {
+    background: #374151;
+    border-color: #4b5563;
+  }
+
+  /* Question text & options */
+  .question-text { color: #e4e6eb; }
+  .option-text { color: #e4e6eb; }
+  .option-label { color: #cbd5e1; }
+  .option-item {
+    border-color: #4b5563;
+    background: #374151;
+  }
+  .option-item:hover,
+  .option-item.selected {
+    border-color: #60a5fa;
+    background: #25324f;
+  }
+
+  /* Headers & navigation */
+  .exam-title { color: #e4e6eb; }
+  .exam-subtitle { color: #94a3b8; }
+  .nav-title { color: #e4e6eb; }
+  .exam-meta { color: #94a3b8; }
+  .question-topic {
+    background: #374151;
+    color: #cbd5e1;
+  }
+  .question-number {
+    background: #3b82f6;
+    color: #fff;
+  }
+
+  /* Controls area */
+  .exam-controls-below {
+    border-top-color: #33415b;
+    background: #1f2937;
+  }
+  .nav-btn {
+    background: #374151;
+    border-color: #4b5563;
+    color: #e4e6eb;
+  }
+  .nav-btn-primary {
+    background: #3b82f6;
+    border-color: #3b82f6;
+  }
+
+  /* Results table rows */
+  .results-table .table-row {
+    border-color: #4b5563;
+    background: #374151;
   }
 }
