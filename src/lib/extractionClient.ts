@@ -11,9 +11,15 @@
  *
  * Also exposes `extractionExtractStream`, which POSTs to `/extract/stream` and
  * yields the same work as Server-Sent Events so the UI can show live progress.
+ *
+ * Also exposes `extractionStartJob` / `extractionPollJob` for the resilient
+ * async-job API (`POST /extract/start` → `GET /extract/status/{job_id}`),
+ * which decouples extraction from the browser tab lifecycle so closing/
+ * reopening the tab resumes the same job instead of restarting.
  */
 
 import type { ExtractedQuestion, PdfExtractResult } from './pdfExtract';
+import { ANSWER_LINE_RE, answerTokenToIndex } from './pdfExtract';
 
 const isDev = import.meta.env?.DEV;
 export const EXTRACTION_URL =
@@ -32,6 +38,12 @@ export interface ExtractionQuestion {
   rendered_image?: string;
   rendered_image_b64?: string;
   raw_text?: string;
+  /** Correct option index (0-based) if the backend could detect it from the answer key. */
+  correct_answer?: number | null;
+  /** Per-question subject, if the backend classified it independently. */
+  subject?: string;
+  /** Per-question topic, if the backend classified it independently. */
+  topic?: string;
 }
 
 export interface ExtractionData {
@@ -50,6 +62,26 @@ export interface ExtractionData {
 export interface ExtractionSseFrame {
   event: string;
   data: unknown;
+}
+
+/**
+ * Status snapshot returned by `GET /extract/status/{job_id}`.
+ *
+ * `results` accumulates fully-inlined questions as the worker produces them
+ * (each carries `rendered_image_b64` + figure `image_b64` as base64 data-URLs).
+ * Once `status === "done"` the full `data` payload is present and `results`
+ * is the complete question set.
+ */
+export interface JobStatus {
+  job_id: string;
+  status: 'running' | 'done' | 'error';
+  processed: number;
+  total: number | null;
+  total_pages: number | null;
+  error: string | null;
+  estimated_seconds: number | null;
+  results: ExtractionQuestion[];
+  data?: ExtractionData;
 }
 
 /** Payload shape for a `progress-question` SSE frame. */
@@ -72,18 +104,58 @@ function dataURLToBlob(dataURL: string): Blob {
   return new Blob([u8], { type: mime });
 }
 
-/** Map a single backend question object to the review screen's `ExtractedQuestion` shape. */
+/**
+ * Map a single backend question object to the review screen's `ExtractedQuestion` shape.
+ *
+ * The optional `subject`/`topic` params let the caller attach document-level
+ * classification (from the `ExtractionData` envelope) when the question itself
+ * doesn't carry per-question metadata.
+ *
+ * The correct answer is auto-detected when possible:
+ *  1. If the backend provides `correct_answer`, use it directly.
+ *  2. Otherwise, scan `raw_text` for an answer-key line (e.g. "Answer: B")
+ *     and convert the token to a 0-indexed option index via `answerTokenToIndex`.
+ *  3. Fall back to 0 (first option) so the teacher can re-mark.
+ */
 export function mapExtractionQuestionToExtracted(
   q: ExtractionQuestion,
+  subject?: string,
+  topic?: string,
 ): ExtractedQuestion {
   const b64: string | undefined = q.rendered_image_b64;
+  const options = optionsToArray(q.options);
+  let correctAnswer = 0;
+
+  // Auto-detect the correct answer from the raw text layer (answer-key lines
+  // may survive in `raw_text` even though they are redacted from image renders).
+  if (typeof q.correct_answer === 'number') {
+    correctAnswer = Math.max(0, Math.min(q.correct_answer, Math.max(0, (options.length || 4) - 1)));
+  } else if (q.raw_text) {
+    for (const line of q.raw_text.split(/\r?\n/)) {
+      const am = ANSWER_LINE_RE.exec(line.trim());
+      if (am) {
+        const token = am[1] ?? am[2] ?? null;
+        if (token) {
+          const refLen = options.length >= 2 ? options.length : 4;
+          const idx = answerTokenToIndex(token, refLen);
+          if (idx !== null) {
+            correctAnswer = idx;
+            break;
+          }
+        }
+      }
+    }
+  }
+
   return {
     pageNumber: q.page ?? 1,
     text: q.text ?? '',
-    options: optionsToArray(q.options),
-    correctAnswer: 0, // not exposed by the service (answer-key lines are redacted)
+    options,
+    correctAnswer,
     imageBlob: b64 ? dataURLToBlob(b64) : null,
     pageImage: b64 ?? null,
+    subject: q.subject ?? subject,
+    topic: q.topic ?? topic,
   };
 }
 
@@ -108,7 +180,7 @@ function optionsToArray(
 /** Map the service's `data` dict to the PdfExtractResult shape used by the review screen. */
 export function mapExtractionToExtracted(data: ExtractionData): PdfExtractResult {
   const questions: ExtractedQuestion[] = (data.questions ?? []).map(
-    mapExtractionQuestionToExtracted,
+    (q) => mapExtractionQuestionToExtracted(q, data.subject, data.topic),
   );
   const last = questions.length ? (questions[questions.length - 1].pageNumber ?? 1) : 1;
   return {
@@ -245,4 +317,47 @@ function parseSseFrame(
 export async function extractionExtractQuestions(file: File): Promise<PdfExtractResult> {
   const data = await extractionExtract(file);
   return mapExtractionToExtracted(data);
+}
+
+/**
+ * POST /extract/start — create an async extraction job.
+ *
+ * Returns the `job_id` immediately; the file is saved server-side and a
+ * background thread runs `process_pdf()`. The client polls
+ * `extractionPollJob(job_id)` for progress and the final result.
+ *
+ * Throws on HTTP error (including 404 for backends that predate this endpoint,
+ * so callers can fall back to the SSE path).
+ */
+export async function extractionStartJob(file: File): Promise<string> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${EXTRACTION_URL}/extract/start`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`Start request failed (${res.status})${txt ? ': ' + txt : ''}`);
+  }
+  const body = (await res.json()) as { job_id: string };
+  return body.job_id;
+}
+
+/**
+ * GET /extract/status/{job_id} — poll an async extraction job.
+ *
+ * Returns the current `JobStatus`. Throws when the job is 404 (expired or
+ * never existed) so the caller can surface a "job expired" message or
+ * restart the extraction.
+ */
+export async function extractionPollJob(job_id: string): Promise<JobStatus> {
+  const res = await fetch(`${EXTRACTION_URL}/extract/status/${job_id}`, {
+    method: 'GET',
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`Status request failed (${res.status})${txt ? ': ' + txt : ''}`);
+  }
+  return (await res.json()) as JobStatus;
 }

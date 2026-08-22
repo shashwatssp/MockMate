@@ -33,6 +33,12 @@ export interface ExtractedQuestion {
   imageBlob: Blob | null;
   /** Base64 data URL of the page (served as context in the review UI). */
   pageImage: string | null;
+  /** Subject auto-classified from extraction data (e.g. "Physics"). */
+  subject?: string;
+  /** Topic auto-classified from extraction data (e.g. "Mechanics"). */
+  topic?: string;
+  /** Year extracted from document metadata (e.g. "2024"). */
+  year?: string;
 }
 
 export interface PdfExtractResult {
@@ -99,7 +105,7 @@ const DEFAULT_LETTERS = ['A', 'B', 'C', 'D'];
 const QUESTION_NUMBER_PREFIX_RE = /^\s*(?:\((?:Q\.)?\s*\d+\)|Q\.?\s*\d+|\d+)[\.\)]\s*/;
 
 // Answer-key line patterns: "Answer: B", "Ans. (a)", "Answer: 3", etc.
-const ANSWER_LINE_RE =
+export const ANSWER_LINE_RE =
   /^(?:answer|ans|key|solution)\s*[:\.]?\s*(?:\(?([A-Ea-e0-9]+)\)?|([A-Ea-e0-9]+))/i;
 
 // ─── PDF.js text item types ──────────────────────────────────────────────────
@@ -975,7 +981,7 @@ interface ParseResult {
  *  0-indexed already ("B" => 1). `refLen` is the option count to clamp against
  *  (for image-only questions pass 4, matching DEFAULT_LETTERS).
  *  Returns null if the token is out of range or unrecognised. */
-function answerTokenToIndex(token: string, refLen: number): number | null {
+export function answerTokenToIndex(token: string, refLen: number): number | null {
   let idx: number | null = null;
   if (/^[1-9]\d*$/.test(token)) {
     idx = Number(token) - 1; // 1-indexed answer key -> 0-indexed option array

@@ -5,7 +5,7 @@
 // pattern-normalised header/footer trimming, and Roman-numeral (font-relaxed) detection.
 
 export type { ExtractedQuestion, PdfExtractResult, Band } from './spatialExtract';
-export { parseQuestionText, extractQuestionsFromFile, extractQuestionsFromImage } from './spatialExtract';
+export { parseQuestionText, extractQuestionsFromFile, extractQuestionsFromImage, ANSWER_LINE_RE, answerTokenToIndex } from './spatialExtract';
 
 // /**
 //  * PDF → question extraction (client-side, zero tokens/credits).
