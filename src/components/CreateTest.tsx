@@ -5,6 +5,7 @@ import {
   BookOpen, 
   Eye,
   EyeOff,
+  ArrowLeft,
   ArrowRight,
   Sparkles,
   Loader2,
@@ -88,6 +89,10 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onImp
   const [isLoaded, setIsLoaded] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  // Wizard paging: Setup (name/date/batches) -> Questions (pick from bank).
+  // Splits the single long scroll into two focused steps; child components and
+  // their DB/voice logic are untouched.
+  const [createStep, setCreateStep] = useState<'setup' | 'questions'>('setup');
   const [teacherBatches, setTeacherBatches] = useState<BatchRow[]>([]);
   const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
   const [randomizeQuestions, setRandomizeQuestions] = useState(false);
@@ -806,14 +811,18 @@ const applyVoiceData = async (data: VoiceData) => {
             </div>
             
             <div className="progress-indicator">
-              <div className="progress-step completed">
+              <div
+                className={`progress-step ${createStep === 'questions' ? 'completed' : 'active'}`}
+              >
                 <div className="step-circle">
-                  <CheckCircle className="step-icon" />
+                  {createStep === 'questions' ? <CheckCircle className="step-icon" /> : '1'}
                 </div>
                 <span className="step-label">Setup</span>
               </div>
-              <div className="progress-connector active"></div>
-              <div className="progress-step active">
+              <div
+                className={`progress-connector ${createStep === 'questions' ? 'active' : ''}`}
+              ></div>
+              <div className={`progress-step ${createStep === 'questions' ? 'active' : ''}`}>
                 <div className="step-circle">2</div>
                 <span className="step-label">Questions</span>
               </div>
@@ -828,71 +837,101 @@ const applyVoiceData = async (data: VoiceData) => {
 
         <main className="create-test-main">
           <div className="main-content">
-            <TestConfigSection
-              testName={testName}
-              setTestName={setTestName}
-              testDescription={testDescription}
-              setTestDescription={setTestDescription}
-              startDate={startDate}
-              setStartDate={setStartDate}
-              startTime={startTime}
-              setStartTime={setStartTime}
-              endTime={endTime}
-              setEndTime={setEndTime}
-              duration={duration}
-              setDuration={setDuration}
-              randomizeQuestions={randomizeQuestions}
-              setRandomizeQuestions={setRandomizeQuestions}
-              allowReview={allowReview}
-              setAllowReview={setAllowReview}
-              showCorrectAnswers={showCorrectAnswers}
-              setShowCorrectAnswers={setShowCorrectAnswers}
-              selectedTopicCounts={selectedTopicCounts}
-              estimatedDuration={estimatedDuration}
-              averageDifficulty={averageDifficulty}
-              selectedQuestionsCount={selectedQuestions.length}
-              isLoaded={isLoaded}
-            />
+            {createStep === 'setup' && (
+              <>
+                <TestConfigSection
+                  testName={testName}
+                  setTestName={setTestName}
+                  testDescription={testDescription}
+                  setTestDescription={setTestDescription}
+                  startDate={startDate}
+                  setStartDate={setStartDate}
+                  startTime={startTime}
+                  setStartTime={setStartTime}
+                  endTime={endTime}
+                  setEndTime={setEndTime}
+                  duration={duration}
+                  setDuration={setDuration}
+                  randomizeQuestions={randomizeQuestions}
+                  setRandomizeQuestions={setRandomizeQuestions}
+                  allowReview={allowReview}
+                  setAllowReview={setAllowReview}
+                  showCorrectAnswers={showCorrectAnswers}
+                  setShowCorrectAnswers={setShowCorrectAnswers}
+                  selectedTopicCounts={selectedTopicCounts}
+                  estimatedDuration={estimatedDuration}
+                  averageDifficulty={averageDifficulty}
+                  selectedQuestionsCount={selectedQuestions.length}
+                  isLoaded={isLoaded}
+                />
 
-            <section style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-              <h2 style={{ marginTop: 0, fontSize: 16 }}>Assign to batches (optional)</h2>
-              <p style={{ fontSize: 12, color: '#64748b' }}>Share this test with one or more of your batches. Students in those batches must be approved to access it.</p>
-              {teacherBatches.length === 0 ? (
-                <p style={{ color: '#64748b' }}>No batches yet. Create one in /batches to assign this test.</p>
-              ) : (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {teacherBatches.map(b => {
-                    const on = selectedBatchIds.includes(b.id);
-                    return (
-                      <button key={b.id} type="button"
-                        onClick={() => setSelectedBatchIds(on ? selectedBatchIds.filter(x => x !== b.id) : [...selectedBatchIds, b.id])}
-                        style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid ' + (on ? '#2563eb' : '#cbd5e1'), background: on ? '#eff6ff' : 'transparent', cursor: 'pointer', fontSize: 12 }}>
-                        {b.name} ({b.code})
-                      </button>
-                    );
-                  })}
+                <section style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                  <h2 style={{ marginTop: 0, fontSize: 16 }}>Assign to batches (optional)</h2>
+                  <p style={{ fontSize: 12, color: '#64748b' }}>Share this test with one or more of your batches. Students in those batches must be approved to access it.</p>
+                  {teacherBatches.length === 0 ? (
+                    <p style={{ color: '#64748b' }}>No batches yet. Create one in /batches to assign this test.</p>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {teacherBatches.map(b => {
+                        const on = selectedBatchIds.includes(b.id);
+                        return (
+                          <button key={b.id} type="button"
+                            onClick={() => setSelectedBatchIds(on ? selectedBatchIds.filter(x => x !== b.id) : [...selectedBatchIds, b.id])}
+                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid ' + (on ? '#2563eb' : '#cbd5e1'), background: on ? '#eff6ff' : 'transparent', cursor: 'pointer', fontSize: 12 }}>
+                            {b.name} ({b.code})
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+
+                <div className="wizard-cta">
+                  <button
+                    type="button"
+                    className="action-btn primary"
+                    onClick={() => setCreateStep('questions')}
+                    disabled={!testName.trim() || !startDate || !startTime}
+                  >
+                    <ArrowRight size={16} /> Next: select questions
+                  </button>
                 </div>
-              )}
-            </section>
+              </>
+            )}
 
-            {/* Selected Questions Section */}
-            <SelectedQuestionsSection
-              selectedQuestions={selectedQuestions}
-              setSelectedQuestions={setSelectedQuestions}
-              getDifficulty={getDifficulty}
-              isLoaded={isLoaded}
-            />
+            {createStep === 'questions' && (
+              <>
 
-            <QuestionSelectionSection
-              selectedQuestions={selectedQuestions}
-              setSelectedQuestions={setSelectedQuestions}
-              getDifficulty={getDifficulty}
-              isLoaded={isLoaded}
-            />
+                {/* Selected Questions Section */}
+                <SelectedQuestionsSection
+                  selectedQuestions={selectedQuestions}
+                  setSelectedQuestions={setSelectedQuestions}
+                  getDifficulty={getDifficulty}
+                  isLoaded={isLoaded}
+                />
+
+                <QuestionSelectionSection
+                  selectedQuestions={selectedQuestions}
+                  setSelectedQuestions={setSelectedQuestions}
+                  getDifficulty={getDifficulty}
+                  isLoaded={isLoaded}
+                />
+
+                <div className="wizard-cta">
+                  <button
+                    type="button"
+                    className="action-btn secondary"
+                    onClick={() => setCreateStep('setup')}
+                  >
+                    <ArrowLeft size={16} /> Back to setup
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Floating Action Button */}
-          {selectedQuestions.length > 0 && (
+          {/* Floating Action Button — Review step (only after questions chosen) */}
+          {createStep === 'questions' && selectedQuestions.length > 0 && (
             <div className="floating-action-container">
               <div className="fab-summary">
                 <div className="summary-stats">
