@@ -36,6 +36,11 @@ export interface Question {
   flagged?: boolean;
   /** Reason the question was flagged (e.g. "wrong option", "unclear question"). */
   flagReason?: string;
+  /** AI-generated rationale (best-effort, opt-in default): why the marked
+   *  correct answer is correct and why the other options are wrong. Generated
+   *  at question-save time via `gemini-3.6-flash` and stored in the DB.
+   *  Nullable/absent on existing questions — fully backward compatible. */
+  explanation?: string;
 }
 
 export interface StudentAnswer {

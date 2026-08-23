@@ -86,8 +86,40 @@ export interface LocalTestResult {
   completedAt: string;
 }
 
+/** Competition ranking over a best-first sorted list.
+ *  - Equal percentages share the same rank; the next distinct percentage skips
+ *    forward (1,1,3…).
+ *  - Percentile derives from rank: round(((N - rank + 1) / N) * 100), always
+ *    clamped to 0..100. 100 = top of the batch; never a raw score.
+ *  Returns new entry objects; the input array is not mutated.
+ *  Shared by the Supabase-path leaderboard (database.ts) and the local-device
+ *  fallback (localBatchLeaderboard below) so both stay in lockstep. */
+export const assignCompetitionRanks = <T extends { percentage: number }>(
+  sortedBestFirst: T[],
+): (T & { rank: number; percentile: number })[] => {
+  const n = sortedBestFirst.length;
+  let previousRank = 0;
+  let previousPercentage = Number.NaN;
+  return sortedBestFirst.map((entry, index) => {
+    const tiedWithPrevious = index > 0 && entry.percentage === previousPercentage;
+    const rank = tiedWithPrevious ? previousRank : index + 1;
+    const percentile = n > 0
+      ? Math.min(100, Math.max(0, Math.round(((n - rank + 1) / n) * 100)))
+      : 0;
+    previousRank = rank;
+    previousPercentage = entry.percentage;
+    return { ...entry, rank, percentile };
+  });
+};
+
 export interface BatchLeaderboardEntry {
+  /** Competition rank (1 = best). Students tied on best percentage share the
+   *  same rank; the next distinct percentage skips forward (1,1,3…). */
   rank: number;
+  /** Percentile of this student within the batch, derived from rank:
+   *  round(((N - rank + 1) / N) * 100), clamped to 0..100. 100 = top of the
+   *  batch, not a score. */
+  percentile: number;
   studentId: string;
   email: string;
   username: string;
@@ -826,6 +858,7 @@ export const localBatchLeaderboard = async (
     const scored = scoreFn(row.answers);
     return {
       rank: 0,
+      percentile: 0,
       studentId: row.studentId,
       email: row.studentUsername,
       username: row.studentUsername,
@@ -837,5 +870,7 @@ export const localBatchLeaderboard = async (
     };
   });
   entries.sort((a, b) => b.percentage - a.percentage);
-  return entries.map((entry, index) => ({ ...entry, rank: index + 1 }));
+  // Competition ranks (ties share) + rank-derived percentile, mirroring the
+  // Supabase-path leaderboard in database.ts.
+  return assignCompetitionRanks(entries);
 };

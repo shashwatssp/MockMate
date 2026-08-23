@@ -15,7 +15,7 @@ export const ProgressChart: React.FC<Props> = ({ results, height = 160 }) => {
     .map((r, i) => ({ x: i, y: r.percentage }));
   const n = points.length;
   if (n === 0) {
-    return <p style={{ color: '#94a3b8' }}>No attempts yet — take a test to see your progress.</p>;
+    return <p style={{ color: 'var(--color-text-secondary)' }}>No attempts yet — take a test to see your progress.</p>;
   }
 
   const padding = 16;
@@ -39,27 +39,27 @@ export const ProgressChart: React.FC<Props> = ({ results, height = 160 }) => {
   return (
     <div style={{ width: '100%', overflowX: 'auto' }}>
       <svg width={w} height={h} style={{ width: '100%', height: 'auto' }}>
-        <rect x={padding} y={padding} width={pw} height={ph} fill="none" stroke="#e2e8f0" />
+        <rect x={padding} y={padding} width={pw} height={ph} fill="none" stroke="var(--color-border-strong)" />
         {gridValues.map(v => {
           const gy = yFor(v);
           return (
             <g key={v}>
-              <line x1={padding} y1={gy} x2={padding + pw} y2={gy} stroke="#f1f5f9" strokeWidth={1} />
-              <text x={padding - 6} y={gy + 3} fontSize={10} fill="#94a3b8" textAnchor="end">{v}%</text>
+              <line x1={padding} y1={gy} x2={padding + pw} y2={gy} stroke="var(--color-border-strong)" strokeWidth={1} />
+              <text x={padding - 6} y={gy + 3} fontSize={10} fill="var(--color-text-secondary)" textAnchor="end">{v}%</text>
             </g>
           );
         })}
         <polygon points={areaPath} fill="url(#areaGrad)" fillOpacity={0.14} />
         <defs>
           <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop stopColor="#2563eb" stopOpacity={0.3} />
-            <stop stopColor="#2563eb" stopOpacity={0} />
+            <stop stopColor="var(--color-accent)" stopOpacity={0.3} />
+            <stop stopColor="var(--color-accent)" stopOpacity={0} />
           </linearGradient>
         </defs>
         <polyline points={points.map(p => `${xFor(p.x).toFixed(1)},${yFor(p.y).toFixed(1)}`).join(' ')}
-          fill="none" stroke="#2563eb" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+          fill="none" stroke="var(--color-accent)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         {points.map(p => (
-          <circle key={p.x} cx={xFor(p.x)} cy={yFor(p.y)} r={3} fill="#2563eb" />
+  <circle key={p.x} cx={xFor(p.x)} cy={yFor(p.y)} r={3} fill="var(--color-accent)" />
         ))}
       </svg>
     </div>
