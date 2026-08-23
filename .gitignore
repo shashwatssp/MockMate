@@ -30,3 +30,9 @@ dist-ssr
 # Questify — standalone Python extraction service (deployed separately on Render;
 # NOT part of the Netlify site build). Kept out of this repo's history.
 questify/
+
+# Internal docs — local-only, never commit or push.
+MOCKMATE_UX_AUDIT.md
+
+# Supabase migrations — managed locally, not committed
+/supabase/migrations/

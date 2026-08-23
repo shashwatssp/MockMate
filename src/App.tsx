@@ -19,6 +19,7 @@ import type { GeminiQuestion } from './lib/geminiExtract';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import ExamWrapper from './components/Exam/ExamWrapper';
+import { TestPrintViewRoute } from './components/TestPrintView';
 import StudentAuth from './components/StudentAuth';
 import StudentDashboard from './components/StudentDashboard';
 import StudentProfile from './components/StudentProfile';
@@ -222,6 +223,7 @@ function App() {
           <Route path="/exam/:testCode/entry" element={<ExamRouteWrapper />} />
           <Route path="/exam/:testCode/test" element={<ExamRouteWrapper />} />
           <Route path="/exam/:testCode/results" element={<ExamRouteWrapper />} />
+<Route path="/print/:testCode" element={<TestPrintViewRoute />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
 
           {/* Preserve old four-character student links. */}
