@@ -13,7 +13,8 @@ import {
   FileText,
 } from 'lucide-react';
 import type { Question, Difficulty } from '../types/exam.types';
-import { insertQuestions, uploadQuestionImage } from '../lib/database';
+import { insertQuestions, uploadQuestionImage, updateQuestionExplanation, findQuestionIdByText } from '../lib/database';
+import { generateQuestionExplanation, toExplanationInput } from '../lib/geminiExplanation';
 import './CreateTest.css';
 import './CreateQuestion.css';
 
@@ -102,6 +103,20 @@ export const CreateQuestionScreen: React.FC<CreateQuestionScreenProps> = ({
 
     setIsSubmitting(true);
     try {
+      // Fire the Gemini explanation generator in the background — the question
+      // is saved immediately without waiting for the (potentially slow) AI call.
+      // The explanation is backfilled onto the saved question once generation
+      // resolves, so the student is never blocked.
+      const explanationP = generateQuestionExplanation(
+        toExplanationInput({
+          text: questionText.trim(),
+          options,
+          correctAnswer,
+          topic: topic.trim() || 'General',
+          subject: subject.trim() || 'General',
+        }),
+      );
+
       let imageUrl: string | undefined;
       if (imageFile) {
         imageUrl = await uploadQuestionImage(imageFile);
@@ -118,7 +133,18 @@ export const CreateQuestionScreen: React.FC<CreateQuestionScreenProps> = ({
         ...(imageUrl ? { imageUrl } : {}),
       };
 
-      await insertQuestions([question]);
+      // Save the question immediately (without explanation) — non-blocking.
+void insertQuestions([question]);
+
+      // Once saved, backfill the explanation when Gemini resolves.
+      // Fire-and-forget: a failed or null explanation is silently ignored.
+      void explanationP.then(async (explanation) => {
+        if (!explanation) return;
+        const savedId = await findQuestionIdByText(question.text.trim());
+        if (savedId) {
+          void updateQuestionExplanation(savedId, explanation);
+        }
+      });
 
       // Reset form
       setSubject('');

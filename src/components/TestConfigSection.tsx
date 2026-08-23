@@ -32,7 +32,7 @@ interface TestConfigSectionProps {
   setRandomizeQuestions: (randomize: boolean) => void;
   allowReview: boolean;
   setAllowReview: (allow: boolean) => void;
-  showCorrectAnswers: boolean;
+showCorrectAnswers: boolean;
   setShowCorrectAnswers: (show: boolean) => void;
   selectedTopicCounts: Record<string, number>;
   estimatedDuration: number;
@@ -58,7 +58,7 @@ export const TestConfigSection: React.FC<TestConfigSectionProps> = ({
   setRandomizeQuestions,
   allowReview,
   setAllowReview,
-  showCorrectAnswers,
+showCorrectAnswers,
   setShowCorrectAnswers,
   selectedTopicCounts,
   estimatedDuration,

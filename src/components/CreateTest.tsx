@@ -20,7 +20,6 @@ import { createTest, getPaginatedQuestions, getBatchesForTeacher, assignTestToBa
 import type { Question, Test } from '../types/exam.types';
 import type { BatchRow } from '../lib/database';
 import { getTeacherSession } from '../lib/localAuth';
-import './CreateTest.css';
 
 interface CreateTestProps {
   onBackToDashboard: () => void;
@@ -86,9 +85,9 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onImp
   const [createStep, setCreateStep] = useState<'setup' | 'questions'>('setup');
   const [teacherBatches, setTeacherBatches] = useState<BatchRow[]>([]);
   const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
-  const [randomizeQuestions, setRandomizeQuestions] = useState(false);
+const [randomizeQuestions, setRandomizeQuestions] = useState(false);
   const [allowReview, setAllowReview] = useState(true);
-  const [showCorrectAnswers, setShowCorrectAnswers] = useState(true);
+const [showCorrectAnswers, setShowCorrectAnswers] = useState(true);
   const [startDate, setStartDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -197,7 +196,7 @@ export const CreateTest: React.FC<CreateTestProps> = ({ onBackToDashboard, onImp
     return calculatedDifficulty;
   };
 
-  const shuffleArray = <T,>(array: T[]): T[] => {
+const shuffleArray = <T,>(array: T[]): T[] => {
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -627,12 +626,12 @@ const applyVoiceData = async (data: VoiceData) => {
         testKey,
         name: testName.trim(),
         description: testDescription.trim(),
-        questions: randomizeQuestions ? shuffleArray([...selectedQuestions]) : selectedQuestions,
+questions: selectedQuestions,
         startDate: new Date(`${startDate}T${startTime}`),
         endTime: endTime ? new Date(endTime) : undefined,
         duration,
         timeLimit: duration,
-        settings: {
+settings: {
           randomizeQuestions,
           allowReview,
           showCorrectAnswers
@@ -847,11 +846,11 @@ const applyVoiceData = async (data: VoiceData) => {
                   setEndTime={setEndTime}
                   duration={duration}
                   setDuration={setDuration}
-                  randomizeQuestions={randomizeQuestions}
+randomizeQuestions={randomizeQuestions}
                   setRandomizeQuestions={setRandomizeQuestions}
                   allowReview={allowReview}
                   setAllowReview={setAllowReview}
-                  showCorrectAnswers={showCorrectAnswers}
+showCorrectAnswers={showCorrectAnswers}
                   setShowCorrectAnswers={setShowCorrectAnswers}
                   selectedTopicCounts={selectedTopicCounts}
                   estimatedDuration={estimatedDuration}

@@ -1,0 +1,383 @@
+/**
+ * Styles for TestPrintView — rendered in the browser print dialog context.
+ * Screen styles are optimized for readability; @media print rules hide
+ * interactive-only elements.
+ */
+
+.print-view {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #1e293b;
+  background: #fff;
+}
+
+.print-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 24px;
+}
+
+.print-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.print-logo-icon {
+  color: #2563eb;
+}
+
+.print-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.print-meta {
+  font-size: 13px;
+  color: #64748b;
+  margin: 2px 0 0;
+}
+
+.print-header-right {
+  text-align: right;
+}
+
+.print-code {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.print-question {
+  padding: 20px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.print-question:last-child {
+  border-bottom: none;
+}
+
+.print-question-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.print-question-number {
+  font-size: 18px;
+  font-weight: 700;
+  color: #2563eb;
+  min-width: 40px;
+  flex-shrink: 0;
+}
+
+.print-question-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #64748b;
+  flex-wrap: wrap;
+}
+
+.print-divider {
+  color: #cbd5e1;
+}
+
+.print-question-text {
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0 0 16px 0;
+}
+
+.print-question-image {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  margin: 12px 0;
+  display: block;
+}
+
+.print-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.print-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.print-option.correct {
+  background: #f0fdf4;
+  border-color: #4ade80;
+}
+
+.print-option-label {
+  font-weight: 600;
+  min-width: 24px;
+  color: #2563eb;
+}
+
+.print-option-text {
+  flex: 1;
+}
+
+.print-correct-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #15803d;
+  background: #dcfce8;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.print-footer {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 2px solid #e2e8f0;
+}
+
+.print-footer-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 12px 0;
+  color: #1e293b;
+}
+
+.print-answer-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.print-answer-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.print-answer-qnum {
+  font-weight: 600;
+  color: #475569;
+}
+
+.print-answer-letter {
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.print-manual-btn {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.print-manual-btn:hover {
+  background: #1d4ed8;
+}
+
+.print-error {
+  max-width: 600px;
+  margin: 80px auto;
+  text-align: center;
+  padding: 24px;
+}
+
+.print-error p {
+  color: #dc2626;
+  margin-bottom: 16px;
+}
+
+.print-error button {
+  padding: 8px 16px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.print-loading {
+  text-align: center;
+  padding: 80px 24px;
+  color: #64748b;
+}
+
+/* ====== Print-only media rules ======
+   Goals: dark, legible text; large, fully-printed question images; clean A4
+   pagination; color-independent correct-answer cues. */
+
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+@media print {
+  /* Root-level overflow clipping (index.css sets `body { overflow-x: hidden }`)
+     defeats Chromium's print fragmentation: the document lays out as one long
+     strip (~4200pt for a 4-question test) that then gets sliced into
+     mostly-blank A4 pages with 1–2 characters of text each. Resetting overflow
+     lets the engine paginate normally. */
+  html, body {
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  .print-manual-btn,
+  .print-loading,
+  .print-error button {
+    display: none;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  /* Preserve background/border colors on paper (browsers strip them by default). */
+  .print-view,
+  .print-view * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .print-view {
+    padding: 0;
+    max-width: none;
+    font-size: 12pt;
+    color: #000;
+  }
+
+  .print-header {
+    border-bottom: 2px solid #000;
+    margin-bottom: 18px;
+  }
+
+  .print-logo-icon {
+    display: none;
+  }
+
+  .print-title {
+    font-size: 20pt;
+    color: #000;
+  }
+
+  .print-meta,
+  .print-code {
+    font-size: 10pt;
+    color: #333;
+  }
+
+  .print-question {
+    padding: 14px 0;
+    border-bottom: 1px solid #000;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .print-question-number {
+    font-size: 14pt;
+    font-weight: 700;
+    color: #000;
+    min-width: 34px;
+  }
+
+  .print-question-meta {
+    font-size: 9pt;
+    color: #444;
+  }
+
+  .print-question-text {
+    font-size: 12pt;
+    line-height: 1.55;
+    color: #000;
+  }
+
+  /* Phone-photo crops must print LARGE — no height cap, full usable width. */
+  .print-question-image {
+    max-width: 100%;
+    max-height: none;
+    width: auto;
+    max-height: 160mm;
+    object-fit: contain;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .print-option {
+    font-size: 11pt;
+    padding: 6px 10px;
+    border: 1px solid #999;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .print-option.correct {
+    background: #f0fdf4;
+    border: 2px solid #000;
+  }
+
+  .print-option-label {
+    font-weight: 700;
+    color: #000;
+  }
+
+  .print-correct-badge {
+    font-size: 9pt;
+    font-weight: 700;
+    color: #14532d;
+    background: #dcfce7;
+    border: 1px solid #14532d;
+  }
+
+  .print-footer {
+    page-break-before: always;
+    break-before: page;
+    border-top: 2px solid #000;
+  }
+
+  .print-footer-title {
+    font-size: 14pt;
+    color: #000;
+  }
+
+  .print-answer-qnum {
+    color: #333;
+  }
+
+  .print-answer-letter {
+    font-weight: 700;
+    color: #000;
+  }
+}

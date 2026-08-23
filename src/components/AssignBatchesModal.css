@@ -1,0 +1,212 @@
+/* AssignBatchesModal — teacher batch-assignment overlay */
+.abm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  padding: 20px;
+}
+
+.abm-modal {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2xl);
+  width: 100%;
+  max-width: 480px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.abm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.abm-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin: 0;
+}
+
+.abm-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--gray-500);
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.abm-close-btn:hover {
+  color: var(--gray-700);
+  background: var(--gray-100);
+}
+
+.abm-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 120px;
+}
+
+.abm-loading,
+.abm-error,
+.abm-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--gray-600);
+}
+
+.abm-error {
+  color: var(--error-color);
+  font-weight: 500;
+}
+
+.abm-empty-icon {
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.abm-empty-hint {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 4px;
+}
+
+.abm-batch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.abm-batch-item {
+  margin: 0;
+}
+
+.abm-batch-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: 14px;
+}
+
+.abm-batch-label:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-300);
+}
+
+.abm-batch-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary-color);
+}
+
+.abm-batch-name {
+  font-weight: 600;
+  color: var(--gray-800);
+  flex: 1;
+}
+
+.abm-batch-code {
+  font-size: 12px;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.abm-assigned-check {
+  color: var(--success-color);
+  flex-shrink: 0;
+}
+
+.abm-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--gray-200);
+}
+
+.abm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  min-height: 38px;
+}
+
+.abm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.abm-btn-secondary {
+  background: var(--gray-100);
+  color: var(--gray-700);
+  border: 1px solid var(--gray-200);
+}
+
+.abm-btn-secondary:hover:not(:disabled) {
+  background: var(--gray-200);
+}
+
+.abm-btn-primary {
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+  color: var(--white);
+  box-shadow: var(--shadow-sm);
+}
+
+.abm-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .abm-modal {
+    background: var(--gray-800);
+  }
+  .abm-header {
+    border-color: var(--gray-700);
+  }
+  .abm-batch-label:hover {
+    background: var(--gray-700);
+    border-color: var(--gray-600);
+  }
+  .abm-footer {
+    border-color: var(--gray-700);
+  }
+}

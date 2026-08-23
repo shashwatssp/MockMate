@@ -1,18 +1,23 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   BarChart3,
   CheckCircle,
   Clock3,
   Crown,
   Eye,
+  Flag,
   Medal,
+  Sparkles,
   Users,
   X,
   XCircle,
-  MinusCircle
+  MinusCircle,
+  Printer,
+  RefreshCw,
 } from 'lucide-react';
 import { QuestionImage } from './QuestionImage';
 import type { Question, Test, TestResult } from '../types/exam.types';
+import { explainClassInsight, regenerateClassInsight } from '../lib/geminiDashboard';
 import './Dashboard.css';
 
 type InsightsMode = 'preview' | 'analytics';
@@ -27,6 +32,12 @@ interface TestInsightsModalProps {
   onModeChange: (mode: InsightsMode) => void;
   onClose: () => void;
   onRetry: () => void;
+}
+
+interface AtRiskStudent {
+  studentName: string;
+  percentage: number;
+  reason: string;
 }
 
 interface QuestionInsight {
@@ -59,6 +70,11 @@ export const TestInsightsModal: React.FC<TestInsightsModalProps> = ({
   onRetry
 }) => {
   const [questionMetric, setQuestionMetric] = useState<QuestionMetric>('difficult');
+  const [classInsight, setClassInsight] = useState<string | null>(null);
+  const [classInsightLoading, setClassInsightLoading] = useState(false);
+  // Loaded-guard: only fetch the class insight once per analytics session so re-
+  // opens of the same test don't re-trigger a (cache-skipping) Gemini round-trip.
+  const [classInsightLoaded, setClassInsightLoaded] = useState(false);
 
   const questionInsights = useMemo<QuestionInsight[]>(() => (
     test.questions.map((question, index) => {
@@ -129,6 +145,53 @@ export const TestInsightsModal: React.FC<TestInsightsModalProps> = ({
     time: 'Most time taken'
   };
 
+  // Lazy, once-per-open lazy load of the cached/fresh class insight. Triggers
+  // only when the analytics tab is active and we have results to summarise.
+  useEffect(() => {
+    if (mode !== 'analytics' || !results.length || classInsightLoaded) return;
+    setClassInsightLoaded(true);
+    setClassInsightLoading(true);
+    void explainClassInsight(test.id, results, test.questions, test.passingScore ?? 50)
+      .then((insight) => setClassInsight(insight))
+      .catch(() => setClassInsight(null))
+      .finally(() => setClassInsightLoading(false));
+  }, [mode, results, test.id, test.passingScore, classInsightLoaded]);
+
+  const handleRegenerateClassInsight = () => {
+    setClassInsightLoading(true);
+    void regenerateClassInsight(test.id, results, test.questions, test.passingScore ?? 50)
+      .then((insight) => setClassInsight(insight))
+      .catch(() => setClassInsight(null))
+      .finally(() => setClassInsightLoading(false));
+  };
+
+  // At-risk students: below passingScore - 10 (or no tab-switch data available
+  // in the persisted result set, so percentage-based only).
+  const passing = test.passingScore ?? 50;
+  const atRiskThreshold = passing - 10;
+  // At-risk students (latest attempt below passingScore - 10).
+  const atRisk = useMemo<AtRiskStudent[]>(() => {
+    const byName = new Map<string, TestResult>();
+    results.forEach((r) => {
+      const key = r.studentName || r.studentEmail || `attempt-${r.id}`;
+      const existing = byName.get(key);
+      if (!existing || (r.completedAt.getTime() > existing.completedAt.getTime())) {
+        byName.set(key, r);
+      }
+    });
+    const out: AtRiskStudent[] = [];
+    byName.forEach((r) => {
+      if (r.percentage < atRiskThreshold) {
+        out.push({ studentName: r.studentName, percentage: r.percentage, reason: `Below ${atRiskThreshold}%` });
+      }
+    });
+    out.sort((a, b) => a.percentage - b.percentage);
+    return out;
+  }, [results, atRiskThreshold]);
+
+  // Whether a named student is currently at risk (for table row highlighting).
+  const atRiskNames = useMemo(() => new Set(atRisk.map((s) => s.studentName)), [atRisk]);
+
   return (
     <div className="insights-modal-backdrop" role="presentation" onClick={onClose}>
       <section
@@ -168,6 +231,16 @@ export const TestInsightsModal: React.FC<TestInsightsModalProps> = ({
           >
             <BarChart3 size={16} /> Analytics
           </button>
+          <button
+            type="button"
+            className="print-trigger-btn"
+            onClick={() => window.open(`/print/${test.testKey}`, '_blank')?.focus()}
+            title="Print/export test as PDF"
+            aria-label="Print test"
+          >
+            <Printer size={16} />
+            <span>Print</span>
+          </button>
         </div>
 
         <div className="insights-modal-body">
@@ -175,13 +248,18 @@ export const TestInsightsModal: React.FC<TestInsightsModalProps> = ({
             <div className="preview-question-list">
               {test.questions.map((question, index) => (
                 <article className="preview-question-card" key={question.id}>
-                  <div className="preview-question-heading">
+                  <div className={'preview-question-heading' + (question.flagged ? ' flagged-question' : '')}>
                     <span>Q{index + 1}</span>
                     <div className="preview-tags">
                       <span>{question.subject || 'General'}</span>
                       <span>{question.topic || 'Unspecified'}</span>
                       {question.year && <span>{question.year}</span>}
                       {question.difficulty && <span>{question.difficulty}</span>}
+                      {question.flagged && (
+                        <span className="flagged-badge" title={question.flagReason || 'Flagged for review'}>
+                          <Flag size={12} />
+                        </span>
+                      )}
                     </div>
                   </div>
                   <QuestionImage question={question} maxHeight={160} />
@@ -216,6 +294,28 @@ export const TestInsightsModal: React.FC<TestInsightsModalProps> = ({
                 </div>
               ) : (
                 <>
+                  {classInsight && (
+                    <div className="insight-banner">
+                      <Sparkles size={16} className="insight-banner-icon" />
+                      <span className="insight-banner-text">{classInsight}</span>
+                      <button
+                        type="button"
+                        className="insight-regenerate-btn"
+                        onClick={handleRegenerateClassInsight}
+                        disabled={classInsightLoading}
+                        title="Regenerate insight"
+                      >
+                        <RefreshCw size={12} />
+                      </button>
+                    </div>
+                  )}
+                  {classInsightLoading && (classInsight === null) && (
+                    <div className="insight-banner insight-loading">
+                      <Sparkles size={16} className="insight-banner-icon" />
+                      <span className="insight-banner-text">Generating class summary…</span>
+                    </div>
+                  )}
+
                   <div className="analytics-summary-grid">
                     <div><Users size={18} /><strong>{results.length}</strong><span>Students</span></div>
                     <div><BarChart3 size={18} /><strong>{averagePercentage}%</strong><span>Average score</span></div>
@@ -244,15 +344,26 @@ export const TestInsightsModal: React.FC<TestInsightsModalProps> = ({
                               <tr><th>Rank</th><th>Student</th><th>Score</th><th>Accuracy</th><th>Time</th></tr>
                             </thead>
                             <tbody>
-                              {rankedResults.map((result, index) => (
-                                <tr key={result.id || `${result.studentName}-${index}`}>
-                                  <td><span className={`rank-badge rank-${index + 1}`}>{index < 3 ? <Medal size={14} /> : index + 1}</span></td>
-                                  <td>{result.studentName}</td>
-<td>{result.score}/{result.totalMarks ?? result.totalQuestions}</td>
-                                  <td>{result.percentage}%</td>
-                                  <td>{formatSeconds(result.timeTaken)}</td>
-                                </tr>
-                              ))}
+                              {rankedResults.map((result, index) => {
+                                const isAtRisk = atRiskNames.has(result.studentName);
+                                return (
+                                  <tr
+                                    key={result.id || `${result.studentName}-${index}`}
+                                    className={isAtRisk ? 'at-risk' : undefined}
+                                  >
+                                    <td><span className={`rank-badge rank-${index + 1}`}>{index < 3 ? <Medal size={14} /> : index + 1}</span></td>
+                                    <td>
+                                      {result.studentName}
+                                      {isAtRisk && (
+                                        <span className="at-risk-badge" title={`Below ${atRiskThreshold}%`}>At-risk</span>
+                                      )}
+                                    </td>
+                                    <td>{result.score}/{result.totalMarks ?? result.totalQuestions}</td>
+                                    <td>{result.percentage}%</td>
+                                    <td>{formatSeconds(result.timeTaken)}</td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
