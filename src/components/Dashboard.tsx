@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase'; // Import your supabase client
-import { getOwnedTestIds, getQuestionCount, getTestResults } from '../lib/database';
+import { getOwnedTestIds, getQuestionCount, getTestResults, getLocalResultsForTest } from '../lib/database';
 import { getTeacherSession } from '../lib/localAuth';
+import AssignBatchesModal from './AssignBatchesModal';
 import { 
   Plus, 
   LogOut, 
-  Copy, 
-  BookOpen, 
+  Copy,
+  BookOpen,
   Users, 
   Clock, 
   Calendar,
@@ -24,7 +25,8 @@ import {
   Loader2,
   LayoutGrid,
   List,
-  ListPlus
+  ListPlus,
+  Printer
 } from 'lucide-react';
 import type { Test, TestResult } from '../types/exam.types';
 import { TestInsightsModal } from './TestInsightsModal';
@@ -60,6 +62,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
   const [insightsError, setInsightsError] = useState<string | null>(null);
   const [questionBankCount, setQuestionBankCount] = useState(0);
 
+  const [assigningTest, setAssigningTest] = useState<Test | null>(null);
+
   // Fetch tests from Supabase
   const fetchTests = async () => {
     try {
@@ -67,7 +71,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
       setError(null);
 
       const teacher = getTeacherSession();
-      let query = supabase
+      const query = supabase
         .from('tests')
         .select('*')
         .order('created_at', { ascending: false });
@@ -116,8 +120,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
         .select('test_id, student_name');
 
       if (resultsError) {
-        console.warn('Unable to load test attempt counts:', resultsError);
-        setAttemptCounts({});
+        console.warn('Unable to load test attempt counts from Supabase:', resultsError);
       } else {
         const studentsByTest = (resultRows || []).reduce<Record<string, Set<string>>>((acc, row, index) => {
           if (!row.test_id) return acc;
@@ -130,6 +133,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
         setAttemptCounts(Object.fromEntries(
           Object.entries(studentsByTest).map(([testId, students]) => [testId, students.size])
         ));
+      }
+
+      // Merge local (file/localStorage) results into the attempt count.
+      // Non-batch students who take a test directly may have their result saved
+      // only locally (Supabase insert can fail silently on RLS), so we count
+      // those attempts here to avoid showing a 0 when the test was actually taken.
+      for (const test of transformedTests) {
+        try {
+          const localResults = await getLocalResultsForTest(test.id);
+          if (localResults.length > 0) {
+            setAttemptCounts((prev) => {
+              const supabaseCount = prev[test.id] ?? 0;
+              const localCount = new Set(localResults.map((r) => r.studentName || r.studentUsername)).size;
+              return { ...prev, [test.id]: Math.max(supabaseCount, localCount) };
+            });
+          } else { setAttemptCounts((prev) => ({ ...prev, [test.id]: prev[test.id] ?? 0 })); }
+        } catch (localError) {
+          console.warn(`Unable to load local results for test ${test.id}:`, localError);
+        }
       }
     } catch (err) {
       console.error('Error fetching tests:', err);
@@ -201,6 +223,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
       subscription.unsubscribe();
     };
   }, []);
+
+  const handleAssignBatches = (test: Test) => {
+    setAssigningTest(test);
+  };
+
+  const handleAssignSaved = () => {
+    void fetchTests();
+    setAssigningTest(null);
+  };
 
   const copyTestLink = async (testKey: string) => {
     const testLink = `${window.location.origin}/${testKey}`;
@@ -488,13 +519,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
                           <span className="table-test-name">{test.name || test.title}</span>
                           <span className="table-test-key">{test.testKey}</span>
                           {test.endTime && new Date(test.endTime).getTime() < Date.now() ? (
-                            <span style={{marginLeft: 8, padding: '2px 8px', fontSize: '11px', fontWeight: 700, color: '#b91c1c', background: '#fee2e2', borderRadius: 4}}>Expired</span>
+                            <span className="expired-badge">Expired</span>
                           ) : null}
                         </th>
-                        <td>{formatDateOnly(test.createdAt)}</td>
-                        <td>{formatDateOnly(test.startDate)}</td>
-                        <td>{test.duration || test.timeLimit || 30} min</td>
-                        <td>
+                        <td data-label="Created">{formatDateOnly(test.createdAt)}</td>
+                        <td data-label="Exam date">{formatDateOnly(test.startDate)}</td>
+                        <td data-label="Duration">{test.duration || test.timeLimit || 30} min</td>
+                        <td data-label="Students">
                           <span className="attempt-count">
                             <Users className="attempt-count-icon" />
                             {attemptCounts[test.id] ?? 0}
@@ -505,6 +536,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
                             type="button"
                             onClick={() => openTestInsights(test, 'preview')}
                             className="table-insights-btn preview"
+                            title="Preview test"
                           >
                             <Eye className="table-action-icon" />
                             <span>Preview</span>
@@ -513,17 +545,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
                             type="button"
                             onClick={() => openTestInsights(test, 'analytics')}
                             className="table-insights-btn analytics"
+                            title="View analytics"
                           >
                             <BarChart3 className="table-action-icon" />
                             <span>Analytics</span>
                           </button>
-                          <button
+                  <button
                             type="button"
                             onClick={() => copyTestLink(test.testKey)}
                             className={`table-copy-btn ${copiedTestId === test.testKey ? 'copied' : ''}`}
+                            title="Copy test link"
                           >
                             {copiedTestId === test.testKey ? <CheckCircle className="table-action-icon" /> : <Copy className="table-action-icon" />}
                             <span>{copiedTestId === test.testKey ? 'Copied' : 'Copy link'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => window.open(`/print/${test.testKey}`, '_blank')?.focus()}
+                            className="table-print-btn"
+                            title="Print test (PDF)"
+                          >
+                            <Printer className="table-action-icon" />
+                            <span>Print</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAssignBatches(test)}
+                            className="table-assign-btn"
+                            title="Assign to batches"
+                          >
+                            <Users className="table-action-icon" />
+                            <span>Assign</span>
                           </button>
                         </td>
                       </tr>
@@ -585,7 +637,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
                         <Activity className="stat-icon-xs" />
                       </div>
                       {test.endTime && new Date(test.endTime).getTime() < Date.now() ? (
-                        <span className="stat-text status-expired" style={{color: '#b91c1c', fontWeight: 700}}>
+                          <span className="stat-text status-expired">
                           Expired
                         </span>
                       ) : (
@@ -630,6 +682,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
                         </>
                       )}
                     </button>
+                    <button
+                      onClick={() => window.open(`/print/${test.testKey}`, '_blank')?.focus()}
+                      className="action-btn secondary"
+                      title="Print test (PDF)"
+                    >
+                      <Printer className="action-icon" />
+                      <span>Print</span>
+                    </button>
+                    <button
+                      onClick={() => handleAssignBatches(test)}
+                      className="action-btn secondary"
+                      title="Assign to batches"
+                    >
+                      <Users className="action-icon" />
+                      <span>Assign</span>
+                    </button>
                   </div>
                   
                   <div className="test-progress-bar">
@@ -652,6 +720,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
           )}
         </section>
       </main>
+
+      {assigningTest && (
+        <AssignBatchesModal
+          test={assigningTest}
+          onClose={() => setAssigningTest(null)}
+          onAssigned={handleAssignSaved}
+        />
+      )}
 
       {insightsTest && (
         <TestInsightsModal

@@ -76,7 +76,36 @@
   }
 
   .tests-table tbody tr:hover { background: #171b26; }
+
+  /* Integrity warning banner — light-red surface is illegible on dark. */
+  .integrity-warning-banner {
+    background: #450a0a;
+    border-color: #7f1d1d;
+    color: #fecaca;
+    box-shadow: 0 6px 20px rgba(253, 97, 97, 0.35);
+  }
+  /* Preview/analytics card surfaces. */
+  .preview-question-card,
+  .question-analytics-card {
+    background: #1f2937;
+  }
 }
+
+/* Expired badges — error tokens auto-flip in dark mode. */
+.expired-badge,
+.status-expired {
+  color: var(--error-color);
+}
+.expired-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  background: var(--error-light);
+}
+.status-expired { font-weight: 700; }
 
 @media (max-width: 560px) {
   .tests-table-wrapper {
@@ -1542,6 +1571,96 @@
   }
 }
 
+/* ===== AI Insight Banner ===== */
+.insight-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1.25rem;
+  margin-bottom: 1.5rem;
+  border-radius: var(--radius-lg);
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.insight-banner-icon {
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+.insight-banner-text {
+  flex: 1;
+}
+.insight-regenerate-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-accent);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.insight-regenerate-btn:hover {
+  background: var(--color-accent);
+  color: #fff;
+}
+.insight-regenerate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* At-risk student row tint */
+.analytics-table tbody tr.at-risk {
+  background: var(--color-danger-soft);
+}
+.at-risk-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 4px;
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+/* Flagged question marker in preview */
+.flagged-question {
+  background: var(--color-danger-soft);
+}
+.flagged-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  margin-left: 4px;
+  border-radius: 4px;
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+/* Explanation "Show simpler" button */
+.explanation-simpler-btn {
+  margin-left: 0.5rem;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  background: transparent;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+.explanation-simpler-btn:hover {
+  background: var(--color-accent);
+  color: #fff;
+}
+
 /* ===== Print Styles ===== */
 @media print {
   .dashboard-wrapper {
@@ -2039,6 +2158,106 @@
 .insights-mode-tabs button.active {
   border-bottom-color: var(--primary-color);
   color: var(--primary-color);
+}
+
+.print-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  margin-left: auto;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  color: var(--gray-600);
+  background: var(--gray-50);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.print-trigger-btn:hover {
+  color: var(--primary-color);
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+}
+
+.table-print-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  color: var(--gray-600);
+  background: var(--gray-50);
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.table-print-btn:hover {
+  color: var(--primary-color);
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+}
+
+.table-assign-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  color: var(--gray-600);
+  background: var(--gray-50);
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.table-assign-btn:hover {
+  color: var(--info-color);
+  background: var(--info-light);
+  border-color: var(--info-color);
+}
+
+/* Integrity warning banner — fixed overlay on active proctored exams */
+.integrity-warning-banner {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  animation: pulseWarning 2s ease-in-out infinite;
+}
+
+.integrity-warning-banner svg {
+  flex-shrink: 0;
+}
+
+@keyframes pulseWarning {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.3);
+  }
 }
 
 .insights-modal-body {
@@ -2745,11 +2964,117 @@
 
   .tests-table-wrapper {
     max-width: 100%;
-    overflow-x: auto;
+    overflow-x: visible;
   }
 
+  /* Mobile: compact 2-line list layout for the table (list) view.
+     Line 1 = test name (row header, full width)
+     Line 2 = metadata + actions, all inline and compact.
+     This keeps vertical space minimal — max two lines per row. */
   .tests-table {
-    min-width: 620px;
+    min-width: 100%;
+    width: 100%;
+    font-size: 0.85rem;
+  }
+
+  .tests-table thead {
+    display: none;
+  }
+
+  .tests-table,
+  .tests-table tbody,
+  .tests-table tbody tr {
+    display: block;
+  }
+
+  .tests-table tbody tr {
+    margin-bottom: 0.5rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs);
+  }
+
+  .tests-table tbody tr:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Line 1: Test name (row header) — full-width, separated from line 2 */
+  .tests-table th[scope="row"] {
+    display: block;
+    padding: 0 0 0.35rem;
+    border-bottom: 1px solid var(--gray-100);
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--gray-900);
+    margin-bottom: 0.35rem;
+  }
+
+  /* Line 2: metadata + actions, all inline-flex on one (or two) line(s) */
+  .tests-table td {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.4rem;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    border: none;
+    border-bottom: none;
+  }
+
+  /* Compact data-label prefix for metadata cells that have one */
+  .tests-table td[data-label]::before {
+    content: attr(data-label);
+    font-size: 0.58rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--gray-500);
+    margin-right: 0.2rem;
+  }
+
+  /* No label on the actions cell */
+  .tests-table td.table-actions::before {
+    content: none;
+  }
+
+  .table-test-name {
+    max-width: none;
+  }
+
+  .table-test-key {
+    margin-top: 0.2rem;
+  }
+
+  /* Action buttons: compact inline row on mobile cards */
+  .table-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .table-insights-btn,
+  .table-copy-btn,
+  .table-print-btn,
+  .table-assign-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+  }
+
+  /* Tighten empty / no-results padding so content isn't squeezed off narrow screens */
+  .no-results {
+    padding: 2rem 1rem;
+  }
+
+  .empty-state {
+    padding: 2rem 1rem;
   }
 }
 
@@ -2782,6 +3107,24 @@
 
   .highlight-card {
     font-size: 10px;
+  }
+
+  /* Table (list) view: collapse action buttons to icon-only on narrow phones */
+  .table-insights-btn span,
+  .table-copy-btn span,
+  .table-print-btn span,
+  .table-assign-btn span {
+    display: none;
+  }
+
+  .table-insights-btn,
+  .table-copy-btn,
+  .table-print-btn,
+  .table-assign-btn {
+    padding: 0.25rem;
+    min-width: 30px;
+    height: 30px;
+    justify-content: center;
   }
 }
 
@@ -2841,6 +3184,18 @@
   }
 
   .tests-table tbody tr:hover { background: var(--color-bg-elevated); }
+  /* Mobile table cards — ensure card surface & divider visibility in dark mode */
+  .tests-table tbody tr {
+    background: var(--color-bg-card);
+    border-color: var(--color-border);
+  }
+  .tests-table th,
+  .tests-table td {
+    border-bottom-color: var(--color-border);
+  }
+  .tests-table th[scope="row"] {
+    border-bottom-color: var(--color-border-strong);
+  }
   .analytics-table tbody tr:hover { background: var(--color-bg-elevated); }
   .analytics-table thead th, .analytics-summary-grid > div { background: var(--color-bg-elevated); }
   .analytics-summary-grid strong { color: var(--color-text); }
