@@ -19,6 +19,56 @@ import {
 import { jsPDF } from 'jspdf';
 import type { Test, TestResult } from '../../types/exam.types';
 
+/** A question diagram rasterized for embedding into the PDF report. */
+interface ReportImage {
+  dataUrl: string;
+  width: number;
+  height: number;
+}
+
+/** Fetch + rasterize a question image to a JPEG data URL for jsPDF.
+ *  Fails open: any load/CORS/decode problem resolves to `null` so a slow or
+ *  blocked diagram can never block or break report generation. */
+const loadImageForPdf = (url: string, timeoutMs = 12000): Promise<ReportImage | null> =>
+  new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    let settled = false;
+    const finish = (value: ReportImage | null) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      }
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    img.onload = () => {
+      try {
+        // Flatten onto white and downscale long side to 1400px — keeps phone
+        // photos crisp on paper while bounding PDF size.
+        const maxSide = 1400;
+        const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          finish(null);
+          return;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        finish({ dataUrl: canvas.toDataURL('image/jpeg', 0.85), width: img.naturalWidth, height: img.naturalHeight });
+      } catch {
+        // Tainted canvas (no CORS headers) or decode failure — omit image.
+        finish(null);
+      }
+    };
+    img.onerror = () => finish(null);
+    img.src = url;
+  });
+
 interface ResultsDisplayProps {
   test: Test;
   result: TestResult;
@@ -33,6 +83,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
   const [showDetailedResults, setShowDetailedResults] = useState(false);
   const [animationStep, setAnimationStep] = useState(0);
   const [actionMessage, setActionMessage] = useState('');
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   useEffect(() => {
     const timer1 = setTimeout(() => setAnimationStep(1), 500);
@@ -147,7 +198,9 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
     ].join('\n');
   };
 
-  const handleDownloadReport = () => {
+  const handleDownloadReport = async () => {
+    if (isGeneratingPdf) return;
+    setIsGeneratingPdf(true);
     try {
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -274,6 +327,12 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
       }
 
       sectionHeading('Question review');
+      // Pre-fetch every question diagram in parallel (null for text-only ones).
+      const questionImages = await Promise.all(
+        test.questions.map(question =>
+          question.imageUrl ? loadImageForPdf(question.imageUrl) : Promise.resolve(null)
+        )
+      );
       test.questions.forEach((question, index) => {
         const studentAnswer = result.answers.find(answer => answer.questionId === question.id);
         const wasAnswered = studentAnswer !== undefined && studentAnswer.selectedOption >= 0;
@@ -306,8 +365,37 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
         const lineHeight = 12;
         const questionBlockHeight = questionLines.length * 14;
         const rowHeights = rows.map(row => Math.max(14, row.lines.length * lineHeight) + 8);
-        const cardHeight = cardPadding + questionBlockHeight + 10 + rowHeights.reduce((sum, height) => sum + height, 0) + cardPadding;
+        const image = questionImages[index];
+        const imageDataUrl = image ? image.dataUrl : null;
+        let imageDrawWidth = 0;
+        let imageDrawHeight = 0;
+        if (image && image.width > 0 && image.height > 0) {
+          imageDrawWidth = innerWidth;
+          imageDrawHeight = innerWidth * (image.height / image.width);
+          const maxImageHeight = 260;
+          if (imageDrawHeight > maxImageHeight) {
+            imageDrawHeight = maxImageHeight;
+            imageDrawWidth = maxImageHeight * (image.width / image.height);
+          }
+        }
+        const imageBlockHeight = imageDrawHeight > 0 && imageDataUrl ? imageDrawHeight + 10 : 0;
+        const cardHeight = cardPadding + questionBlockHeight + 10 + imageBlockHeight + rowHeights.reduce((sum, height) => sum + height, 0) + cardPadding;
         const maxCardHeight = pageHeight - margin * 2;
+
+        const drawQuestionImage = (xOffset: number, availableWidth: number) => {
+          if (imageBlockHeight === 0 || !imageDataUrl) return;
+          addPageIfNeeded(imageBlockHeight);
+          const drawWidth = Math.min(imageDrawWidth, availableWidth);
+          doc.addImage(
+            imageDataUrl,
+            'JPEG',
+            xOffset + (availableWidth - drawWidth) / 2,
+            cursorY,
+            drawWidth,
+            imageDrawHeight
+          );
+          cursorY += imageBlockHeight;
+        };
 
         const drawQuestionRows = (x: number, availableWidth: number) => {
           const rowLabelWidth = Math.min(labelWidth, availableWidth * 0.3);
@@ -337,6 +425,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
           doc.setFontSize(10);
           doc.text(questionLines, margin, cursorY);
           cursorY += questionBlockHeight + 10;
+          drawQuestionImage(margin, contentWidth);
           cursorY = drawQuestionRows(margin, contentWidth);
           cursorY += 8;
           return;
@@ -355,6 +444,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
         doc.setFontSize(10);
         doc.text(questionLines, margin + cardPadding, cardTop + cardPadding + 1);
         cursorY = cardTop + cardPadding + questionBlockHeight + 10;
+        drawQuestionImage(margin + cardPadding, innerWidth);
         drawQuestionRows(margin + cardPadding, innerWidth);
         cursorY = cardTop + cardHeight + 14;
       });
@@ -367,6 +457,8 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
     } catch (error) {
       console.error('Failed to generate PDF report:', error);
       setActionMessage('The PDF could not be generated. Try sharing the report instead.');
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 
@@ -579,9 +671,13 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
             {showDetailedResults ? 'Hide' : 'View'} Detailed Results
           </button>
 
-          <button onClick={handleDownloadReport} className="btn btn-secondary">
+          <button
+            onClick={() => { void handleDownloadReport(); }}
+            className="btn btn-secondary"
+            disabled={isGeneratingPdf}
+          >
             <Download size={16} />
-            Download PDF Report
+            {isGeneratingPdf ? 'Preparing PDF…' : 'Download PDF Report'}
           </button>
           <button onClick={() => { void handleShareResults(); }} className="btn btn-secondary">
             <Share2 size={16} />

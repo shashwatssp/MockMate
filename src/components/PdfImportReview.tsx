@@ -17,12 +17,23 @@ import {
 } from 'lucide-react';
 import type { Question } from '../types/exam.types';
 import { insertQuestions, uploadQuestionImage } from '../lib/database';
+// GEMINI DISABLED: updateQuestionExplanation/updateQuestionImage backfills are
+// unused while enrichment is off — re-add with the Gemini import when revived.
 import type { ExtractedQuestion, Band } from '../lib/pdfExtract';
 import { parseQuestionText } from '../lib/pdfExtract';
 import { ocrImageText, terminateOcrWorker } from '../lib/ocr';
+// GEMINI DISABLED (per teacher request): explanation generation is commented out
+// until further notice — the save flow must persist text/options/image directly,
+// exactly as before. See `handleAccept` and the commented `enqueueEnrichment`.
+// import { generateQuestionExplanation, toExplanationInput } from '../lib/geminiExplanation';
 import './PdfImport.css';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+
+// GEMINI DISABLED: background enrichment (image upload + Gemini explanation)
+// has been reverted to the inline save. This timeout is unused while the
+// background path is off.
+// const ENRICHMENT_FLUSH_TIMEOUT_MS = 12_000;
 
 const YEARS = Array.from({ length: 30 }, (_, i) => (2025 - i).toString());
 const SUBJECTS = ['Physics', 'Chemistry', 'Biology', 'Mathematics', 'English', 'History', 'Geography', 'Computer Science'];
@@ -54,6 +65,10 @@ interface Draft {
   topic: string;
   /** Year extracted from document metadata. */
   year: string;
+  /** AI-generated rationale for this question (default-on, fail-open).
+   *  Populated on Accept via `gemini-3.6-flash` and persisted to the DB;
+   *  retained on the draft so create-test mode can carry it into the test. */
+  explanation?: string;
 }
 interface PdfImportReviewProps {
   questions: ExtractedQuestion[];
@@ -114,6 +129,16 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
   const [reviewed, setReviewed] = useState<Record<number, Status>>({});
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [finishing, setFinishing] = useState(false);
+  // GEMINI DISABLED: no background enrichment UI state while saving is inline.
+  // const [enhancing, setEnhancing] = useState<Record<number, boolean>>({});
+
+  // Background enrichment jobs: draftIndex -> serialized in-flight promise.
+  // DISABLED with the Gemini revert — kept for reference.
+  // const enrichmentJobsRef = useRef<Map<number, Promise<void>>>(new Map());
+  // Accepted questions as saved, keyed by draft index — the source for
+  // create-test mode's payload at Finish time.
+  const savedByIndexRef = useRef<Map<number, Question>>(new Map());
 
   // Shared factory so the lazy initializer and the growth effect below build one
   // question's draft with exactly the same shape.
@@ -218,6 +243,14 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
     );
   };
 
+  // GEMINI DISABLED: draft patching was only used by enrichment callbacks.
+  /** Patch any draft by index (used by background enrichment callbacks). */
+  // const patchDraftAt = (i: number, patch: Partial<Draft>) => {
+  //   setDrafts(d =>
+  //     d.map((item, k) => (k === i ? { ...item, ...patch } : item)),
+  //   );
+  // };
+
   const setOption = (i: number, value: string) => {
     setDrafts(d => {
       const next = d[index].options.slice();
@@ -269,40 +302,129 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
   const advance = () => setIndex(i => (i < total - 1 ? i + 1 : i));
   const jumpTo = (i: number) => setIndex(i);
 
+  // GEMINI DISABLED: the whole background-enrichment path (image upload + AI
+  // explanation after save) is reverted. Images now upload inline in
+  // `handleAccept` BEFORE the bank insert, so the saved row (and the created
+  // test) always carries the image. Kept here, commented, for reference.
+  /** Fire-and-forget post-save enrichment for an accepted question: upload the
+   *  attached image and generate the AI explanation concurrently, persist both
+   *  onto the saved bank row, and mirror them onto the draft so create-test mode
+   *  carries them into the test payload. Every step fails open — enrichment is
+   *  best-effort by design and must never surface an error to the teacher. */
+  // const enqueueEnrichment = (i: number, snapshot: Draft, pageNumber: number) => {
+  //   const runJob = async () => {
+  //     setEnhancing(prev => ({ ...prev, [i]: true }));
+  //     try {
+  //       const saved = savedByIndexRef.current.get(i);
+  //       const dbId = saved?.id && !saved.id.startsWith('pdf-') ? saved.id : undefined;
+  //
+  //       const imageTask = (async () => {
+  //         if (!snapshot.attachImage || !snapshot.imageBlob) return;
+  //         const file = new File([snapshot.imageBlob], `page-${pageNumber}.png`, { type: 'image/png' });
+  //         const url = await uploadQuestionImage(file);
+  //         if (!url) return;
+  //         patchDraftAt(i, { imageUrl: url });
+  //         if (dbId) await updateQuestionImage(dbId, url);
+  //       })().catch(err => console.warn(`[enrichment] image upload failed for question ${i + 1}:`, err));
+  //
+  //       const explanationTask = (async () => {
+  //         const explanation = await generateQuestionExplanation(
+  //           toExplanationInput({
+  //             text: snapshot.text.trim() || `Page ${pageNumber} question`,
+  //             options: snapshot.options,
+  //             correctAnswer: snapshot.correctAnswer,
+  //             topic: snapshot.topic,
+  //             subject: snapshot.subject,
+  //           }),
+  //         );
+  //         if (!explanation) return;
+  //         patchDraftAt(i, { explanation });
+  //         if (dbId) await updateQuestionExplanation(dbId, explanation);
+  //       })().catch(err => console.warn(`[enrichment] explanation generation failed for question ${i + 1}:`, err));
+  //
+  //       await Promise.all([imageTask, explanationTask]);
+  //     } finally {
+  //       setEnhancing(prev => ({ ...prev, [i]: false }));
+  //     }
+  //   };
+  //
+  //   const previous = enrichmentJobsRef.current.get(i) ?? Promise.resolve();
+  //   const job = previous.catch(() => {}).then(runJob).finally(() => {
+  //     if (enrichmentJobsRef.current.get(i) === job) {
+  //       enrichmentJobsRef.current.delete(i);
+  //     }
+  //   });
+  //   enrichmentJobsRef.current.set(i, job);
+  // };
+
+  /** Hand the accepted questions to the parent. With enrichment disabled there
+   *  is nothing to wait for — everything is already saved inline on Accept. */
+  const finishReview = async () => {
+    if (finishing) return;
+    setFinishing(true);
+    try {
+      // GEMINI DISABLED: bounded enrichment flush removed (nothing to wait for).
+      // await Promise.race([
+      //   Promise.allSettled(Array.from(enrichmentJobsRef.current.values())),
+      //   new Promise(resolve => setTimeout(resolve, ENRICHMENT_FLUSH_TIMEOUT_MS)),
+      // ]);
+    } finally {
+      setFinishing(false);
+      onComplete(acceptedCount, collectAcceptedQuestions());
+    }
+  };
+
   const handleAccept = async () => {
     if (!canAccept) return;
     if (cropMode) return; // don't accept mid-crop
     setError(null);
     setUploading(true);
     try {
-      let imageUrl = '';
-      const d = drafts[index];
+      const i = index;
+      const d = drafts[i];
+      const pageNumber = current?.pageNumber ?? i + 1;
+      // RESTORED INLINE SAVE (revert of the background-enrichment experiment):
+      // upload the image FIRST, then insert the question WITH its imageUrl so
+      // the bank row and the created test always carry the image. A failure in
+      // the upload or insert throws here: the card shows the error and is NOT
+      // marked accepted (same contract as the original save flow).
+      let imageUrl: string | undefined;
       if (d.attachImage && d.imageBlob) {
-        const file = new File([d.imageBlob], `page-${current.pageNumber}.png`, {
+        const file = new File([d.imageBlob], `page-${pageNumber}.png`, {
           type: 'image/png',
         });
-        imageUrl = await uploadQuestionImage(file);
+        const url = await uploadQuestionImage(file);
+        if (url) {
+          imageUrl = url;
+          updateDraft({ imageUrl: url });
+        }
       }
       const payload: Omit<Question, 'id'> = {
-        text: d.text.trim() || `Page ${current.pageNumber} question`,
+        text: d.text.trim() || `Page ${pageNumber} question`,
         options: d.options,
         correctAnswer: d.correctAnswer,
         topic: d.topic,
         subject: d.subject,
         year: d.year,
+        ...(imageUrl ? { imageUrl } : {}),
         // `marks`/`negative_marks` are no longer stored on the question bank
         // (they are decided when a test is built), so they are intentionally omitted.
-        ...(imageUrl ? { imageUrl } : {}),
       };
       // Deduplication is handled inside `insertQuestions` (normalised text-key
       // lookup against the existing bank), so it's safe to always persist to the
-      // bank — even in create-test mode. The in-memory collection for test
-      // creation is built separately by `collectAcceptedQuestions`.
-      await insertQuestions([payload]);
-      // Persist the uploaded image URL on the draft so create-test mode can
-      // carry it into the test payload without a second DB round-trip.
-      if (imageUrl) updateDraft({ imageUrl });
-      setReviewed(r => ({ ...r, [index]: 'accepted' }));
+      // bank — even in create-test mode. A throw here keeps the old behaviour:
+      // the card shows the error and is NOT marked accepted.
+      const savedRows = await insertQuestions([payload]);
+      const saved = savedRows[0];
+      savedByIndexRef.current.set(i, {
+        ...payload,
+        ...(saved?.id ? { id: saved.id } : {}),
+      } as Question);
+
+      setReviewed(r => ({ ...r, [i]: 'accepted' }));
+      // GEMINI DISABLED: no background enrichment is kicked off anymore.
+      // enqueueEnrichment(i, d, pageNumber);
+
       if (d.cropApplied) {
         // A crop was used for this photo: do NOT advance to the next
         // pre-existing question. Stay on this card and reset it back to the
@@ -322,10 +444,12 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
           correctAnswer: 0,
           ocrApplied: false,
         });
-      } else if (index < total - 1) {
+      } else if (i < total - 1) {
         advance();
       } else {
-        onComplete(acceptedCount, collectAcceptedQuestions());
+        // Last question: bounded-flush so the built test still picks up any
+        // enrichments that land within the cap, then hand off to the parent.
+        await finishReview();
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -339,27 +463,31 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
   const handleDiscard = () => {
     setReviewed(r => ({ ...r, [index]: 'discarded' }));
     if (index < total - 1) advance();
-    else onComplete(acceptedCount, collectAcceptedQuestions());
+    else void finishReview();
   };
 
   /**
    * Build a `Question[]` from every accepted draft + its original `pageNumber`.
    * Used in 'create-test' mode so the parent can build a test straight from
-   * the review screen without re-fetching from the question bank.
+   * the review screen without re-fetching from the question bank. Prefers the
+   * real bank id resolved at save time (falling back to the legacy placeholder
+   * when dedup skipped insertion or the id lookup failed).
    */
   const collectAcceptedQuestions = (): Question[] => {
     return questions
       .map((q, i) => {
         const d = drafts[i];
         if (!d || reviewed[i] !== 'accepted') return null;
+        const saved = savedByIndexRef.current.get(i);
         return {
-          id: `pdf-${i}-${q.pageNumber}`,
+          id: saved?.id ?? `pdf-${i}-${q.pageNumber}`,
           text: d.text.trim() || `Page ${q.pageNumber} question`,
           options: d.options,
           correctAnswer: d.correctAnswer,
           topic: d.topic,
           subject: d.subject,
           year: d.year,
+          ...(d.explanation ? { explanation: d.explanation } : {}),
           ...(d.imageUrl ? { imageUrl: d.imageUrl } : {}),
         } as Question;
       })
@@ -578,6 +706,7 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
               <RefreshCw size={12} className="spin" /> Extracting…
             </span>
           )}
+          {/* GEMINI DISABLED: no "Enhancing…" chip while enrichment is off. */}
         </div>
       </header>
 
@@ -888,12 +1017,12 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
         <button
           type="button"
           className="create-test-fab finish-btn"
-          onClick={() => onComplete(acceptedCount, collectAcceptedQuestions())}
-          disabled={acceptedCount === 0}
+          onClick={() => void finishReview()}
+          disabled={acceptedCount === 0 || finishing}
         >
           <div className="fab-content">
             <Sparkles className="fab-icon" size={18} />
-            <span className="fab-text">Save and Finish</span>
+            <span className="fab-text">{finishing ? 'Finishing…' : 'Save and Finish'}</span>
             <ArrowRight className="fab-arrow" size={18} />
           </div>
           <span className="finish-count">

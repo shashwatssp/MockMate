@@ -1444,23 +1444,28 @@
   }
 }
 
-/* Print Styles */
+/* Print Styles
+   All selectors are scoped under .exam-app: Vite bundles every stylesheet
+   globally, so unscoped rules here (especially the former `* { ... }`
+   wildcard) leaked onto unrelated print routes like /print/:testCode and
+   stripped their colored backgrounds. */
 @media print {
-  .exam-sidebar,
-  .question-controls,
-  .timer-display {
+  .exam-app .exam-sidebar,
+  .exam-app .question-controls,
+  .exam-app .timer-display {
     display: none !important;
   }
   
-  .exam-main {
+  .exam-app .exam-main {
     width: 100% !important;
   }
   
-  .question-container {
+  .exam-app .question-container {
     padding: 20px !important;
   }
   
-  * {
+  .exam-app,
+  .exam-app * {
     color: #000 !important;
     background: #fff !important;
   }

@@ -801,7 +801,8 @@
   }
   
   .entry-background,
-  .floating-elements {
+  .floating-elements,
+  .practice-mode-banner {
     display: none;
   }
   
@@ -813,11 +814,12 @@
   }
 }
 
-/* Ensure proper scrolling on all devices */
-html, body {
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
-}
+/* Ensure proper scrolling on all devices.
+   NOTE: no `html, body { overflow-x: hidden }` here — index.css already clips
+   horizontal overflow via `body { overflow-x: hidden }`, and a second global
+   html-level rule broke Chromium's print pagination (the /print/:testCode PDF
+   was sliced from one giant strip into mostly-blank pages).
+   iOS smooth scrolling is inherited from index.css defaults. */
 
 /* Additional mobile viewport fixes */
 @media screen and (max-width: 768px) {
@@ -834,6 +836,43 @@ html, body {
   min-height: 100svh;
   padding: clamp(18px, 4vw, 42px);
   background: #192743;
+}
+
+/* Practice-mode notice (?practice=1): amber pill floating above the entry
+   panels; tuned for the dark navy backdrop and readable in both OS themes. */
+.practice-mode-banner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: min(100%, 680px);
+  margin: 0 auto 18px;
+  padding: 11px 16px;
+  border-radius: 14px;
+  background: rgba(250, 204, 21, 0.10);
+  border: 1px solid rgba(250, 204, 21, 0.40);
+  color: #fde68a;
+  font-size: 13px;
+  line-height: 1.45;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(6px);
+  animation: practiceBannerIn 260ms ease-out;
+}
+
+.practice-mode-banner svg { flex-shrink: 0; color: #facc15; }
+.practice-mode-banner strong { color: #fef9c3; }
+
+@keyframes practiceBannerIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 560px) {
+  .practice-mode-banner {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
 }
 
 .entry-background {

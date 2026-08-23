@@ -1,0 +1,58 @@
+/**
+ * Exam integrity warning banner styles.
+ * Shared between ExamWrapper and ExamInterface renders.
+ */
+
+.integrity-warning-banner {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  animation: pulseWarning 2s ease-in-out infinite;
+}
+
+.integrity-warning-banner svg {
+  flex-shrink: 0;
+}
+
+/* Copy prevention: blocks text selection + context menu during proctored exams
+ * once the tab-switch threshold has been crossed. JS event handlers in
+ * ExamInterface.tsx provide the active enforcement; this CSS is the visual guard. */
+.copy-prevented {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.copy-prevented {
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -webkit-user-highlight: none;
+  -moz-user-highlight: none;
+  -o-user-select: none;
+  -ms-user-select: none;
+}
+
+@keyframes pulseWarning {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.3);
+  }
+}

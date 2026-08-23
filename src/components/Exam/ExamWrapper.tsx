@@ -10,10 +10,13 @@ import { useExamTimer } from '../../hooks/useExamTimer';
 import { getTestByKey, hasStudentTakenTest, saveTestResult, isTestBatchScoped } from '../../lib/database';
 import { getStudentSession } from '../../lib/studentSession';
 import { scoreQuestions } from '../../lib/score'; // Import your database functions
+import { shuffleTestQuestions } from '../../lib/shuffle';
+import { useExamIntegrity } from '../../hooks/useExamIntegrity';
 import type { Test, ExamSession, TestResult, StudentAnswer } from '../../types/exam.types';
 import type { StudentIdentity } from '../../lib/database';
-import { Clock, Shield, RefreshCw } from 'lucide-react';
+import { Clock, Shield, RefreshCw, AlertTriangle } from 'lucide-react';
 import './styles.css';
+import './ExamIntegrity.css';
 
 interface ExamWrapperProps {
   testCode?: string;
@@ -26,8 +29,13 @@ type PersistedExamSnapshot = {
   phase: 'entry' | 'active' | 'results';
   test: Test;
   studentName: string;
+  /** Stable account id when the student is authenticated; enables per-student
+   *  snapshot isolation so a shared browser can't resume another student's
+   *  in-progress exam. Absent for legacy/anonymous snapshots. */
+  studentId?: string;
   startTime: string;
   isPracticeMode?: boolean;
+  tabSwitchCount?: number;
   state?: {
     currentQuestionIndex: number;
     answers: ExamSession['state']['answers'];
@@ -41,16 +49,23 @@ type PersistedExamSnapshot = {
   result?: TestResult;
 };
 
-const getExamSnapshotKey = (testCode?: string) =>
-  testCode ? `mockmate.exam.${testCode.toUpperCase()}` : '';
+// Namespaced by student: authenticated students read/write a per-account key
+// (`mockmate.exam.<CODE>.<id>`), so two students sharing a browser cannot
+// resume each other's exam. Anonymous students fall back to the testCode-only
+// key (best-effort; there is no stable identity to separate them by).
+const getExamSnapshotKey = (testCode?: string, studentId?: string) => {
+  if (!testCode) return '';
+  const code = testCode.toUpperCase();
+  return studentId ? `mockmate.exam.${code}.${studentId}` : `mockmate.exam.${code}`;
+};
 
 const getAttemptMarkerKey = (testCode: string | undefined, studentName: string) =>
   testCode
     ? `mockmate.completed.${testCode.toUpperCase()}.${studentName.trim().toLocaleLowerCase()}`
     : '';
 
-const readExamSnapshot = (testCode?: string): PersistedExamSnapshot | null => {
-  const key = getExamSnapshotKey(testCode);
+const readExamSnapshot = (testCode?: string, studentId?: string): PersistedExamSnapshot | null => {
+  const key = getExamSnapshotKey(testCode, studentId);
   if (!key) return null;
 
   try {
@@ -62,7 +77,7 @@ const readExamSnapshot = (testCode?: string): PersistedExamSnapshot | null => {
 };
 
 const writeExamSnapshot = (testCode: string | undefined, snapshot: PersistedExamSnapshot) => {
-  const key = getExamSnapshotKey(testCode);
+  const key = getExamSnapshotKey(testCode, snapshot.studentId);
   if (!key) return;
   try {
     window.localStorage.setItem(key, JSON.stringify(snapshot));
@@ -89,6 +104,11 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
   const location = useLocation();
   const navigate = useNavigate();
 
+  // `?practice=1` on the entry URL (dashboard "Practice again" action) forces
+  // Practice Mode: the attempt runs fully but is never saved for credit,
+  // regardless of prior attempts or the test's time window.
+  const forcePractice = new URLSearchParams(location.search).get('practice') === '1';
+
   const [currentPhase, setCurrentPhase] = useState<ExamState>('loading');
   const [test, setTest] = useState<Test | null>(initialTest || null);
   const [studentName, setStudentName] = useState<string>('');
@@ -97,13 +117,33 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [isPracticeMode, setIsPracticeMode] = useState(false);
   const [error, setError] = useState<string>('');
-  const [isFullscreen, setIsFullscreen] = useState(false);
+const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [windowClosed, setWindowClosed] = useState(false);
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [shouldPreventCopy, setShouldPreventCopy] = useState(false);
 
-  const examState = useExamState();
+const examState = useExamState();
   const examTimer = useExamTimer();
   const submittingRef = useRef(false);
+
+  // Tab-switch detection — active for all exams during the 'active' phase.
+  const { tabSwitchCount: integritySwitches, warned: integrityWarned } = useExamIntegrity(
+    currentPhase === 'active',
+  );
+
+  useEffect(() => {
+    setTabSwitchCount(integritySwitches);
+  }, [integritySwitches]);
+
+  // Enable copy prevention when integrity warning triggers during an active exam.
+  useEffect(() => {
+    if (integrityWarned && currentPhase === 'active') {
+      setShouldPreventCopy(true);
+    } else if (currentPhase !== 'active') {
+      setShouldPreventCopy(false);
+    }
+  }, [integrityWarned, currentPhase]);
   const autoSubmittedRef = useRef(false);
   const deadlineRef = useRef<number | null>(null);
 
@@ -229,14 +269,22 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
           ? new Date(testData.endDate)
           : null;
       if (testEnd && now > testEnd) {
-        window.localStorage.removeItem(getExamSnapshotKey(code));
+        window.localStorage.removeItem(getExamSnapshotKey(code, session?.id));
         setWindowClosed(true);
         navigateToPhase('entry');
         return;
       }
 
-      const saved = readExamSnapshot(code);
-      if (saved && saved.test?.id === testData.id) {
+      const saved = readExamSnapshot(code, session?.id);
+      // Identity guard: an authenticated student may only resume a snapshot that
+      // belongs to them (shared-browser + re-login safety). Legacy snapshots
+      // written before namespacing (no studentId) are still honored so an
+      // in-progress exam is never silently orphaned on deploy.
+      const identityMatches =
+        !session || !session.isApproved ||
+        saved?.studentId === undefined ||
+        saved.studentId === session.id;
+      if (saved && saved.test?.id === testData.id && identityMatches) {
         if (saved.phase === 'results' && saved.result && location.pathname.endsWith('/results')) {
           setStudentName(saved.studentName);
           setIsPracticeMode(saved.result.isPractice ?? false);
@@ -251,8 +299,11 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
         if (saved.phase === 'active' && saved.state && saved.deadline) {
           const remaining = Math.max(0, Math.ceil((saved.deadline - Date.now()) / 1000));
           if (remaining > 0) {
+            // Re-apply the deterministic per-student shuffle on snapshot restore
+            // so question order is stable across sessions.
+            const shuffledTest = shuffleTestQuestions(testData, saved.studentName);
             const restoredSession: ExamSession = {
-              test: testData,
+              test: shuffledTest,
               studentName: saved.studentName,
               startTime: new Date(saved.startTime),
               state: {
@@ -273,6 +324,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
             };
             setStudentName(saved.studentName);
             setIsPracticeMode(saved.isPracticeMode ?? false);
+            setTabSwitchCount(saved.tabSwitchCount ?? 0);
             setExamSession(restoredSession);
             examState.initialize(restoredSession.state);
             examTimer.start(remaining);
@@ -281,7 +333,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
             return;
           }
 
-          window.localStorage.removeItem(getExamSnapshotKey(code));
+          window.localStorage.removeItem(getExamSnapshotKey(code, session?.id));
         }
 
         if (saved.phase === 'entry') {
@@ -383,11 +435,13 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
 
     writeExamSnapshot(testCode, {
       phase: 'active',
-      test,
+      test: examSession.test,
       studentName: examSession.studentName,
+      studentId: (studentIdentity ?? getStudentSession())?.id,
       isPracticeMode,
       startTime: examSession.startTime.toISOString(),
       deadline: deadlineRef.current,
+      tabSwitchCount,
       state: {
         currentQuestionIndex: examState.currentQuestionIndex,
         answers: examState.answers,
@@ -411,6 +465,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
     isPracticeMode,
     test,
     testCode,
+    tabSwitchCount,
   ]);
 
   useEffect(() => {
@@ -418,8 +473,9 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
 
     writeExamSnapshot(testCode, {
       phase: 'results',
-      test,
+      test: examSession?.test ?? test,
       studentName: testResult.studentName,
+      studentId: testResult.studentId ?? (studentIdentity ?? getStudentSession())?.id,
       startTime: examSession?.startTime.toISOString() || new Date().toISOString(),
       result: testResult,
     });
@@ -435,7 +491,9 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
       // A test past its window is only Practice Mode for anonymous students.
       // Authenticated students (launched from their dashboard) can take expired
       // tests for credit, and the result reflects back on their dashboard.
+      // An explicit "Practice again" launch (?practice=1) always wins.
       const practiceMode = Boolean(
+        forcePractice ||
         (windowClosed && !studentIdentity) ||
         (attemptMarker && window.localStorage.getItem(attemptMarker)) ||
         await hasStudentTakenTest(test.id, name)
@@ -443,9 +501,11 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
       setIsPracticeMode(practiceMode);
       setTestResult(null);
       
-      // Initialize exam session
+      // Initialize exam session — apply deterministic per-student shuffle so
+      // question order is stable for this student on resume.
+      const shuffledTest = shuffleTestQuestions(test, name.trim());
       const session: ExamSession = {
-        test,
+        test: shuffledTest,
         studentName: name.trim(),
         startTime: new Date(),
         state: {
@@ -454,7 +514,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
           timeRemaining: (test.duration || test.timeLimit || 90) * 60,
           isSubmitted: false,
           bookmarkedQuestions: new Set(),
-          visitedQuestions: new Set([test.questions[0]?.id].filter(Boolean)),
+          visitedQuestions: new Set([shuffledTest.questions[0]?.id].filter(Boolean)),
           reviewMode: false
         },
         settings: {
@@ -471,11 +531,13 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
       deadlineRef.current = Date.now() + session.state.timeRemaining * 1000;
       writeExamSnapshot(testCode, {
         phase: 'active',
-        test,
+        test: shuffledTest,
         studentName: session.studentName,
+        studentId: (studentIdentity ?? getStudentSession())?.id,
         isPracticeMode: practiceMode,
         startTime: session.startTime.toISOString(),
         deadline: deadlineRef.current,
+        tabSwitchCount,
         state: {
           ...session.state,
           bookmarkedQuestions: [...session.state.bookmarkedQuestions],
@@ -604,7 +666,13 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
     });
 
     const percentage = scored.percentage;
-    const timeTaken = ((test.duration || test.timeLimit || 90) * 60) - examTimer.timeRemaining;
+    // timeTaken is the max of (duration budget used) and (actual wall-clock
+    // elapsed) so wall-clock auto-submit never under-reports time spent.
+    const durationSeconds = (test.duration || test.timeLimit || 90) * 60;
+    const timeTaken = Math.max(
+      durationSeconds - examTimer.timeRemaining,
+      examSession ? (Date.now() - examSession.startTime.getTime()) / 1000 : 0,
+    );
 
     return {
       testId: test.id,
@@ -713,6 +781,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
             }}
             timeInfo={timeInfo}
             studentIdentity={studentIdentity ?? undefined}
+            practiceMode={forcePractice}
           />
         ) : null;
 
@@ -725,6 +794,9 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
             examTimer={examTimer}
             onSubmitExam={submitExam}
             isPracticeMode={isPracticeMode}
+            tabSwitchCount={tabSwitchCount}
+            integrityWarned={integrityWarned}
+            preventCopy={shouldPreventCopy}
             onError={(error) => {
               setError(error);
             }}
@@ -739,7 +811,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
             test={test}
             result={testResult}
             onRetakeExam={() => {
-              window.localStorage.removeItem(getExamSnapshotKey(testCode));
+              window.localStorage.removeItem(getExamSnapshotKey(testCode, studentIdentity?.id ?? getStudentSession()?.id));
               deadlineRef.current = null;
               autoSubmittedRef.current = false;
               setIsPracticeMode(false);
@@ -762,7 +834,7 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
                 Sorry, the window for this test has closed. This test is no longer accessible and cannot be taken.
               </p>
               {test.endTime ? (
-                <p className="expired-time" style={{ fontSize: 14, color: '#64748b', marginTop: 8 }}>
+                <p className="expired-time" style={{ fontSize: 14, color: 'var(--color-text-secondary)', marginTop: 8 }}>
                   Ended on {new Date(test.endTime).toLocaleString()}
                 </p>
               ) : null}
@@ -803,6 +875,16 @@ export const ExamWrapper: React.FC<ExamWrapperProps> = ({
   return (
     <div className="exam-app">
       {renderCurrentPhase()}
+      {/* Tab-switch warning banner — shown after threshold crossed */}
+      {integrityWarned && currentPhase === 'active' && (
+        <div className="integrity-warning-banner">
+          <AlertTriangle size={16} />
+          <span>
+            Tab switch detected three times. Try to stay on the same tab to avoid
+            getting eliminated from the exam.
+          </span>
+        </div>
+      )}
     </div>
   );
 };

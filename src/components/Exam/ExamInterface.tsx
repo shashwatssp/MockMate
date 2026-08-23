@@ -1,6 +1,6 @@
 // ExamInterface.tsx - Single source of truth exam UI with persistent RHW navigator.
 import { useEffect, useRef, useState } from 'react';
-import { Brain, User, BarChart3, Menu, AlertTriangle, X, Minimize2, Maximize2 } from 'lucide-react';
+import { Brain, User, BarChart3, Menu, AlertTriangle, X, Minimize2, Maximize2, Shield } from 'lucide-react';
 import QuestionDisplay from './QuestionDisplay';
 import QuestionNavigation from './QuestionNavigation';
 import TimerDisplay from './TimerDisplay';
@@ -20,6 +20,9 @@ interface ExamInterfaceProps {
   onSubmitExam: (answers?: StudentAnswer[]) => void;
   onError?: (error: string) => void;
   isPracticeMode?: boolean;
+  tabSwitchCount?: number;
+  integrityWarned?: boolean;
+  preventCopy?: boolean;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
 }
@@ -31,6 +34,8 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
   examTimer,
   onSubmitExam,
   isPracticeMode = false,
+  integrityWarned = false,
+  preventCopy = false,
   isFullscreen,
   onToggleFullscreen,
 }) => {
@@ -170,8 +175,44 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
   const timerWarning =
     examTimer.warnings.oneMinute || examTimer.warnings.fiveMinutes;
 
+  // Copy-prevention: block text selection, copy/cut, and context menu
+  // during proctored exams once the integrity threshold has been crossed.
+  useEffect(() => {
+    if (!preventCopy) return;
+
+    const handleCopy = (e: ClipboardEvent) => { e.preventDefault(); e.stopPropagation(); };
+    const handleContextMenu = (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); };
+    const handleSelectStart = (e: Event) => { e.preventDefault(); e.stopPropagation(); };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && ['c', 'x', 'a', 'v'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    document.addEventListener('copy', handleCopy, true);
+    document.addEventListener('cut', handleCopy, true);
+    document.addEventListener('contextmenu', handleContextMenu, true);
+    document.addEventListener('selectstart', handleSelectStart, true);
+    document.addEventListener('keydown', handleKeyDown, true);
+
+    return () => {
+      document.removeEventListener('copy', handleCopy, true);
+      document.removeEventListener('cut', handleCopy, true);
+      document.removeEventListener('contextmenu', handleContextMenu, true);
+      document.removeEventListener('selectstart', handleSelectStart, true);
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [preventCopy]);
+
   return (
-    <div className="exam-active-screen">
+    <div
+      className={`exam-active-screen${preventCopy ? ' copy-prevented' : ''}`}
+      onCopy={(e) => { if (preventCopy) e.preventDefault(); }}
+      onCut={(e) => { if (preventCopy) e.preventDefault(); }}
+      onContextMenu={(e) => { if (preventCopy) e.preventDefault(); }}
+      onSelectStart={(e) => { if (preventCopy) e.preventDefault(); }}
+    >
       {/* ===== Header (always visible): brand + timer + progress + controls ==== */}
       <header className="exam-header">
         <div className="exam-header-content">
@@ -230,6 +271,17 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
           </div>
         </div>
       </header>
+
+      {/* ===== Tab-switch warning banner ==== */}
+      {integrityWarned && (
+        <div className="integrity-warning-banner">
+          <Shield size={16} />
+          <span>
+            Tab switch detected three times. Try to stay on the same tab to avoid
+            getting eliminated from the exam.
+          </span>
+        </div>
+      )}
 
       {/* ===== Time warning toast (non-blocking, dismissable) ==== */}
       {timerWarning && (

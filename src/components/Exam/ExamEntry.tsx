@@ -27,9 +27,12 @@ interface ExamEntryProps {
   test: Test;
   onStartExam: (studentName: string) => void | Promise<void>;
   onError: (error: string) => void;
-  /** When provided, this student is already authenticated via the batch
-   *  system — the name/email fields are prefilled and locked. */
+/** When provided, this student is already authenticated via the batch
+ *   system — the name/email fields are prefilled and locked. */
   studentIdentity?: StudentIdentity;
+  /** Launch requested as an explicit practice attempt (?practice=1): results
+   *  will NOT be saved for credit. Shows a banner + distinct CTA label. */
+  practiceMode?: boolean;
   timeInfo?: {
     canEnter: boolean;
     timeUntilEntry: number;
@@ -44,6 +47,7 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
   onStartExam, 
   onError,
   studentIdentity,
+  practiceMode = false,
 }) => {
   const [studentName, setStudentName] = useState(studentIdentity ? (studentIdentity.name || studentIdentity.email) : '');
   const [studentEmail, setStudentEmail] = useState(studentIdentity ? (studentIdentity.email) : '');
@@ -192,6 +196,16 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
           <div className="float-element float-3"></div>
         </div>
       </div>
+
+      {practiceMode && (
+        <div className="practice-mode-banner" role="status">
+          <Zap size={16} />
+          <span>
+            <strong>Practice Mode:</strong> you can retake this test — your score
+            will be shown to you but will not affect official records or rankings.
+          </span>
+        </div>
+      )}
 
       <div className="entry-container">
         {/* Left Panel - Test Information */}
@@ -432,7 +446,7 @@ disabled={!!studentIdentity || isLoading}
               ) : (
                 <>
                   <Zap size={20} />
-                  <span>Start Exam Now</span>
+                  <span>{practiceMode ? 'Start Practice Attempt' : 'Start Exam Now'}</span>
                 </>
               )}
             </button>
