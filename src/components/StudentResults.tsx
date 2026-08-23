@@ -5,7 +5,9 @@ import { getStudentSession, setStudentSession } from '../lib/studentSession';
 import type { StudentIdentity } from '../lib/database';
 import type { Test, TestResult } from '../types/exam.types';
 import { Loader2, AlertCircle } from 'lucide-react';
-import './StudentDashboard.css';
+import ExplanationCard from './ExplanationCard';
+import { generateSimplerExplanation, toExplanationInput } from '../lib/geminiDashboard';
+import './StudentResults.css';
 
 // Student-facing review of a previously submitted result, plus a retry link back
 // to the test entry (subject to the active-window rule enforced by ExamWrapper).
@@ -17,6 +19,13 @@ export const StudentResults: React.FC = () => {
   const [me, setMe] = useState<StudentIdentity | null>(getStudentSession());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [simplerExplanations, setSimplerExplanations] = useState<Record<string, string>>({});
+
+  const handleRegenerateSimpler = async (q: NonNullable<Test['questions']>[number]) => {
+    if (!q.explanation || !q.text) return;
+    const simpler = await generateSimplerExplanation(toExplanationInput(q));
+    if (simpler) setSimplerExplanations(prev => ({ ...prev, [q.id]: simpler }));
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -32,7 +41,12 @@ export const StudentResults: React.FC = () => {
         if (!t) throw new Error('Test not found');
         setTest(t);
 
-        const allResults = await getStudentResults(profile.id);
+        // Identity hints let persisted rows saved without a student_id
+        // (older submissions) still match this student across devices.
+        const allResults = await getStudentResults(profile.id, {
+          studentEmail: profile.email,
+          studentName: profile.name ?? undefined,
+        });
         const match = allResults.find(r => r.testId === t.id);
         setResult(match ?? null);
       } catch (err) {
@@ -78,6 +92,11 @@ export const StudentResults: React.FC = () => {
                       Your answer: <b>{selected === undefined || selected === null ? '— (unanswered)' : q.options[selected]}</b>
                       {' '}{selected === undefined || selected === null ? null : (isCorrect ? <span className="student-answer-correct">✓ correct</span> : <span className="student-answer-wrong">✗ correct is {q.options[correct]}</span>)}
                     </div>
+                    <ExplanationCard
+                      className="student-explanation"
+                      explanation={simplerExplanations[q.id] ?? q.explanation}
+                      onRegenerateSimpler={q.explanation && q.text ? () => handleRegenerateSimpler(q) : undefined}
+                    />
                   </div>
                 );
               })}

@@ -1,0 +1,82 @@
+/* StudentResults.css — styles for the student results / report-card view.
+   Previously this component imported StudentDashboard.css by mistake (§4.1);
+   this stylesheet now owns the classes StudentResults renders directly. */
+
+/* Shell + shared */
+.student-shell {
+  min-height: 100vh;
+  padding: 32px clamp(16px, 4vw, 56px);
+  background: linear-gradient(135deg, #f8faff 0%, #eef2ff 100%);
+  color: #172554;
+}
+.student-content { padding: 24px; }
+.student-btn-plain {
+  padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1;
+  background: transparent; cursor: pointer; font-size: 14px;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.student-btn-plain:hover { background: #f1f5f9; }
+.student-error-inline {
+  color: #b91c1b; margin-bottom: 12px; display: flex; gap: 8px; align-items: center;
+  font-size: 14px;
+}
+.student-error-inline span { color: inherit; }
+.student-loading { padding: 32px 16px; text-align: center; }
+.student-empty-text { color: #64748b; padding: 24px; text-align: center; }
+
+/* Result card */
+.student-result-card {
+  border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;
+}
+.student-result-card h2 { margin-top: 0; font-size: 18px; }
+.student-result-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;
+}
+.student-result-stat { display: flex; flex-direction: column; }
+.student-result-stat .stat-label { font-size: 12px; color: #64748b; }
+.student-result-stat .stat-value { font-size: 22px; font-weight: 700; }
+
+/* Answers list */
+.student-test-list { display: grid; gap: 12px; }
+.student-result-details { margin-top: 12px; }
+.student-result-summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.student-result-detail {
+  border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-bottom: 8px;
+}
+.student-result-detail p { font-size: 13px; font-weight: 600; margin: 0 0 4px; }
+.student-answer-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.student-answer-line { font-size: 12px; margin-top: 4px; }
+.student-answer-correct { color: #16a34a; }
+.student-answer-wrong { color: #dc2626; }
+
+/* Save-time AI explanation (§3.1) */
+.student-explanation { margin-top: 8px; }
+.explanation-card { margin-top: 8px; }
+.explanation-summary {
+  cursor: pointer; font-size: 13px; font-weight: 600; color: #2563eb; padding: 4px 0;
+}
+.explanation-summary::before { content: "Show "; }
+.explanation-text {
+  margin: 6px 0 0; padding: 10px; font-size: 13px; line-height: 1.5;
+  color: #334155; background: #f8fafc; border-radius: 6px;
+}
+
+@media (max-width: 560px) {
+  .student-shell { padding: 16px 12px; }
+  .student-result-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .student-shell {
+    background: linear-gradient(135deg, #1e293b 0%, #0f1117 100%);
+    color: #e4e6eb;
+  }
+  .student-result-card,
+  .student-result-detail { background: #1f2937; border-color: #4b5563; }
+  .student-error-inline { color: #fca5a1; }
+  .explanation-text { background: #111827; color: #cbd5e1; }
+  .student-answer-correct { color: #4ade80; }
+  .student-answer-wrong { color: #f87171; }
+  .student-empty-text, .student-muted { color: #94a3b8; }
+  .student-btn-plain:hover { background: #4b5563; }
+}
