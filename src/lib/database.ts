@@ -1,14 +1,16 @@
 import { supabase, callRpc } from './supabase'
-import type { Question, Test, TestResult, TestSettings, TestResultInput, StudentAnswer } from '../types/exam.types'
+import type { Question, Difficulty, Test, TestResult, TestSettings, TestResultInput, StudentAnswer } from '../types/exam.types'
 import { normalizeQuestionKey, normalizeQuestionText } from './questionImport'
 import { scoreQuestions } from './score'
 import {
+  assignCompetitionRanks,
   getBatchByCode as getLocalBatchByCode,
   getBatchById as getLocalBatchById,
   getBatchesForTeacher as getLocalBatchesForTeacher,
   getBatchesForTest as getLocalBatchesForTest,
   getLocalResultsForBatchTest,
   getLocalResultsForStudent,
+  getLocalResultsForTest,
   getPendingEnrollments as getLocalPendingEnrollments,
   getStudentsInBatch as getLocalStudentsInBatch,
   getTeacherSession,
@@ -20,7 +22,6 @@ import {
   getTestIdsForBatch as getLocalTestIdsForBatch,
   hasLocalStudentTakenTest,
   isTestBatchScoped as isLocalTestBatchScoped,
-  localBatchLeaderboard,
   removeStudentFromBatch as removeLocalStudentFromBatch,
   saveLocalTestResult,
   generateBatchCode,
@@ -62,8 +63,85 @@ export const toTeacherUuid = (teacherId: string): string => {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 };
 
+/**
+ * Row shape returned by the `questions` table (snake_case, as read over REST).
+ * Pure mapping helpers below are shared between inserts and selects so the
+ * explanation field is threaded in exactly one place. See
+ * src/lib/__tests__/database.mappers.test.ts.
+ */
+export interface DbQuestionRow {
+  id?: string | null;
+  text: string;
+  options: unknown[];
+  correct_answer: number;
+  topic?: string | null;
+  subject?: string | null;
+  year?: string | null;
+  difficulty?: string | null;
+  image_url?: string | null;
+  explanation?: string | null;
+  ingested_by?: string | null;
+  created_at?: string;
+}
+
+/**
+ * Map a raw DB row (snake_case) into the app's `Question` type (camelCase).
+ * Null values become `undefined` so the optional fields stay type-clean.
+ */
+export const rowToQuestion = (q: { [k: string]: unknown }): Question => ({
+  id: typeof q.id === 'string' ? q.id : undefined,
+  text: typeof q.text === 'string' ? q.text : '',
+  options: Array.isArray(q.options) ? (q.options as string[]) : [],
+  correctAnswer:
+    typeof q.correct_answer === 'number'
+      ? q.correct_answer
+      : Number(q.correct_answer) || 0,
+  topic: typeof q.topic === 'string' ? q.topic : undefined,
+  subject: typeof q.subject === 'string' ? q.subject : undefined,
+  year: typeof q.year === 'string' ? q.year : undefined,
+  difficulty:
+    typeof q.difficulty === 'string' ? (q.difficulty as Difficulty) : undefined,
+  imageUrl: typeof q.image_url === 'string' ? q.image_url : undefined,
+  explanation:
+    typeof q.explanation === 'string' ? q.explanation : undefined,
+});
+
+/**
+ * Map an app-side `Question` (camelCase, without `id`) into the snake_case row
+ * shape expected by the `questions` table + `app_insert_questions` RPC.
+ * `explanation` is only included when present, so saves without one stay
+ * backward-compatible (the REST fallback inserts NULL — the old behaviour).
+ */
+export const questionToRow = (
+  q: Pick<
+    Question,
+    | 'text'
+    | 'options'
+    | 'correctAnswer'
+    | 'topic'
+    | 'subject'
+    | 'year'
+    | 'difficulty'
+    | 'imageUrl'
+    | 'explanation'
+  >,
+): Record<string, unknown> => {
+  const row: Record<string, unknown> = {
+    text: q.text,
+    options: q.options,
+    correct_answer: q.correctAnswer,
+    topic: q.topic,
+    subject: q.subject,
+    year: q.year,
+    difficulty: q.difficulty ?? getDifficulty(q),
+  };
+  if (q.imageUrl) row.image_url = q.imageUrl;
+  if (q.explanation) row.explanation = q.explanation;
+  return row;
+};
+
 // Questions
-export const insertQuestions = async (questions: Omit<Question, 'id'>[]) => {
+export const insertQuestions = async (questions: Omit<Question, 'id'>[]): Promise<Question[]> => {
   if (questions.length === 0) return []
 
   // De-duplicate by normalized text — don't re-insert questions that already
@@ -96,29 +174,21 @@ export const insertQuestions = async (questions: Omit<Question, 'id'>[]) => {
 
   if (newQuestions.length === 0) return []
 
-  const questionsWithDifficulty = newQuestions.map(q => ({
-    text: q.text,
-    options: q.options,
-    correct_answer: q.correctAnswer,
-    topic: q.topic,
-    subject: q.subject,        
-    year: q.year,              
-    difficulty: q.difficulty ?? getDifficulty(q) as 'easy' | 'medium' | 'hard',
-    ...(q.imageUrl ? { image_url: q.imageUrl } : {})
-  }))
+  const questionsWithDifficulty = newQuestions.map(q => questionToRow(q));
 
   // Preferred path: route through the SECURITY DEFINER RPC app_insert_questions.
   // It resolves the teacher from the session token and sets `ingested_by`
   // server-side, bypassing the anonymous RLS policy that rejects non-null
   // `ingested_by` on raw REST inserts (HTTP 42501).
   const token = getTeacherToken();
+  let insertedViaRpc = false;
   if (token) {
     try {
       await callRpc('app_insert_questions', {
         p_token: token,
         p_questions: questionsWithDifficulty,
       });
-      return newQuestions;
+      insertedViaRpc = true;
     } catch (e) {
       console.warn('app_insert_questions RPC failed, falling back to shared insert:', e);
     }
@@ -128,17 +198,112 @@ export const insertQuestions = async (questions: Omit<Question, 'id'>[]) => {
   // set to NULL — the "shared with every teacher" path that the existing RLS
   // policy on `questions` permits for the anon role (proven by live test:
   // HTTP 201).
+  const withIds = (questions: Array<Omit<Question, 'id'> & { id?: string }>): Question[] =>
+    questions as Question[];
+
+  if (!insertedViaRpc) {
+    const { data, error } = await supabase
+      .from('questions')
+      .insert(questionsWithDifficulty.map(q => ({ ...q, ingested_by: null })))
+      .select()
+
+    if (error) {
+      console.error('Error inserting questions:', error)
+      throw error
+    }
+    // Normalize the raw snake_case rows so every caller gets the camelCase
+    // Question shape (with ids) regardless of which insert path ran.
+    return (data ?? []).map(row => rowToQuestion(row as Record<string, unknown>));
+  }
+
+  // The RPC doesn't echo the inserted rows back — resolve the saved ids by
+  // exact text so callers (e.g. background explanation/image enrichment) can
+  // backfill the right bank row. Best-effort: on failure we still return the
+  // questions, just without ids.
+  try {
+    const { data: savedRows, error: lookupError } = await supabase
+      .from('questions')
+      .select('*')
+      .in('text', newQuestions.map(q => q.text));
+    if (lookupError || !savedRows?.length) return withIds(newQuestions);
+    const rowByExactText = new Map<string, Record<string, unknown>>();
+    for (const row of savedRows as Record<string, unknown>[]) {
+      const key = typeof row.text === 'string' ? row.text : '';
+      if (!rowByExactText.has(key)) rowByExactText.set(key, row);
+    }
+    return withIds(newQuestions.map(question => {
+      const row = rowByExactText.get(question.text);
+      return row ? rowToQuestion(row) : question;
+    }));
+  } catch (lookupError) {
+    console.warn('Unable to resolve inserted question ids:', lookupError);
+    return withIds(newQuestions);
+  }
+}
+
+/** Look up a question's DB id by its (unique) text content. */
+export const findQuestionIdByText = async (text: string): Promise<string | null> => {
   const { data, error } = await supabase
     .from('questions')
-    .insert(questionsWithDifficulty.map(q => ({ ...q, ingested_by: null })))
-    .select()
+    .select('id')
+    .eq('text', text)
+    .maybeSingle();
+  if (error || !data) return null;
+  return (data as { id: string }).id ?? null;
+};
 
-  if (error) {
-    console.error('Error inserting questions:', error)
-    throw error
+/** Backfill a generated explanation onto a saved question (fire-and-forget after save).
+ * Resolves the teacher token when present; for anonymous sessions the REST path is
+ * used best-effort. Never throws — failures are logged and silently ignored. */
+export const updateQuestionExplanation = async (questionId: string, explanation: string): Promise<void> => {
+  const token = getTeacherToken();
+  if (token) {
+    try {
+      await callRpc('app_update_question', {
+        p_token: token,
+        p_question_id: questionId,
+        p_updates: { explanation },
+      });
+      return;
+    } catch (err) {
+      console.warn('[updateQuestionExplanation] RPC failed, trying REST fallback:', err);
+    }
   }
-  return data
-}
+  // REST fallback for anon role (best-effort; will 401/403 if RLS blocks).
+  const { error } = await supabase
+    .from('questions')
+    .update({ explanation } as Record<string, unknown>)
+    .eq('id', questionId);
+  if (error) {
+    console.warn('[updateQuestionExplanation] REST update failed:', error);
+  }
+};
+
+/** Backfill an uploaded image URL onto a saved question (fire-and-forget after save).
+ * Mirrors `updateQuestionExplanation`: RPC preferred, REST fallback, never throws. */
+export const updateQuestionImage = async (questionId: string, imageUrl: string): Promise<void> => {
+  const token = getTeacherToken();
+  if (token) {
+    try {
+      await callRpc('app_update_question', {
+        p_token: token,
+        p_question_id: questionId,
+        p_updates: { image_url: imageUrl },
+      });
+      return;
+    } catch (err) {
+      console.warn('[updateQuestionImage] RPC failed, trying REST fallback:', err);
+    }
+  }
+  // REST fallback for anon role (best-effort; will 401/403 if RLS blocks).
+  const { error } = await supabase
+    .from('questions')
+    .update({ image_url: imageUrl } as Record<string, unknown>)
+    .eq('id', questionId);
+  if (error) {
+    console.warn('[updateQuestionImage] REST update failed:', error);
+  }
+};
 
 /** Upload a question image to the public `questions` storage bucket and return its public URL. */
 export const uploadQuestionImage = async (file: File): Promise<string> => {
@@ -165,17 +330,7 @@ export const getQuestions = async () => {
   }
 
   // Transform to match your Question interface
-  return data.map(q => ({
-    id: q.id,
-    text: q.text,
-    options: q.options,
-    correctAnswer: q.correct_answer,
-    topic: q.topic,
-    subject: q.subject,        
-    year: q.year,              
-    difficulty: q.difficulty,
-    imageUrl: q.image_url
-  })) as Question[]
+  return data.map(q => rowToQuestion(q)) as Question[]
 }
 
 /** Generates a 4-letter random test key (e.g. "A3F9"). */
@@ -228,17 +383,7 @@ export const getQuestionsByFilters = async (filters: {
 
   if (error) throw error
 
-  return data.map(q => ({
-    id: q.id,
-    text: q.text,
-    options: q.options,
-    correctAnswer: q.correct_answer,
-    topic: q.topic,
-    subject: q.subject,       
-    year: q.year,             
-    difficulty: q.difficulty,
-    imageUrl: q.image_url
-  })) as Question[]
+  return data.map(q => rowToQuestion(q)) as Question[]
 }
 
 // Keep your existing getQuestionsByTopic for backward compatibility
@@ -286,16 +431,7 @@ export const getPaginatedQuestions = async ({
     throw error;
   }
 
-  const questions = (data ?? []).map(q => ({
-    id: q.id,
-    text: q.text,
-    options: q.options,
-    correctAnswer: q.correct_answer,
-    topic: q.topic,
-    subject: q.subject,
-    year: q.year,
-    imageUrl: q.image_url,
-  })) as Question[];
+  const questions = (data ?? []).map(q => rowToQuestion(q)) as Question[];
 
   const total = count ?? 0;
   return {
@@ -451,7 +587,76 @@ export const getAllTests = async () => {
   })
 }
 
-// Test Results (unchanged)
+/** `test_results.time_taken` is an integer column — a fractional value
+ *  (e.g. 24.456s from wall-clock math) makes EVERY insert fail with
+ *  `22P02 invalid input syntax for type integer`. Coerce to whole seconds
+ *  here so the attempt is always savable. */
+const toWholeSeconds = (value: unknown): number | undefined => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.max(0, Math.round(value));
+};
+
+/** Persist an attempt to `test_results`, retrying with progressively fewer
+ *  identity columns. Core columns are always valid (no FK dependencies);
+ *  student_id/batch_id carry FKs to students/batches and app-side session ids
+ *  are not guaranteed to exist there — a bad value must degrade attribution,
+ *  never lose the attempt. Returns the inserted row, or null if all variants
+ *  failed. */
+const insertResultRowToSupabase = async (
+  result: TestResultInput,
+): Promise<Record<string, unknown> | null> => {
+  const roundedTimeTaken = toWholeSeconds(result.timeTaken);
+  const coreRow = {
+    test_id: result.testId,
+    student_name: result.studentName,
+    answers: result.answers,
+    score: result.score,
+    total_questions: result.totalQuestions,
+    ...(roundedTimeTaken != null ? { time_taken: roundedTimeTaken } : {}),
+  };
+  const insertVariants: Array<{ label: string; row: Record<string, unknown> }> = [
+    {
+      label: 'with identity',
+      row: {
+        ...coreRow,
+        ...(result.studentId ? { student_id: result.studentId } : {}),
+        ...(result.batchId ? { batch_id: result.batchId } : {}),
+        ...(result.studentEmail ? { student_email: result.studentEmail } : {}),
+      },
+    },
+    {
+      // Retry without student_id — the likeliest FK offender (session id not
+      // present in public.students). Email still attributes the attempt.
+      label: 'without student_id',
+      row: {
+        ...coreRow,
+        ...(result.batchId ? { batch_id: result.batchId } : {}),
+        ...(result.studentEmail ? { student_email: result.studentEmail } : {}),
+      },
+    },
+    {
+      // Final fallback: core columns only (same shape legacy rows had).
+      label: 'core only',
+      row: coreRow,
+    },
+  ];
+
+  for (const variant of insertVariants) {
+    const { data, error } = await supabase
+      .from('test_results')
+      .insert([variant.row])
+      .select();
+    if (!error && data?.length) return data[0];
+    if (error) {
+      console.warn(
+        `[insertResultRowToSupabase] insert failed (${variant.label}); trying next fallback:`,
+        error.message,
+      );
+    }
+  }
+  return null;
+};
+
 export const saveTestResult = async (result: TestResultInput) => {
   const local = await saveLocalTestResult({
     testId: result.testId,
@@ -466,38 +671,26 @@ export const saveTestResult = async (result: TestResultInput) => {
     timeTaken: result.timeTaken,
   });
 
-  const { data, error } = await supabase
-    .from('test_results')
-    .insert([{
-      test_id: result.testId,
-      student_name: result.studentName,
-      answers: result.answers,
-      score: result.score,
-      total_questions: result.totalQuestions,
-      ...(result.timeTaken != null ? { time_taken: result.timeTaken } : {}),
-      ...(result.studentId ? { student_id: result.studentId } : {}),
-      ...(result.batchId ? { batch_id: result.batchId } : {}),
-      ...(result.studentEmail ? { student_email: result.studentEmail } : {}),
-    }])
-    .select()
+  const saved = await insertResultRowToSupabase(result);
+  if (saved) return saved;
 
-  if (error) {
-    return {
-      id: local.id,
-      test_id: local.testId,
-      student_name: local.studentName,
-      student_id: local.studentId,
-      batch_id: local.batchId,
-      student_email: local.studentEmail,
-      answers: local.answers,
-      score: local.score,
-      total_questions: local.totalQuestions,
-      time_taken: local.timeTaken,
-      completed_at: local.completedAt,
-    };
-  }
-  return data[0]
-}
+  // Persistence failed entirely — keep the historical behaviour: surface the
+  // local row so the exam flow completes (syncPendingLocalResults will retry
+  // the upload later from this student's dashboard).
+  return {
+    id: local.id,
+    test_id: local.testId,
+    student_name: local.studentName,
+    student_id: local.studentId,
+    batch_id: local.batchId,
+    student_email: local.studentEmail,
+    answers: local.answers,
+    score: local.score,
+    total_questions: local.totalQuestions,
+    time_taken: local.timeTaken,
+    completed_at: local.completedAt,
+  };
+};
 
 export const hasStudentTakenTest = async (testId: string, studentName: string) => {
   const normalizedName = studentName.trim().toLocaleLowerCase();
@@ -555,6 +748,126 @@ export const getTestById = async (testId: string) => {
   } as Test;
 };
 
+// ---------------------------------------------------------------------------
+// Test results — Supabase `test_results` is the source of truth for persisted
+// attempts. Every device writes there on submit (saveTestResult), so teacher
+// analytics, batch results and leaderboards read from the DB instead of the
+// reviewing browser's localStorage. localStorage rows are merged in as a
+// fallback for attempts that never reached the DB. Scoring stays client-side
+// via scoreQuestions (per the current architecture).
+// ---------------------------------------------------------------------------
+
+/** Raw `test_results` row shape (snake_case) as returned over REST. */
+interface SupabaseResultRow {
+  id: string;
+  test_id: string;
+  student_id?: string | null;
+  student_name?: string | null;
+  student_email?: string | null;
+  batch_id?: string | null;
+  answers?: unknown;
+  score?: number | null;
+  total_questions?: number | null;
+  time_taken?: number | null;
+  completed_at?: string;
+}
+
+/** Fetch every persisted attempt for a test, newest first. */
+const fetchSupabaseResultsForTest = async (testId: string): Promise<SupabaseResultRow[]> => {
+  const { data, error } = await supabase
+    .from('test_results')
+    .select('*')
+    .eq('test_id', testId)
+    .order('completed_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as SupabaseResultRow[];
+};
+
+/** Normalized identity keys for deduping attempts across stores. */
+const resultIdentityKeys = (parts: {
+  studentId?: string | null;
+  studentEmail?: string | null;
+  studentName?: string | null;
+}): string[] => {
+  const normalize = (value?: string | null) => String(value ?? '').trim().toLowerCase();
+  return Array.from(new Set(
+    [parts.studentId, parts.studentEmail, parts.studentName]
+      .map(normalize)
+      .filter(Boolean),
+  ));
+};
+
+/** True when two attempt rows plausibly describe the same submission: they
+ *  share a student identity AND completed within a small window (the local row
+ *  is the same attempt that was persisted, written seconds apart). */
+const COMPLETION_MATCH_WINDOW_MS = 15_000;
+const isSameAttempt = (
+  a: { studentId?: string | null; studentEmail?: string | null; studentName?: string | null; completedAt: string | Date },
+  b: { studentId?: string | null; studentEmail?: string | null; studentName?: string | null; completedAt: string | Date },
+): boolean => {
+  const keysA = resultIdentityKeys(a);
+  const keysB = new Set(resultIdentityKeys(b));
+  if (!keysA.some(key => keysB.has(key))) return false;
+  const timeA = new Date(a.completedAt).getTime();
+  const timeB = new Date(b.completedAt).getTime();
+  if (Number.isNaN(timeA) || Number.isNaN(timeB)) return false;
+  return Math.abs(timeA - timeB) <= COMPLETION_MATCH_WINDOW_MS;
+};
+
+/** Score one attempt against the test's questions (client-side scoring) and
+ *  map it into the app's TestResult shape. Works for both raw Supabase rows
+ *  (pre-normalized) and local rows. */
+const mapAttemptToTestResult = (
+  attempt: {
+    id: string;
+    testId: string;
+    studentName?: string | null;
+    studentId?: string | null;
+    batchId?: string | null;
+    studentEmail?: string | null;
+    answers: unknown;
+    timeTaken?: number | null;
+    completedAt: string | Date;
+  },
+  testQuestions: Question[],
+): TestResult => {
+  const answers = Array.isArray(attempt.answers) ? (attempt.answers as StudentAnswer[]) : [];
+  const scored = scoreQuestions(testQuestions, answers);
+  const recordedQuestionTime = answers.reduce(
+    (sum, answer) => {
+      const timeSpent = answer.timeSpent;
+      return sum + (
+        typeof timeSpent === 'number' &&
+        Number.isFinite(timeSpent) &&
+        timeSpent > 0
+          ? timeSpent
+          : 0
+      );
+    },
+    0,
+  );
+
+  return {
+    id: attempt.id,
+    testId: attempt.testId,
+    studentName: attempt.studentName ?? 'Student',
+    ...(attempt.studentId ? { studentId: attempt.studentId } : {}),
+    ...(attempt.batchId ? { batchId: attempt.batchId } : {}),
+    ...(attempt.studentEmail ? { studentEmail: attempt.studentEmail } : {}),
+    answers,
+    score: scored.score,
+    totalMarks: scored.totalMarks,
+    totalQuestions: testQuestions.length,
+    correctAnswers: scored.correctAnswers,
+    incorrectAnswers: scored.incorrectAnswers,
+    unansweredQuestions: scored.unansweredQuestions,
+    percentage: scored.percentage,
+    timeTaken: attempt.timeTaken ?? recordedQuestionTime,
+    completedAt: new Date(attempt.completedAt),
+    isPractice: false,
+  } as TestResult;
+};
+
 export const getTestResults = async (testId: string) => {
   // Fetch the test instance so we can read the per-question marks assigned at
   // test creation. Bank questions no longer carry marks, so the total must be
@@ -562,49 +875,23 @@ export const getTestResults = async (testId: string) => {
   const test = await getTestById(testId);
   const testQuestions: Question[] = (test?.questions ?? []) as Question[];
 
-  const { data, error } = await supabase
-    .from('test_results')
-    .select('*')
-    .eq('test_id', testId)
-    .order('completed_at', { ascending: false });
-
-  if (error) throw error;
-
-  return data.map(result => {
-    const answers = Array.isArray(result.answers)
-      ? (result.answers as StudentAnswer[])
-      : [];
-    const scored = scoreQuestions(testQuestions, answers);
-    const recordedQuestionTime = answers.reduce(
-      (sum, answer) => {
-        const timeSpent = answer.timeSpent;
-        return sum + (
-          typeof timeSpent === 'number' &&
-          Number.isFinite(timeSpent) &&
-          timeSpent > 0
-            ? timeSpent
-            : 0
-        );
+  const rows = await fetchSupabaseResultsForTest(testId);
+  return rows.map(row =>
+    mapAttemptToTestResult(
+      {
+        id: row.id,
+        testId: row.test_id,
+        studentName: row.student_name,
+        studentId: row.student_id ?? undefined,
+        batchId: row.batch_id ?? undefined,
+        studentEmail: row.student_email ?? undefined,
+        answers: row.answers,
+        timeTaken: row.time_taken,
+        completedAt: row.completed_at ?? new Date().toISOString(),
       },
-      0
-    );
-
-    return {
-      id: result.id,
-      testId: result.test_id,
-      studentName: result.student_name,
-      answers,
-      score: scored.score,
-      totalMarks: scored.totalMarks,
-      totalQuestions: testQuestions.length,
-      correctAnswers: scored.correctAnswers,
-      incorrectAnswers: scored.incorrectAnswers,
-      unansweredQuestions: scored.unansweredQuestions,
-      percentage: scored.percentage,
-      timeTaken: result.time_taken ?? recordedQuestionTime,
-      completedAt: new Date(result.completed_at)
-    } as TestResult;
-  });
+      testQuestions,
+    ),
+  );
 };
 
 // Helper function
@@ -925,6 +1212,10 @@ export const getBatchesForTest = async (testId: string): Promise<BatchRow[]> => 
   return callRpc<BatchRow[]>('app_batches_for_test', { p_test_id: testId, p_token: token });
 };
 
+/** Re-export local results lookup so callers (e.g. Dashboard) can merge
+ * local-only attempt counts with Supabase results when needed. */
+export { getLocalResultsForTest };
+
 const mapRowToTest = (test: Record<string, unknown>): Test => {
   const settings = (test.settings ?? {}) as TestSettings;
   return {
@@ -962,47 +1253,123 @@ export const getTestsForBatch = async (batchId: string) => {
 };
 
 export const batchLeaderboard = async (testId: string, batchId: string): Promise<BatchLeaderboardEntry[]> => {
-  const test = await getTestById(testId);
-  const questions: Question[] = (test?.questions ?? []) as Question[];
-  return localBatchLeaderboard(testId, batchId, (answers) =>
-    scoreQuestions(questions, Array.isArray(answers) ? answers as StudentAnswer[] : []),
+  // Rank from the DB-backed merged result set (Supabase rows + local-only
+  // fallback). Scoring happens client-side via scoreQuestions inside
+  // getBatchResults.
+  const results = await getBatchResults(testId, batchId);
+
+  // One entry per student — keep each student's best attempt.
+  const bestByStudent = new Map<string, BatchLeaderboardEntry>();
+  for (const result of results) {
+    const identityKey =
+      resultIdentityKeys({
+        studentId: result.studentId,
+        studentEmail: result.studentEmail,
+        studentName: result.studentName,
+      })[0] ?? result.id;
+    const entry: BatchLeaderboardEntry = {
+      rank: 0,
+      percentile: 0,
+      studentId: result.studentId ?? result.studentEmail ?? result.studentName ?? result.id,
+      email: result.studentEmail ?? result.studentName ?? '',
+      username: result.studentEmail ?? result.studentName ?? '',
+      name: result.studentName ?? null,
+      score: result.score,
+      totalMarks: result.totalMarks ?? 0,
+      percentage: result.percentage,
+      completedAt: result.completedAt.toISOString(),
+    };
+    const existing = bestByStudent.get(identityKey);
+    if (!existing || entry.percentage > existing.percentage) {
+      bestByStudent.set(identityKey, entry);
+    }
+  }
+
+  const entries = Array.from(bestByStudent.values()).sort((a, b) =>
+    b.percentage - a.percentage ||
+    a.completedAt.localeCompare(b.completedAt),
   );
+
+  // Competition ranking: equal percentages share the same rank (1,1,3…).
+  // Percentile is rank-derived so it reflects standing among peers, never the
+  // raw score (a 25% score must not read as "25th percentile"). Shared helper
+  // with localAuth.localBatchLeaderboard so both paths stay in lockstep.
+  return assignCompetitionRanks(entries);
 };
 
 export const getBatchResults = async (testId: string, batchId: string) => {
   const test = await getTestById(testId);
   const testQuestions: Question[] = (test?.questions ?? []) as Question[];
-  const rows = await getLocalResultsForBatchTest(testId, batchId);
 
-  return rows.map(result => {
-    const answers = Array.isArray(result.answers) ? (result.answers as StudentAnswer[]) : [];
-    const scored = scoreQuestions(testQuestions, answers);
-    const recordedQuestionTime = answers.reduce(
-      (sum, answer) => {
-        const timeSpent = answer.timeSpent;
-        return sum + (typeof timeSpent === 'number' && Number.isFinite(timeSpent) && timeSpent > 0 ? timeSpent : 0);
-      },
-      0,
+  // 1) Persisted attempts from Supabase — visible to every browser (teacher
+  //    included), not just the device the student used.
+  let dbRows: SupabaseResultRow[] = [];
+  try {
+    dbRows = await fetchSupabaseResultsForTest(testId);
+  } catch (error) {
+    console.warn('Unable to load persisted test results; falling back to local results:', error);
+  }
+
+  // When the test is assigned to batches, scope the view to this batch.
+  // Rows without a batch_id are kept so direct-link attempts never vanish
+  // from the teacher's view (conservative: prefer extra rows over missing).
+  const batchScoped = await isTestBatchScoped(testId);
+  const dbResults = dbRows
+    .filter(row => !batchScoped || !row.batch_id || row.batch_id === batchId)
+    .map(row =>
+      mapAttemptToTestResult(
+        {
+          id: row.id,
+          testId: row.test_id,
+          studentName: row.student_name,
+          studentId: row.student_id ?? undefined,
+          batchId: row.batch_id ?? undefined,
+          studentEmail: row.student_email ?? undefined,
+          answers: row.answers,
+          timeTaken: row.time_taken,
+          completedAt: row.completed_at ?? new Date().toISOString(),
+        },
+        testQuestions,
+      ),
     );
-    return {
-      id: result.id,
-      testId: result.testId,
-      studentName: result.studentName,
-      studentId: result.studentId,
-      batchId: result.batchId,
-      studentEmail: result.studentEmail,
-      answers,
-      score: scored.score,
-      totalMarks: scored.totalMarks,
-      totalQuestions: testQuestions.length,
-      correctAnswers: scored.correctAnswers,
-      incorrectAnswers: scored.incorrectAnswers,
-      unansweredQuestions: scored.unansweredQuestions,
-      percentage: scored.percentage,
-      timeTaken: result.timeTaken ?? recordedQuestionTime,
-      completedAt: new Date(result.completedAt),
-    } as TestResult;
-  });
+
+  // 2) Merge device-local rows that never made it to the DB (offline saves,
+  //    legacy demo data). A local row already represented by a persisted row
+  //    (same identity + ~same completion time) is dropped — the DB row wins.
+  const localRows = await getLocalResultsForBatchTest(testId, batchId).catch(() => []);
+  const localResults = localRows
+    .filter(localRow => !dbRows.some(dbRow => isSameAttempt(
+      {
+        studentId: localRow.studentId,
+        studentEmail: localRow.studentEmail,
+        studentName: localRow.studentName,
+        completedAt: localRow.completedAt,
+      },
+      {
+        studentId: dbRow.student_id,
+        studentEmail: dbRow.student_email,
+        studentName: dbRow.student_name,
+        completedAt: dbRow.completed_at ?? '',
+      },
+    )))
+    .map(row =>
+      mapAttemptToTestResult(
+        {
+          id: row.id,
+          testId: row.testId,
+          studentName: row.studentName,
+          studentId: row.studentId,
+          batchId: row.batchId ?? undefined,
+          studentEmail: row.studentEmail,
+          answers: row.answers,
+          timeTaken: row.timeTaken,
+          completedAt: row.completedAt,
+        },
+        testQuestions,
+      ),
+    );
+
+  return [...dbResults, ...localResults];
 };
 
 export const isTestBatchScoped = async (testId: string): Promise<boolean> => {
@@ -1016,33 +1383,176 @@ export const isTestBatchScoped = async (testId: string): Promise<boolean> => {
   }
 };
 export const setTestBatches = assignTestToBatches;
-export const getStudentResults = async (studentId: string) => {
-  const rows = await getLocalResultsForStudent(studentId);
-  const out: TestResult[] = [];
-  for (const row of rows) {
-    const test = await getTestById(row.testId);
-    const questions: Question[] = (test?.questions ?? []) as Question[];
-    const answers = Array.isArray(row.answers) ? (row.answers as StudentAnswer[]) : [];
-    const scored = scoreQuestions(questions, answers);
-    out.push({
+export interface StudentResultsHints {
+  /** Student's email — matches rows saved before student_id was recorded. */
+  studentEmail?: string | null;
+  /** Student's display name — last-resort match for legacy rows. */
+  studentName?: string | null;
+}
+
+/** Backfill attempts that were saved on-device but never reached `test_results`
+ *  (offline submissions, historical FK failures). Called best-effort when a
+ *  student opens their dashboard; skips tests that already have any persisted
+ *  row for this student so repeat loads never duplicate rows. Returns the
+ *  number of newly persisted attempts. */
+export const syncPendingLocalResults = async (
+  studentId: string,
+  hints: StudentResultsHints = {},
+): Promise<number> => {
+  try {
+    const [localRows, dbRows] = await Promise.all([
+      getLocalResultsForStudent(studentId),
+      fetchSupabaseResultsForStudent(studentId, hints),
+    ]);
+    const persistedTests = new Set(dbRows.map(row => row.test_id));
+    let synced = 0;
+    for (const row of localRows) {
+      if (!row.testId || persistedTests.has(row.testId)) continue;
+      const saved = await insertResultRowToSupabase({
+        testId: row.testId,
+        studentName: row.studentName,
+        answers: Array.isArray(row.answers) ? (row.answers as StudentAnswer[]) : [],
+        score: row.score,
+        totalQuestions: row.totalQuestions,
+        timeTaken: row.timeTaken,
+        ...(studentId ? { studentId } : {}),
+        ...(row.batchId ? { batchId: row.batchId } : {}),
+        ...(row.studentEmail ? { studentEmail: row.studentEmail } : {}),
+      });
+      if (saved) {
+        persistedTests.add(row.testId);
+        synced += 1;
+      }
+    }
+    if (synced > 0) {
+      console.info(`[syncPendingLocalResults] uploaded ${synced} previously-local attempt(s)`);
+    }
+    return synced;
+  } catch (error) {
+    console.warn('[syncPendingLocalResults] best-effort sync failed:', error);
+    return 0;
+  }
+};
+
+/** Fetch persisted attempts for a student from every device: by student_id,
+ *  plus best-effort email/name matches for rows saved without a student_id. */
+const fetchSupabaseResultsForStudent = async (
+  studentId: string,
+  hints: StudentResultsHints,
+): Promise<SupabaseResultRow[]> => {
+  const empty = { data: [] as SupabaseResultRow[], error: null };
+  const batches = await Promise.all([
+    studentId
+      ? supabase.from('test_results').select('*').eq('student_id', studentId)
+      : Promise.resolve(empty),
+    hints.studentEmail
+      ? supabase.from('test_results').select('*').ilike('student_email', hints.studentEmail)
+      : Promise.resolve(empty),
+    hints.studentName
+      ? supabase.from('test_results').select('*').ilike('student_name', hints.studentName)
+      : Promise.resolve(empty),
+  ]);
+  const merged = new Map<string, SupabaseResultRow>();
+  for (const batch of batches) {
+    if (batch.error) {
+      console.warn('Unable to load persisted student results:', batch.error);
+      continue;
+    }
+    for (const row of (batch.data ?? []) as SupabaseResultRow[]) {
+      merged.set(row.id, row);
+    }
+  }
+  return Array.from(merged.values()).sort((a, b) =>
+    String(b.completed_at ?? '').localeCompare(String(a.completed_at ?? '')),
+  );
+};
+
+export const getStudentResults = async (
+  studentId: string,
+  hints: StudentResultsHints = {},
+): Promise<TestResult[]> => {
+  const mapAll = async (
+    attempts: Array<{
+      id: string;
+      testId: string;
+      studentName?: string | null;
+      studentId?: string | null;
+      batchId?: string | null;
+      studentEmail?: string | null;
+      answers: unknown;
+      timeTaken?: number | null;
+      completedAt: string;
+    }>,
+  ): Promise<TestResult[]> => {
+    const out: TestResult[] = [];
+    for (const attempt of attempts) {
+      const test = await getTestById(attempt.testId);
+      const questions: Question[] = (test?.questions ?? []) as Question[];
+      out.push(mapAttemptToTestResult(attempt, questions));
+    }
+    return out;
+  };
+
+  const localRows = await getLocalResultsForStudent(studentId).catch(() => []);
+  let dbRows: SupabaseResultRow[] = [];
+  try {
+    dbRows = await fetchSupabaseResultsForStudent(studentId, hints);
+  } catch (error) {
+    console.warn('Unable to load persisted student results; using local results only:', error);
+  }
+
+  // Persisted attempts (source of truth)…
+  const dbResults = await mapAll(dbRows.map(row => ({
+    id: row.id,
+    testId: row.test_id,
+    studentName: row.student_name,
+    studentId: row.student_id ?? studentId,
+    batchId: row.batch_id ?? undefined,
+    studentEmail: row.student_email ?? undefined,
+    answers: row.answers,
+    timeTaken: row.time_taken,
+    completedAt: row.completed_at ?? new Date().toISOString(),
+  })));
+
+  // …then local-only attempts that were never persisted (offline saves /
+  // legacy data), deduped conservatively against the persisted rows.
+  const localResults = await mapAll(localRows
+    .filter(localRow => !dbRows.some(dbRow => isSameAttempt(
+      {
+        studentId: localRow.studentId,
+        studentEmail: localRow.studentEmail,
+        studentName: localRow.studentName,
+        completedAt: localRow.completedAt,
+      },
+      {
+        studentId: dbRow.student_id,
+        studentEmail: dbRow.student_email,
+        studentName: dbRow.student_name,
+        completedAt: dbRow.completed_at ?? '',
+      },
+    )))
+    .map(row => ({
       id: row.id,
       testId: row.testId,
       studentName: row.studentName,
       studentId: row.studentId,
       batchId: row.batchId ?? undefined,
       studentEmail: row.studentEmail,
-      answers,
-      score: scored.score,
-      totalMarks: scored.totalMarks,
-      totalQuestions: questions.length,
-      correctAnswers: scored.correctAnswers,
-      incorrectAnswers: scored.incorrectAnswers,
-      unansweredQuestions: scored.unansweredQuestions,
-      percentage: scored.percentage,
-      timeTaken: row.timeTaken ?? 0,
-      completedAt: new Date(row.completedAt),
-      isPractice: false,
-    } as TestResult);
+      answers: row.answers,
+      timeTaken: row.timeTaken,
+      completedAt: row.completedAt,
+    })));
+
+  // Collapse to ONE result per test (latest attempt wins). Repeat submissions
+  // (re-takes, retries, dev re-runs) previously inflated "Tests attempted"
+  // above the number of assigned tests.
+  const latestByTest = new Map<string, TestResult>();
+  for (const result of [...dbResults, ...localResults].sort(
+    (a, b) => a.completedAt.getTime() - b.completedAt.getTime(),
+  )) {
+    latestByTest.set(result.testId, result);
   }
-  return out;
+  return Array.from(latestByTest.values()).sort(
+    (a, b) => b.completedAt.getTime() - a.completedAt.getTime(),
+  );
 };

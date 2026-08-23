@@ -1,0 +1,16 @@
+# Supabase
+.branches
+.temp
+.migrations
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local
+
+# Database migrations — managed locally, not committed to this repo
+20260823120000_app_update_question.sql
+20260816172100_batch_student_system.sql
+20260818190700_app_insert_questions.sql
+20260822200000_add_question_explanation.sql
+20260823000000_dashboard_insights.sql
