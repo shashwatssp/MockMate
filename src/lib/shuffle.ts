@@ -58,14 +58,18 @@ export const makeShuffleSeed = (testId: string, studentName: string): string =>
  * Returns a *new* `Test` whose `questions` array is deterministically shuffled
  * when `settings.randomizeQuestions` is truthy. The original test is untouched.
  */
-export const shuffleTestQuestions = (
-  test: { id: string; questions: unknown[]; settings?: { randomizeQuestions?: boolean } },
+// Generic over the caller's test shape so a fully-typed `Test` keeps its
+// precise `Question[]` element type after the shuffle.
+export const shuffleTestQuestions = <
+  T extends { id: string; questions: unknown[]; settings?: { randomizeQuestions?: boolean } },
+>(
+  test: T,
   studentName: string,
-): typeof test => {
+): T => {
   if (!test.settings?.randomizeQuestions) return test;
   const seed = makeShuffleSeed(test.id, studentName);
   return {
     ...test,
-    questions: seededShuffle(test.questions as unknown[], seed) as unknown[],
+    questions: seededShuffle(test.questions, seed),
   };
 };

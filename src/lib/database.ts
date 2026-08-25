@@ -86,19 +86,20 @@ export interface DbQuestionRow {
 
 /**
  * Map a raw DB row (snake_case) into the app's `Question` type (camelCase).
- * Null values become `undefined` so the optional fields stay type-clean.
+ * Required columns fall back to safe defaults ('' / 'General'); truly optional
+ * fields become `undefined`.
  */
 export const rowToQuestion = (q: { [k: string]: unknown }): Question => ({
-  id: typeof q.id === 'string' ? q.id : undefined,
+  id: typeof q.id === 'string' ? q.id : '',
   text: typeof q.text === 'string' ? q.text : '',
   options: Array.isArray(q.options) ? (q.options as string[]) : [],
   correctAnswer:
     typeof q.correct_answer === 'number'
       ? q.correct_answer
       : Number(q.correct_answer) || 0,
-  topic: typeof q.topic === 'string' ? q.topic : undefined,
-  subject: typeof q.subject === 'string' ? q.subject : undefined,
-  year: typeof q.year === 'string' ? q.year : undefined,
+  topic: typeof q.topic === 'string' ? q.topic : 'General',
+  subject: typeof q.subject === 'string' ? q.subject : 'General',
+  year: typeof q.year === 'string' ? q.year : '',
   difficulty:
     typeof q.difficulty === 'string' ? (q.difficulty as Difficulty) : undefined,
   imageUrl: typeof q.image_url === 'string' ? q.image_url : undefined,
@@ -156,15 +157,23 @@ export const insertQuestions = async (questions: Omit<Question, 'id'>[]): Promis
 
   const { data: existingQuestions, error: existingError } = await supabase
     .from('questions')
-    .select('text')
+    .select('text, ingested_by')
 
   if (existingError) {
     console.error('Error checking existing questions:', existingError)
     throw existingError
   }
 
+  // Dedup only against questions the inserting teacher can SEE. Without this,
+  // a new private question identical to another teacher's PRIVATE question
+  // would be silently skipped as a duplicate.
+  const teacher = getTeacherSession();
+  const visibleExisting = (existingQuestions || []).filter(row =>
+    visibleToTeacher(row.ingested_by as string | null, teacher?.username ?? null),
+  );
+
   const existingKeys = new Set(
-    (existingQuestions || [])
+    visibleExisting
       .map(question => normalizeQuestionKey(normalizeQuestionText(question.text)))
       .filter(Boolean)
   )
@@ -190,14 +199,25 @@ export const insertQuestions = async (questions: Omit<Question, 'id'>[]): Promis
       });
       insertedViaRpc = true;
     } catch (e) {
-      console.warn('app_insert_questions RPC failed, falling back to shared insert:', e);
+      // Visibility rule: whatever a signed-in teacher pushes is PRIVATE to
+      // them (visible only to their own username unless the account is the
+      // designated public 'teacher' bank). The only insert the anon REST role
+      // can perform sets `ingested_by = NULL` — the shared-with-everyone pool
+      // — which would wrongly PUBLISH this teacher's private questions to
+      // every teacher. So we must NOT silently fall back: fail loudly and
+      // point at the deployable RPC script instead.
+      console.error('app_insert_questions RPC failed:', e);
+      throw new Error(
+        'Your questions could not be saved privately because the app_insert_questions RPC is missing on the server. '
+        + 'Run supabase/migrations/20260826090000_deploy_question_rpcs_and_visibility.sql in the Supabase SQL editor, then retry the import.',
+      );
     }
   }
 
-  // Fallback (and default for anonymous imports): insert with `ingested_by`
-  // set to NULL — the "shared with every teacher" path that the existing RLS
-  // policy on `questions` permits for the anon role (proven by live test:
-  // HTTP 201).
+  // Fallback (anonymous imports only — signed-in teachers throw above):
+  // insert with `ingested_by` set to NULL — the "shared with every teacher"
+  // path that the existing RLS policy on `questions` permits for the anon
+  // role (proven by live test: HTTP 201).
   const withIds = (questions: Array<Omit<Question, 'id'> & { id?: string }>): Question[] =>
     questions as Question[];
 
@@ -318,7 +338,125 @@ export const uploadQuestionImage = async (file: File): Promise<string> => {
   return data?.publicUrl ?? '';
 };
 
+// ===== Per-teacher question visibility =====
+// Rules (enforced server-side by app_list_questions; mirrored here for the
+// REST fallback path):
+//   ingested_by NULL        -> shared pool, visible to everyone
+//   'teacher' (any case)    -> designated public bank account, everyone
+//   signed-in user's own username -> that user only
+//   anything else           -> hidden from non-owners
+// Signed-out visitors see the shared pool only.
+export const PUBLIC_QUESTION_OWNERS = ['teacher'] as const;
+
+export const normalizeOwner = (value: string): string => value.trim().toLowerCase();
+
+export const visibleToTeacher = (
+  ingestedBy: string | null | undefined,
+  username: string | null | undefined,
+): boolean => {
+  if (!ingestedBy) return true;
+  const owner = normalizeOwner(ingestedBy);
+  if ((PUBLIC_QUESTION_OWNERS as readonly string[]).includes(owner)) return true;
+  if (!username) return false;
+  return owner === normalizeOwner(username);
+};
+
+/** Resolve the current teacher username for visibility filtering (null when
+ *  signed out — callers then see only the shared pool). */
+const currentTeacherUsername = (): string | null => getTeacherSession()?.username ?? null;
+
+interface VisibleBankPage {
+  questions: Question[];
+  total: number;
+}
+
+/** Read one page of the VISIBLE bank via app_list_questions. Resolves the
+ *  actor from the session token server-side; returns rows + exact filtered
+ *  total. Throws when the RPC is unavailable so callers can fall back. */
+const fetchVisibleBankPage = async (
+  limit: number,
+  offset: number,
+  search?: string,
+): Promise<VisibleBankPage> => {
+  const token = getTeacherToken() ?? undefined;
+  const result = await callRpc<{ questions?: unknown[]; total?: number }>('app_list_questions', {
+    p_token: token ?? null,
+    p_search: search?.trim() ? search.trim() : null,
+    p_limit: limit,
+    p_offset: offset,
+  });
+  const rows = Array.isArray(result?.questions) ? result.questions : [];
+  return {
+    questions: rows.map(row => rowToQuestion(row as Record<string, unknown>)) as Question[],
+    total: typeof result?.total === 'number' ? result.total : rows.length,
+  };
+};
+
+/** REST fallback used when app_list_questions is not deployed yet: fetch a
+ *  window of RAW rows, keep only visible ones (ingested_by is present on raw
+ *  rows but dropped by rowToQuestion), and walk forward until the requested
+ *  page is filled or the bank is exhausted. Mirrors the RPC ordering
+ *  (created_at desc) so pages agree across both paths. */
+const fetchVisibleBankPageFallback = async (
+  limit: number,
+  offset: number,
+  search?: string,
+): Promise<VisibleBankPage> => {
+  const username = currentTeacherUsername();
+  const trimmed = (search || '').trim().replace(/,/g, ' ');
+  const windowSize = Math.max(limit * 3, 45);
+  const collected: Array<Question & { __visible: true }> = [];
+  let cursor = 0;
+  let total = 0;
+
+  // Walk windows until we have enough visible rows to cover the page, or run
+  // out of rows. `offset` counts VISIBLE rows, matching the RPC semantics.
+  while (collected.length < offset + limit) {
+    let query = supabase
+      .from('questions')
+      .select('*', { count: 'exact', head: false })
+      .order('created_at', { ascending: false })
+      .range(cursor, cursor + windowSize - 1);
+
+    if (trimmed) {
+      const pattern = `%${trimmed}%`;
+      query = query.or(
+        `text.ilike.${pattern},subject.ilike.${pattern},topic.ilike.${pattern}`,
+      );
+    }
+
+    const { data, error, count } = await query;
+    if (error) {
+      console.error('Error fetching paginated questions:', error);
+      throw error;
+    }
+
+    for (const row of (data ?? []) as Record<string, unknown>[]) {
+      if (!visibleToTeacher(row.ingested_by as string | null | undefined, username)) continue;
+      collected.push(rowToQuestion(row) as Question & { __visible: true });
+    }
+    total = count ?? total;
+    if ((data ?? []).length < windowSize) break; // exhausted
+    cursor += windowSize;
+  }
+
+  return {
+    questions: collected.slice(offset, offset + limit),
+    total,
+  };
+};
+
 export const getQuestions = async () => {
+  try {
+    // Preferred path: server-enforced visibility (app_list_questions).
+    const page = await fetchVisibleBankPage(Number.MAX_SAFE_INTEGER / 2, 0);
+    return page.questions;
+  } catch (rpcError) {
+    console.warn('app_list_questions unavailable in getQuestions, filtering client-side:', rpcError);
+  }
+
+  // Fallback: plain read + client-side visibility filter.
+  const username = currentTeacherUsername();
   const { data, error } = await supabase
     .from('questions')
     .select('*')
@@ -329,8 +467,9 @@ export const getQuestions = async () => {
     throw error
   }
 
-  // Transform to match your Question interface
-  return data.map(q => rowToQuestion(q)) as Question[]
+  return (data ?? [])
+    .filter(row => visibleToTeacher(row.ingested_by as string | null | undefined, username))
+    .map(row => rowToQuestion(row as Record<string, unknown>)) as Question[]
 }
 
 /** Generates a 4-letter random test key (e.g. "A3F9"). */
@@ -344,8 +483,16 @@ export const generateTestKey = (): string => {
   return result;
 };
 
-/** Return the question-bank size without downloading every question row. */
-export const getQuestionCount = async () => {
+/** Return the VISIBLE question-bank size. Prefers the server-enforced count
+ *  from app_list_questions; falls back to the global REST count (cosmetic only). */
+export const getQuestionCount = async (): Promise<number> => {
+  try {
+    const page = await fetchVisibleBankPage(1, 0);
+    return page.total;
+  } catch (rpcError) {
+    console.warn('app_list_questions unavailable in getQuestionCount, using global count:', rpcError);
+  }
+
   const { count, error } = await supabase
     .from('questions')
     .select('id', { count: 'exact', head: true })
@@ -358,12 +505,43 @@ export const getQuestionCount = async () => {
   return count ?? 0
 }
 
+/** Fetch all VISIBLE questions matching a set of structured filters.
+ *
+ * Visibility is the security-critical concern and is enforced server-side by
+ * `app_list_questions` when deployed. The RPC itself only accepts a free-text
+ * `p_search` (matching text/subject/topic), not structured columns, so structured
+ * filters (subject/topic/year/difficulty) are applied as a client-side pass over
+ * the visibility-enforced result set — which is safe because every row reaching
+ * this filter is already authorised for the current teacher. If the RPC is not
+ * available we fall back to the raw REST read + `visibleToTeacher` client-side
+ * guard, exactly as `getQuestions` does.
+ */
 export const getQuestionsByFilters = async (filters: {
   subject?: string;
   topic?: string;
   year?: string;
   difficulty?: string;
 }) => {
+  const hasFilters = Boolean(filters.subject || filters.topic || filters.year || filters.difficulty);
+
+  // Preferred path: server-enforced visibility (app_list_questions).
+  try {
+    const page = await fetchVisibleBankPage(Number.MAX_SAFE_INTEGER / 2, 0);
+    return hasFilters
+      ? page.questions.filter(q => {
+          if (filters.subject && q.subject !== filters.subject) return false;
+          if (filters.topic && q.topic !== filters.topic) return false;
+          if (filters.year && q.year !== filters.year) return false;
+          if (filters.difficulty && q.difficulty !== filters.difficulty) return false;
+          return true;
+        })
+      : page.questions;
+  } catch (rpcError) {
+    console.warn('app_list_questions unavailable in getQuestionsByFilters, filtering client-side:', rpcError);
+  }
+
+  // Fallback: plain read + client-side visibility filter, then structured filters.
+  const username = currentTeacherUsername();
   let query = supabase.from('questions').select('*')
 
   if (filters.subject) {
@@ -383,7 +561,9 @@ export const getQuestionsByFilters = async (filters: {
 
   if (error) throw error
 
-  return data.map(q => rowToQuestion(q)) as Question[]
+  return (data ?? [])
+    .filter(row => visibleToTeacher(row.ingested_by as string | null | undefined, username))
+    .map(row => rowToQuestion(row as Record<string, unknown>)) as Question[]
 }
 
 // Keep your existing getQuestionsByTopic for backward compatibility
@@ -391,17 +571,20 @@ export const getQuestionsByTopic = async (topic: string) => {
   return getQuestionsByFilters({ topic })
 }
 
-/** Paginated, searchable page through the question bank.
- *
- * The Create Test screen uses this instead of `getQuestions()` so we never pull
- * the entire bank into memory — teachers page through (or search) 15 questions
- * at a time, which stays snappy even with hundreds of stored questions. */
 export interface PaginatedQuestionsResult {
   questions: Question[];
   count: number;
   hasMore: boolean;
 }
 
+/** Paginated page through the VISIBLE question bank.
+ *
+ * The Create Test screen uses this instead of `getQuestions()` so we never pull
+ * the entire bank into memory — teachers page through (or search) 15 questions
+ * at a time, which stays snappy even with hundreds of stored questions.
+ *
+ * Visibility is enforced by the app_list_questions RPC when deployed; until
+ * then a client-side filter over raw rows keeps behavior correct. */
 export const getPaginatedQuestions = async ({
   limit = 15,
   offset = 0,
@@ -411,33 +594,22 @@ export const getPaginatedQuestions = async ({
   offset?: number;
   search?: string;
 } = {}): Promise<PaginatedQuestionsResult> => {
-  const trimmed = (search || '').trim().replace(/,/g, ' ');
-  let query = supabase
-    .from('questions')
-    .select('*', { count: 'exact', head: false })
-    .order('created_at', { ascending: false });
-
-  if (trimmed) {
-    const pattern = `%${trimmed}%`;
-    query = query.or(
-      `text.ilike.${pattern},subject.ilike.${pattern},topic.ilike.${pattern}`,
-    );
+  try {
+    const page = await fetchVisibleBankPage(limit, offset, search);
+    return {
+      questions: page.questions,
+      count: page.total,
+      hasMore: offset + page.questions.length < page.total,
+    };
+  } catch (rpcError) {
+    console.warn('app_list_questions unavailable in getPaginatedQuestions, filtering client-side:', rpcError);
   }
 
-  const { data, error, count } = await query.range(offset, offset + limit - 1);
-
-  if (error) {
-    console.error('Error fetching paginated questions:', error);
-    throw error;
-  }
-
-  const questions = (data ?? []).map(q => rowToQuestion(q)) as Question[];
-
-  const total = count ?? 0;
+  const page = await fetchVisibleBankPageFallback(limit, offset, search);
   return {
-    questions,
-    count: total,
-    hasMore: offset + questions.length < total,
+    questions: page.questions,
+    count: page.total,
+    hasMore: offset + page.questions.length < page.total,
   };
 };
 
@@ -1226,9 +1398,11 @@ const mapRowToTest = (test: Record<string, unknown>): Test => {
     description: test.description || undefined,
     questions: test.questions || [],
     settings,
-    endTime: test.end_date ? new Date(test.end_date) : undefined,
-    createdAt: new Date(test.created_at),
-    startDate: test.start_date ? new Date(test.start_date) : undefined,
+    // Row fields arrive untyped (Record<string, unknown>) — assert the ISO
+    // date strings Supabase returns before handing them to Date.
+    endTime: test.end_date ? new Date(test.end_date as string) : undefined,
+    createdAt: new Date(test.created_at as string),
+    startDate: test.start_date ? new Date(test.start_date as string) : undefined,
     endDate: settings.endDate ? new Date(settings.endDate) : undefined,
     duration: test.duration ?? test.time_limit ?? 90,
     timeLimit: test.duration ?? test.time_limit ?? 90,

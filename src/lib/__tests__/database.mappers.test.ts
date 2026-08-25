@@ -47,9 +47,9 @@ describe('rowToQuestion', () => {
       difficulty: 'easy',
       imageUrl: 'https://img/x.png',
       explanation: 'because',
-      topic: undefined,
-      subject: undefined,
-      year: undefined,
+      topic: 'General',
+      subject: 'General',
+      year: '',
       flagged: undefined,
       flagReason: undefined,
       marks: undefined,
@@ -79,29 +79,29 @@ describe('rowToQuestion', () => {
 
 describe('questionToRow', () => {
   it('includes explanation only when present', () => {
-    const withExp = questionToRow({ text: 'q', options: ['a', 'b'], correctAnswer: 0, explanation: 'why' });
+    const withExp = questionToRow(base({ text: 'q', options: ['a', 'b'], correctAnswer: 0, explanation: 'why' }));
     expect(withExp).toHaveProperty('explanation', 'why');
-    const without = questionToRow({ text: 'q', options: ['a', 'b'], correctAnswer: 0 });
+    const without = questionToRow(base({ text: 'q', options: ['a', 'b'], correctAnswer: 0 }));
     expect(without).not.toHaveProperty('explanation');
   });
 
   it('includes image_url only when imageUrl is present', () => {
-    const withImg = questionToRow({ text: 'q', options: ['a'], correctAnswer: 0, imageUrl: 'u' });
+    const withImg = questionToRow(base({ text: 'q', options: ['a'], correctAnswer: 0, imageUrl: 'u' }));
     expect(withImg).toHaveProperty('image_url', 'u');
-    const without = questionToRow({ text: 'q', options: ['a'], correctAnswer: 0 });
+    const without = questionToRow(base({ text: 'q', options: ['a'], correctAnswer: 0 }));
     expect(without).not.toHaveProperty('image_url');
   });
 
   it('round-trips explanation through rowToQuestion', () => {
     const round = rowToQuestion(
-      questionToRow({ text: 'q', options: ['a', 'b'], correctAnswer: 1, explanation: 'hello' }),
+      questionToRow(base({ text: 'q', options: ['a', 'b'], correctAnswer: 1, explanation: 'hello' })),
     );
     expect(round.explanation).toBe('hello');
     expect(round.correctAnswer).toBe(1);
   });
 
   it('defaults difficulty via getDifficulty when none provided', () => {
-    const row = questionToRow({ text: 'short stem', options: ['a', 'b', 'c'], correctAnswer: 0 });
+    const row = questionToRow(base({ text: 'short stem', options: ['a', 'b', 'c'], correctAnswer: 0 }));
     expect(row.difficulty).toBe('easy');
   });
 });
