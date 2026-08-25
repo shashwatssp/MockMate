@@ -91,6 +91,14 @@
   flex-direction: column;
   gap: 0.75rem;
   margin-bottom: 1rem;
+  /* Sticky so the "Extracting…" chip + question markers stay visible while
+   the teacher scrolls to review the card below — no more scrolling up. */
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--color-bg-card);
+  padding-bottom: 0.6rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 .progress-bar {
   display: flex;

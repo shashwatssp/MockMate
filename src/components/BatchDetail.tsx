@@ -377,7 +377,11 @@ export const BatchDetail: React.FC = () => {
             <div key={s.id} className="batch-detail-row">
               <div>
                 <div className="batch-detail-name">{s.name || <i>{s.username || s.email}</i>}</div>
-                <div className="batch-detail-sub">{s.username || s.email}</div>
+                {/* Only show the sub-line when it adds information — otherwise
+                    the card displays the same email twice. */}
+                {(s.name && (s.username || s.email)) || (!s.name && s.username && s.email && s.username !== s.email) ? (
+                  <div className="batch-detail-sub">{s.username || s.email}</div>
+                ) : null}
               </div>
               <div className="batch-row-actions">
                 <select
@@ -520,12 +524,6 @@ export const BatchDetail: React.FC = () => {
         </div>
       )}
 
-      {tab === 'results' && tests.length > 0 && resultsLoading && Object.keys(batchResults).length === 0 ? (
-        <div className="batch-list">
-          <div className="student-loading">Loading batch results…</div>
-        </div>
-      ) : null}
-
       {/* Class Rankings — aggregated across all tests in the batch */}
       {tab === 'results' && batchRankings.length > 0 ? (
         <div className="batch-list">
@@ -616,9 +614,9 @@ export const BatchDetail: React.FC = () => {
                           : '—';
                         return (
                           <tr key={e.studentId ?? e.email} className={`batch-results-row ${i < 3 ? 'top-three' : ''}`}>
-                            <td className="batch-results-rank" data-label="Rank">
-                              {rankIcon}{e.rank}
-                            </td>
+                        <td className="batch-results-rank" data-label="Rank">
+                          {rankIcon}{e.rank || i + 1}
+                        </td>
                             <td className="batch-results-student" data-label="Student">
                               <button
                                 onClick={() => openStudentDetail(e)}
@@ -628,8 +626,8 @@ export const BatchDetail: React.FC = () => {
                                 {e.name || e.username || e.email}
                               </button>
                             </td>
-                            <td data-label="Score">{e.score}/{e.totalMarks}</td>
-                            <td className="batch-results-percent" data-label="%">{e.percentage}%</td>
+                            <td data-label="Score">{e.score ?? '—'}/{e.totalMarks ?? '—'}</td>
+                            <td className="batch-results-percent" data-label="%">{e.percentage ?? 0}%</td>
                             <td className="student-muted" data-label="Completed">{timeStr}</td>
                           </tr>
                         );
@@ -698,7 +696,7 @@ export const BatchDetail: React.FC = () => {
                                   <div className="student-test-info">{t ? t.testKey : '—'} · {r.totalQuestions} questions · {t ? (t.duration || t.timeLimit) : '—'} min</div>
                                 </div>
                                 <div className="student-test-meta">
-                                  <div className="student-test-score">Score: {r.score}/{r.totalMarks ?? r.totalQuestions} · {r.percentage}%</div>
+                                  <div className="student-test-score">Score: {r.score ?? 0}/{r.totalMarks ?? r.totalQuestions ?? 0} · {r.percentage ?? 0}%</div>
                                   <div className="student-test-percentile">Completed {r.completedAt ? new Date(r.completedAt).toLocaleDateString() : '—'}</div>
                                 </div>
                               </div>

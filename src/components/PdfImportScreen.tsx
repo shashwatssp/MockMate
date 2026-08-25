@@ -19,6 +19,7 @@ import {
   mapExtractionQuestionToExtracted,
 } from '../lib/extractionClient';
 import { createTest, getDifficulty, generateTestKey } from '../lib/database';
+import { notifyError, notifySuccess } from '../lib/shareToast';
 import type { Question, Test } from '../types/exam.types';
 import './PdfImport.css';
 import './CreateTest.css';
@@ -116,11 +117,11 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
 
   const handleCreateTest = async () => {
     if (!testName.trim() || acceptedQuestions.length === 0) {
-      alert('Please enter a test name and select at least one question.');
+      notifyError('Please enter a test name and select at least one question.');
       return;
     }
     if (!startDate || !startTime) {
-      alert('Please select start date and time for the test.');
+      notifyError('Please select start date and time for the test.');
       return;
     }
     setIsCreating(true);
@@ -160,11 +161,11 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
         if (onCreateTest) {
           onCreateTest(createdTest);
         } else {
-          alert(`Test created successfully! Test Key: ${result.test_key}`);
+          notifySuccess(`Test created successfully! Test Key: ${result.test_key}`);
         }
       }
     } catch (error) {
-      alert(`Failed to create test: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      notifyError(`Failed to create test: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsCreating(false);
     }
@@ -231,7 +232,7 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
   const handleFile = (f: File) => {
     const err = validate(f);
     if (err) {
-      alert(err);
+      notifyError(err);
       return;
     }
     setFile(f);
@@ -717,8 +718,9 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
                 setAcceptedQuestions(questions);
                 setStep('create-test');
               } else {
-                alert(
+                notifySuccess(
                   `Import complete! ${accepted} question(s) processed. Accepted questions are now in your question bank.`,
+                  6000,
                 );
                 onBack();
               }

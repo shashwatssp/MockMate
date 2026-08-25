@@ -41,46 +41,10 @@
   --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-/* ===== Dark Mode Support =====
-@media (prefers-color-scheme: dark) {
-  :root {
-    --primary-color: #818cf8;
-    --primary-light: #3b82f6;
-    --primary-hover: #a78bfa;
-    --success-color: #34d399;
-    --success-light: #064e35;
-    --warning-color: #fbbf24;
-    --warning-light: #451a03;
-    --error-color: #f87171;
-    --error-light: #450a0a;
-    --gray-50: #0f1117;
-    --gray-100: #171b26;
-    --gray-200: #1f2330;
-    --gray-300: #2a2f3a;
-    --gray-400: #33415b;
-    --gray-500: #4b5563;
-    --gray-600: #6b7280;
-    --gray-700: #94a3b8;
-    --gray-800: #cbd5e1;
-    --gray-900: #e4e6eb;
-    --white: #0f1117;
-    --black: #e4e6eb;
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5);
-  }
-
-  .batch-shell {
-    background:
-      radial-gradient(circle at 12% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 24%),
-      radial-gradient(circle at 88% 80%, rgba(118, 75, 162, 0.12) 0%, transparent 28%),
-      #0f1117;
-    color: #cbd5e1;
-  }
-  .tests-table tbody tr:hover { background: #171b26; }
-  .batch-shell .student-error-inline { background: #450a0a; border-color: #7f1d1d; color: #fca5a5; }
-}
+/* NOTE: dark mode for the batch screens lives ONLY in the "Uniform dark mode"
+   block near the bottom of this file. An earlier copy of these tokens used to
+   sit here but was trapped inside an unterminated comment (dead code); it has
+   been removed so there is a single source of truth for dark mode. */
 
 html { font-feature-settings: "rlig" 1, "calt" 1; }
 
@@ -1090,16 +1054,28 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
     align-items: flex-start;
     gap: 10px;
   }
+  /* Members/pending: stack row actions vertically so the Move-to select sits
+     full-width on top and the delete/approve/reject button sits cleanly below —
+     no more "floating right below card". */
   .batch-row-actions {
     flex: 0 0 100%;
-    justify-content: flex-end;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
     width: 100%;
+ }
+  .batch-row-actions select,
+  .batch-row-actions .batch-remove-btn,
+  .batch-row-actions .batch-approve-btn,
+  .batch-row-actions .batch-reject-btn {
+    width: 100%;
+    box-sizing: border-box;
   }
-  .batch-add-form { flex-direction: column; }
+  .batch-add-form { flex-direction: column; gap: 8px; }
   .batch-add-form .batch-approve-btn { width: 100%; }
   .batch-header { flex-direction: column; align-items: flex-start; gap: 10px; }
   .batch-footer-stats { flex-direction: column; gap: 6px; text-align: center; }
-  .batch-results-table { min-width: 560px; font-size: 12px; }
+  .batch-results-table { font-size: 12px; }
   .batch-results-table th,
   .batch-results-table td { padding: 7px 8px; }
 }
@@ -1115,7 +1091,7 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   .batch-shell { padding: 10px; }
   .batch-shell .batch-card { padding: 16px; }
   .batch-item { padding: 12px; }
-  .batch-results-table { min-width: 480px; font-size: 11px; }
+  .batch-results-table { font-size: 11px; }
 }
 
 /* ===== Uniform dark mode for the batch screens =====
@@ -1127,13 +1103,32 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
    These rules come last, so they win. */
 @media (prefers-color-scheme: dark) {
   :root {
+    --gray-50: #0f1117;
+    --gray-100: #171b26;
+    --gray-200: #1f2330;
     --gray-300: #9ca3af;
     --gray-400: #6b7280;
     --gray-500: #7b8794;
     --gray-600: #94a3b8;
     --gray-700: #cbd5e1;
     --gray-800: #e2e5ea;
+    --white: #0f1117;
+    --black: #e4e6eb;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5);
   }
+
+  .batch-shell {
+    background:
+      radial-gradient(circle at 12% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 24%),
+      radial-gradient(circle at 88% 80%, rgba(118, 75, 162, 0.12) 0%, transparent 28%),
+      #0f1117;
+    color: #cbd5e1;
+  }
+  .batch-shell .tests-table tbody tr:hover { background: #171b26; }
+  .batch-shell .student-error-inline { background: #450a0a; border-color: #7f1d1d; color: #fca5a5; }
 
   .batch-shell {
     background: radial-gradient(circle at 12% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 24%),
@@ -1201,509 +1196,590 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   .batch-btn-secondary { background: transparent; border-color: var(--color-border-strong); color: var(--color-text); }
   .batch-btn-secondary:hover { background: var(--color-bg-field); }
 }
- 
- / *   = = = = =   S t u d e n t   s t a t   c a r d s   ( r e u s e d   i n   s t u d e n t   d e t a i l   m o d a l )   = = = = =   * /  
- . s t u d e n t - s t a t - c a r d   {  
-     p a d d i n g :   1 6 p x ;  
-     b o r d e r - r a d i u s :   v a r ( - - r a d i u s - x l ) ;  
-     b a c k g r o u n d :   v a r ( - - w h i t e ) ;  
-     b o r d e r :   1 p x   s o l i d   v a r ( - - g r a y - 2 0 0 ) ;  
-     b o x - s h a d o w :   v a r ( - - s h a d o w - s m ) ;  
-     t r a n s i t i o n :   a l l   2 5 0 m s   c u b i c - b e z i e r ( 0 . 4 ,   0 ,   0 . 2 ,   1 ) ;  
- }  
-  
- . s t u d e n t - s t a t - c a r d : h o v e r   {  
-     b o x - s h a d o w :   0   1 0 p x   1 5 p x   - 3 p x   r g b a ( 3 0 ,   4 1 ,   5 9 ,   0 . 0 7 ) ,   0   4 p x   6 p x   - 4 p x   r g b a ( 3 0 ,   4 1 ,   5 9 ,   0 . 0 6 ) ;  
-     t r a n s f o r m :   t r a n s l a t e Y ( - 2 p x ) ;  
- }  
-  
- . s t u d e n t - s t a t - c a r d   . s t a t - v a l u e   {  
-     d i s p l a y :   f l e x ;  
-     g a p :   1 0 p x ;  
-     a l i g n - i t e m s :   c e n t e r ;  
-     f o n t - w e i g h t :   6 0 0 ;  
- }  
-  
- . s t u d e n t - s t a t - c a r d   . s t a t - v a l u e   >   s v g   {  
-     w i d t h :   2 2 p x ;  
-     h e i g h t :   2 2 p x ;  
-     f l e x - s h r i n k :   0 ;  
-     p a d d i n g :   6 p x ;  
-     b o r d e r - r a d i u s :   5 0 % ;  
-     b a c k g r o u n d :   v a r ( - - p r i m a r y - l i g h t ) ;  
-     c o l o r :   v a r ( - - p r i m a r y - d a r k ) ;  
- }  
-  
- . s t u d e n t - s t a t - c a r d   . s t a t - v a l u e   s t r o n g   {  
-     f o n t - s i z e :   1 . 5 r e m ;  
-     c o l o r :   v a r ( - - g r a y - 9 0 0 ) ;  
- }  
-  
- . s t u d e n t - s t a t - c a r d   . s t a t - l a b e l   {  
-     c o l o r :   v a r ( - - g r a y - 5 0 0 ) ;  
-     f o n t - s i z e :   0 . 8 4 r e m ;  
-     m a r g i n - t o p :   6 p x ;  
-     d i s p l a y :   b l o c k ;  
- }  
-  
- / *   = = = = =   S t u d e n t   t e s t   l i s t   ( r e u s e d   i n   s t u d e n t   d e t a i l   m o d a l )   = = = = =   * /  
- . s t u d e n t - t e s t - l i s t   {  
-     d i s p l a y :   g r i d ;  
-     g a p :   8 p x ;  
- }  
-  
- . s t u d e n t - t e s t - i t e m   {  
-     b o r d e r :   1 p x   s o l i d   v a r ( - - g r a y - 2 0 0 ) ;  
-     b o r d e r - r a d i u s :   v a r ( - - r a d i u s - x l ) ;  
-     p a d d i n g :   1 4 p x ;  
-     d i s p l a y :   f l e x ;  
-     j u s t i f y - c o n t e n t :   s p a c e - b e t w e e n ;  
-     a l i g n - i t e m s :   c e n t e r ;  
-     g a p :   1 2 p x ;  
-     b a c k g r o u n d :   v a r ( - - w h i t e ) ;  
-     b o x - s h a d o w :   v a r ( - - s h a d o w - s m ) ;  
-     t r a n s i t i o n :   a l l   2 5 0 m s   c u b i c - b e z i e r ( 0 . 4 ,   0 ,   0 . 2 ,   1 ) ;  
- }  
-  
- . s t u d e n t - t e s t - i t e m : h o v e r   {  
-     b o x - s h a d o w :   0   1 0 p x   1 5 p x   - 3 p x   r g b a ( 3 0 ,   4 1 ,   5 9 ,   0 . 0 7 ) ,   0   4 p x   6 p x   - 4 p x   r g b a ( 3 0 ,   4 1 ,   5 9 ,   0 . 0 6 ) ;  
-     t r a n s f o r m :   t r a n s l a t e Y ( - 1 p x ) ;  
- }  
-  
- . s t u d e n t - t e s t - n a m e   {  
-     f o n t - w e i g h t :   6 0 0 ;  
-     d i s p l a y :   b l o c k ;  
- }  
-  
- . s t u d e n t - t e s t - i n f o   {  
-     f o n t - s i z e :   1 2 p x ;  
-     c o l o r :   v a r ( - - g r a y - 5 0 0 ) ;  
-     d i s p l a y :   b l o c k ;  
- }  
-  
- . s t u d e n t - t e s t - m e t a   {  
-     d i s p l a y :   f l e x ;  
-     g a p :   8 p x ;  
-     a l i g n - i t e m s :   c e n t e r ;  
-     f l e x - w r a p :   w r a p ;  
- }  
-  
- . s t u d e n t - t e s t - s c o r e   {  
-     f o n t - s i z e :   1 2 p x ;  
-     m a r g i n - t o p :   4 p x ;  
-     c o l o r :   v a r ( - - g r a y - 9 0 0 ) ;  
- }  
-  
- . s t u d e n t - t e s t - p e r c e n t i l e   {  
-     f o n t - s i z e :   1 1 p x ;  
-     m a r g i n - t o p :   2 p x ;  
-     c o l o r :   v a r ( - - g r a y - 5 0 0 ) ;  
- }  
-  
- / *   = = = = =   S t u d e n t   l i n k   ( l i n k - s t y l e   b u t t o n   i n   t a b l e s )   = = = = =   * /  
- . b a t c h - s t u d e n t - l i n k   {  
-     d i s p l a y :   i n l i n e - b l o c k ;  
-     t e x t - a l i g n :   l e f t ;  
-     p a d d i n g :   0 ;  
-     b a c k g r o u n d :   t r a n s p a r e n t ;  
-     b o r d e r :   n o n e ;  
-     c o l o r :   v a r ( - - p r i m a r y - c o l o r ) ;  
-     f o n t - s i z e :   1 3 p x ;  
-     f o n t - w e i g h t :   5 0 0 ;  
-     c u r s o r :   p o i n t e r ;  
-     t e x t - d e c o r a t i o n :   n o n e ;  
-     t r a n s i t i o n :   c o l o r   v a r ( - - t r a n s i t i o n - f a s t ) ;  
- }  
-  
- . b a t c h - s t u d e n t - l i n k : h o v e r   {  
-     c o l o r :   v a r ( - - p r i m a r y - h o v e r ) ;  
-     t e x t - d e c o r a t i o n :   u n d e r l i n e ;  
- }  
-  
- / *   = = = = =   C l a s s   R a n k i n g s   s e c t i o n   = = = = =   * /  
- . b a t c h - r a n k i n g s - c a r d   {  
-     b o r d e r :   1 p x   s o l i d   v a r ( - - g r a y - 2 0 0 ) ;  
-     b o r d e r - r a d i u s :   v a r ( - - r a d i u s - x l ) ;  
-     p a d d i n g :   1 8 p x ;  
-     m a r g i n - b o t t o m :   1 2 p x ;  
-     b a c k g r o u n d :   v a r ( - - w h i t e ) ;  
-     b o x - s h a d o w :   v a r ( - - s h a d o w - s m ) ;  
- }  
-  
- . b a t c h - r a n k i n g s - c a r d   h 2   {  
-     m a r g i n :   0   0   6 p x ;  
-     f o n t - s i z e :   1 6 p x ;  
-     c o l o r :   v a r ( - - g r a y - 9 0 0 ) ;  
- }  
-  
- . b a t c h - r a n k i n g s - c a r d   . s t u d e n t - m u t e d   {  
-     f o n t - s i z e :   1 2 p x ;  
-     m a r g i n :   0   0   1 2 p x ;  
-     d i s p l a y :   b l o c k ;  
- }  
-  
- . b a t c h - r a n k i n g s - t a b l e - w r a p p e r   {  
-     o v e r f l o w - x :   a u t o ;  
-     - w e b k i t - o v e r f l o w - s c r o l l i n g :   t o u c h ;  
- }  
-  
- . b a t c h - r a n k i n g s - t a b l e   {  
-     w i d t h :   1 0 0 % ;  
-     b o r d e r - c o l l a p s e :   c o l l a p s e ;  
-     f o n t - s i z e :   1 3 p x ;  
-     c o l o r :   v a r ( - - g r a y - 7 0 0 ) ;  
-     m i n - w i d t h :   5 6 0 p x ;  
- }  
-  
- . b a t c h - r a n k i n g s - t a b l e   t h ,  
- . b a t c h - r a n k i n g s - t a b l e   t d   {  
-     t e x t - a l i g n :   l e f t ;  
-     p a d d i n g :   9 p x   1 0 p x ;  
-     b o r d e r - b o t t o m :   1 p x   s o l i d   v a r ( - - g r a y - 2 0 0 ) ;  
- }  
-  
- . b a t c h - r a n k i n g s - t a b l e   t h e a d   t h   {  
-     c o l o r :   v a r ( - - g r a y - 5 0 0 ) ;  
-     f o n t - s i z e :   1 1 p x ;  
-     t e x t - t r a n s f o r m :   u p p e r c a s e ;  
-     l e t t e r - s p a c i n g :   0 . 0 4 e m ;  
-     f o n t - w e i g h t :   7 0 0 ;  
-     b a c k g r o u n d :   v a r ( - - g r a y - 5 0 ) ;  
- }  
-  
- . b a t c h - r a n k i n g s - t a b l e   t b o d y   t r : h o v e r   {  
-     b a c k g r o u n d :   v a r ( - - g r a y - 5 0 ) ;  
- }  
-  
- . b a t c h - r a n k i n g s - t a b l e   . b a t c h - r e s u l t s - r a n k   {  
-     w i d t h :   4 4 p x ;  
-     f o n t - w e i g h t :   7 0 0 ;  
- }  
-  
- . b a t c h - r a n k i n g s - t a b l e   . b a t c h - r e s u l t s - s t u d e n t   {  
-     f o n t - w e i g h t :   5 0 0 ;  
- }  
-  
- . b a t c h - r a n k i n g s - t a b l e   . b a t c h - r e s u l t s - p e r c e n t   {  
-     w i d t h :   8 0 p x ;  
-     t e x t - a l i g n :   r i g h t ;  
-     f o n t - w e i g h t :   7 0 0 ;  
- }  
-  
- / *   = = = = =   S t u d e n t   d e t a i l   m o d a l   = = = = =   * /  
- . s t u d e n t - d e t a i l - m o d a l   {  
-     w i d t h :   m i n ( 1 0 0 % ,   6 4 0 p x ) ;  
-     m a x - h e i g h t :   m i n ( 8 6 v h ,   6 8 0 p x ) ;  
-     o v e r f l o w :   a u t o ;  
-     d i s p l a y :   f l e x ;  
-     f l e x - d i r e c t i o n :   c o l u m n ;  
-     p a d d i n g :   0 ;  
- }  
-  
- . s t u d e n t - d e t a i l - h e a d e r   {  
-     d i s p l a y :   f l e x ;  
-     j u s t i f y - c o n t e n t :   s p a c e - b e t w e e n ;  
-     a l i g n - i t e m s :   c e n t e r ;  
-     p a d d i n g :   2 0 p x ;  
-     b o r d e r - b o t t o m :   1 p x   s o l i d   v a r ( - - g r a y - 2 0 0 ) ;  
- }  
-  
- . s t u d e n t - d e t a i l - h e a d e r   h 3   {  
-     m a r g i n :   0 ;  
-     f o n t - s i z e :   1 6 p x ;  
-     c o l o r :   v a r ( - - g r a y - 9 0 0 ) ;  
- }  
-  
- . s t u d e n t - d e t a i l - c o n t e n t   {  
-     p a d d i n g :   2 0 p x ;  
-     o v e r f l o w :   a u t o ;  
- }  
-  
- . s t u d e n t - d e t a i l - s t a t s   {  
-     d i s p l a y :   g r i d ;  
-     g r i d - t e m p l a t e - c o l u m n s :   r e p e a t ( 4 ,   m i n m a x ( 0 ,   1 f r ) ) ;  
-     g a p :   1 4 p x ;  
-     m a r g i n - b o t t o m :   2 0 p x ;  
- }  
-  
- . s t u d e n t - d e t a i l - p r o g r e s s   {  
-     m a r g i n - b o t t o m :   2 4 p x ;  
- }  
-  
- . s t u d e n t - d e t a i l - p r o g r e s s   h 4 ,  
- . s t u d e n t - d e t a i l - t e s t s   h 4   {  
-     m a r g i n :   0   0   1 2 p x ;  
-     f o n t - s i z e :   1 4 p x ;  
-     c o l o r :   v a r ( - - g r a y - 9 0 0 ) ;  
- }  
-  
- . s t u d e n t - d e t a i l - t e s t s   {  
-     m a r g i n - t o p :   8 p x ;  
- }  
-  
- . s t u d e n t - d e t a i l - t e s t - i t e m   {  
-     m a r g i n - b o t t o m :   8 p x ;  
- }  
-  
- / *   = = = = =   M o v e   t o   s e l e c t   � �    p r e v e n t   o v e r f l o w   o n   n a r r o w   r o w s   = = = = =   * /  
- @ m e d i a   ( m a x - w i d t h :   7 6 8 p x )   {  
-     . b a t c h - r o w - a c t i o n s - s e l e c t ,  
-     . b a t c h - r o w - a c t i o n s   s e l e c t   {  
-         m i n - w i d t h :   0 ;  
-         w i d t h :   1 0 0 % ;  
-         f l e x :   1   1   a u t o ;  
-         m a x - w i d t h :   1 0 0 % ;  
-         b o x - s i z i n g :   b o r d e r - b o x ;  
-     }  
-  
-     / *   - - - -   R a n k i n g s   t a b l e :   t r a n s f o r m   t o   c a r d   l a y o u t   - - - -   * /  
-     . b a t c h - r a n k i n g s - t a b l e   t h e a d   {  
-         d i s p l a y :   n o n e ;  
-     }  
-  
-     . b a t c h - r a n k i n g s - t a b l e ,  
-     . b a t c h - r a n k i n g s - t a b l e   t h ,  
-     . b a t c h - r a n k i n g s - t a b l e   t d   {  
-         m i n - w i d t h :   0 ;  
-     }  
-  
-     . b a t c h - r a n k i n g s - t a b l e   {  
-         m i n - w i d t h :   1 0 0 % ;  
-         f o n t - s i z e :   1 3 p x ;  
-     }  
-  
-     . b a t c h - r a n k i n g s - t a b l e   t b o d y ,  
-     . b a t c h - r a n k i n g s - t a b l e   t r ,  
-     . b a t c h - r a n k i n g s - t a b l e   t d   {  
-         d i s p l a y :   b l o c k ;  
-     }  
-  
-     . b a t c h - r a n k i n g s - t a b l e   t r   {  
-         b o r d e r :   1 p x   s o l i d   v a r ( - - g r a y - 2 0 0 ) ;  
-         b o r d e r - r a d i u s :   v a r ( - - r a d i u s - x l ) ;  
-         p a d d i n g :   1 0 p x ;  
-         m a r g i n - b o t t o m :   8 p x ;  
-         b a c k g r o u n d :   v a r ( - - w h i t e ) ;  
-         b o x - s h a d o w :   v a r ( - - s h a d o w - s m ) ;  
-     }  
-  
-     . b a t c h - r a n k i n g s - t a b l e   t d   {  
-         t e x t - a l i g n :   r i g h t ;  
-         p a d d i n g :   4 p x   1 0 p x   4 p x   4 4 p x ;  
-         p o s i t i o n :   r e l a t i v e ;  
-         b o r d e r - b o t t o m :   n o n e ;  
-     }  
-  
-     . b a t c h - r a n k i n g s - t a b l e   t d : : b e f o r e   {  
-         c o n t e n t :   a t t r ( d a t a - l a b e l ) ;  
-         p o s i t i o n :   a b s o l u t e ;  
-         l e f t :   8 p x ;  
-         t o p :   5 0 % ;  
-         t r a n s f o r m :   t r a n s l a t e Y ( - 5 0 % ) ;  
-         f o n t - s i z e :   1 0 p x ;  
-         f o n t - w e i g h t :   7 0 0 ;  
-         t e x t - t r a n s f o r m :   u p p e r c a s e ;  
-         l e t t e r - s p a c i n g :   0 . 0 4 e m ;  
-         c o l o r :   v a r ( - - g r a y - 5 0 0 ) ;  
-         t e x t - a l i g n :   l e f t ;  
-     }  
-  
-     / *   - - - -   R e s u l t s   t a b l e :   t r a n s f o r m   t o   c a r d   l a y o u t   - - - -   * /  
-     . b a t c h - r e s u l t s - t a b l e   t h e a d   {  
-         d i s p l a y :   n o n e ;  
-     }  
-  
-     . b a t c h - r e s u l t s - t a b l e ,  
-     . b a t c h - r e s u l t s - t a b l e   t h ,  
-     . b a t c h - r e s u l t s - t a b l e   t d   {  
-         m i n - w i d t h :   0 ;  
-     }  
-  
-     . b a t c h - r e s u l t s - t a b l e   {  
-         m i n - w i d t h :   1 0 0 % ;  
-         f o n t - s i z e :   1 3 p x ;  
-     }  
-  
-     . b a t c h - r e s u l t s - t a b l e   t b o d y ,  
-     . b a t c h - r e s u l t s - t a b l e   t r ,  
-     . b a t c h - r e s u l t s - t a b l e   t d   {  
-         d i s p l a y :   b l o c k ;  
-     }  
-  
-     . b a t c h - r e s u l t s - t a b l e   t r   {  
-         b o r d e r :   1 p x   s o l i d   v a r ( - - g r a y - 2 0 0 ) ;  
-         b o r d e r - r a d i u s :   v a r ( - - r a d i u s - x l ) ;  
-         p a d d i n g :   1 0 p x ;  
-         m a r g i n - b o t t o m :   8 p x ;  
-         b a c k g r o u n d :   v a r ( - - w h i t e ) ;  
-         b o x - s h a d o w :   v a r ( - - s h a d o w - s m ) ;  
-     }  
-  
-     . b a t c h - r e s u l t s - t a b l e   t d   {  
-         t e x t - a l i g n :   r i g h t ;  
-         p a d d i n g :   4 p x   1 0 p x   4 p x   4 4 p x ;  
-         p o s i t i o n :   r e l a t i v e ;  
-         b o r d e r - b o t t o m :   n o n e ;  
-     }  
-  
-     . b a t c h - r e s u l t s - t a b l e   t d : : b e f o r e   {  
-         c o n t e n t :   a t t r ( d a t a - l a b e l ) ;  
-         p o s i t i o n :   a b s o l u t e ;  
-         l e f t :   8 p x ;  
-         t o p :   5 0 % ;  
-         t r a n s f o r m :   t r a n s l a t e Y ( - 5 0 % ) ;  
-         f o n t - s i z e :   1 0 p x ;  
-         f o n t - w e i g h t :   7 0 0 ;  
-         t e x t - t r a n s f o r m :   u p p e r c a s e ;  
-         l e t t e r - s p a c i n g :   0 . 0 4 e m ;  
-         c o l o r :   v a r ( - - g r a y - 5 0 0 ) ;  
-         t e x t - a l i g n :   l e f t ;  
-     }  
-  
-     / *   S t u d e n t   n a m e   l i n k :   l e f t - a l i g n   w i t h i n   c a r d   * /  
-     . b a t c h - s t u d e n t - l i n k   {  
-         t e x t - a l i g n :   l e f t ;  
-     }  
-  
-     / *   S t u d e n t   d e t a i l   m o d a l :   f u l l - w i d t h   o n   m o b i l e   * /  
-     . s t u d e n t - d e t a i l - m o d a l   {  
-         w i d t h :   1 0 0 % ;  
-         m a x - h e i g h t :   9 2 v h ;  
-         b o r d e r - r a d i u s :   0 ;  
-     }  
-  
-     . s t u d e n t - d e t a i l - h e a d e r ,  
-     . s t u d e n t - d e t a i l - c o n t e n t   {  
-         p a d d i n g :   1 6 p x ;  
-     }  
-  
-     . s t u d e n t - d e t a i l - s t a t s   {  
-         g r i d - t e m p l a t e - c o l u m n s :   r e p e a t ( 2 ,   m i n m a x ( 0 ,   1 f r ) ) ;  
-     }  
- }  
-  
- / *   = = = = =   D a r k   m o d e   f o r   n e w   e l e m e n t s   = = = = =   * /  
- @ m e d i a   ( p r e f e r s - c o l o r - s c h e m e :   d a r k )   {  
-     . b a t c h - s t u d e n t - l i n k   {  
-         c o l o r :   v a r ( - - c o l o r - a c c e n t ) ;  
-     }  
-  
-     . b a t c h - s t u d e n t - l i n k : h o v e r   {  
-         c o l o r :   v a r ( - - c o l o r - a c c e n t - h o v e r ) ;  
-     }  
-  
-     . b a t c h - r a n k i n g s - c a r d   {  
-         b a c k g r o u n d :   v a r ( - - c o l o r - b g - e l e v a t e d ) ;  
-         b o r d e r - c o l o r :   v a r ( - - c o l o r - b o r d e r ) ;  
-     }  
-  
-     . b a t c h - r a n k i n g s - c a r d   h 2   {  
-         c o l o r :   v a r ( - - c o l o r - t e x t ) ;  
-     }  
-  
-     . b a t c h - r a n k i n g s - c a r d   . s t u d e n t - m u t e d   {  
-         c o l o r :   v a r ( - - c o l o r - t e x t - s e c o n d a r y ) ;  
-     }  
-  
-     . b a t c h - r a n k i n g s - t a b l e ,  
-     . b a t c h - r a n k i n g s - t a b l e   t h ,  
-     . b a t c h - r a n k i n g s - t a b l e   t d   {  
-         c o l o r :   v a r ( - - c o l o r - t e x t ) ;  
-     }  
-  
-     . b a t c h - r a n k i n g s - t a b l e   t h e a d   t h   {  
-         c o l o r :   v a r ( - - c o l o r - t e x t - s e c o n d a r y ) ;  
-         b a c k g r o u n d :   v a r ( - - c o l o r - b g - f i e l d ) ;  
-         b o r d e r - b o t t o m - c o l o r :   v a r ( - - c o l o r - b o r d e r ) ;  
-     }  
-  
-     . b a t c h - r a n k i n g s - t a b l e   t b o d y   t r : h o v e r   {  
-         b a c k g r o u n d :   v a r ( - - c o l o r - b g - f i e l d ) ;  
-     }  
-  
-     / *   M o b i l e   c a r d   s u r f a c e s   i n   d a r k   m o d e   * /  
-     . b a t c h - r a n k i n g s - t a b l e   t r ,  
-     . b a t c h - r e s u l t s - t a b l e   t r   {  
-         b a c k g r o u n d :   v a r ( - - c o l o r - b g - e l e v a t e d ) ;  
-         b o r d e r - c o l o r :   v a r ( - - c o l o r - b o r d e r ) ;  
-     }  
-  
-     . b a t c h - r a n k i n g s - t a b l e   t d : : b e f o r e ,  
-     . b a t c h - r e s u l t s - t a b l e   t d : : b e f o r e   {  
-         c o l o r :   v a r ( - - c o l o r - t e x t - s e c o n d a r y ) ;  
-     }  
-  
-     / *   S t u d e n t   d e t a i l   m o d a l   d a r k   m o d e   * /  
-     . s t u d e n t - d e t a i l - m o d a l   {  
-         b a c k g r o u n d :   v a r ( - - c o l o r - b g - e l e v a t e d ) ;  
-         b o r d e r - c o l o r :   v a r ( - - c o l o r - b o r d e r ) ;  
-     }  
-  
-     . s t u d e n t - d e t a i l - h e a d e r   {  
-         b o r d e r - b o t t o m - c o l o r :   v a r ( - - c o l o r - b o r d e r ) ;  
-     }  
-  
-     . s t u d e n t - d e t a i l - h e a d e r   h 3   {  
-         c o l o r :   v a r ( - - c o l o r - t e x t ) ;  
-     }  
-  
-     . s t u d e n t - d e t a i l - p r o g r e s s   h 4 ,  
-     . s t u d e n t - d e t a i l - t e s t s   h 4   {  
-         c o l o r :   v a r ( - - c o l o r - t e x t ) ;  
-     }  
-  
-     . s t u d e n t - d e t a i l - t e s t - i t e m   {  
-         b a c k g r o u n d :   v a r ( - - c o l o r - b g - e l e v a t e d ) ;  
-         b o r d e r - c o l o r :   v a r ( - - c o l o r - b o r d e r ) ;  
-     }  
-  
-     / *   S t u d e n t   s t a t   c a r d s   d a r k   m o d e   * /  
-     . s t u d e n t - s t a t - c a r d   {  
-         b a c k g r o u n d :   v a r ( - - c o l o r - b g - e l e v a t e d ) ;  
-         b o r d e r - c o l o r :   v a r ( - - c o l o r - b o r d e r ) ;  
-     }  
-  
-     . s t u d e n t - s t a t - c a r d   . s t a t - v a l u e   >   s v g   {  
-         b a c k g r o u n d :   v a r ( - - c o l o r - a c c e n t - s o f t ) ;  
-         c o l o r :   v a r ( - - c o l o r - a c c e n t ) ;  
-     }  
-  
-     . s t u d e n t - s t a t - c a r d   . s t a t - v a l u e   s t r o n g   {  
-         c o l o r :   v a r ( - - c o l o r - t e x t ) ;  
-     }  
-  
-     . s t u d e n t - s t a t - c a r d   . s t a t - l a b e l   {  
-         c o l o r :   v a r ( - - c o l o r - t e x t - s e c o n d a r y ) ;  
-     }  
-  
-     / *   S t u d e n t   t e s t   i t e m s   d a r k   m o d e   * /  
-     . s t u d e n t - t e s t - i t e m   {  
-         b a c k g r o u n d :   v a r ( - - c o l o r - b g - e l e v a t e d ) ;  
-         b o r d e r - c o l o r :   v a r ( - - c o l o r - b o r d e r ) ;  
-     }  
-  
-     . s t u d e n t - t e s t - i t e m   . s t u d e n t - t e s t - n a m e   {  
-         c o l o r :   v a r ( - - c o l o r - t e x t ) ;  
-     }  
-  
-     . s t u d e n t - t e s t - i n f o   {  
-         c o l o r :   v a r ( - - c o l o r - t e x t - s e c o n d a r y ) ;  
-     }  
-  
-     . s t u d e n t - t e s t - s c o r e   {  
-         c o l o r :   v a r ( - - c o l o r - t e x t ) ;  
-     }  
-  
-     . s t u d e n t - t e s t - p e r c e n t i l e   {  
-         c o l o r :   v a r ( - - c o l o r - t e x t - s e c o n d a r y ) ;  
-     }  
-  
-     / *   M o v e   t o   s e l e c t   d a r k   m o d e   * /  
-     . b a t c h - r o w - a c t i o n s - s e l e c t ,  
-     . b a t c h - r o w - a c t i o n s   s e l e c t   {  
-         b a c k g r o u n d :   v a r ( - - c o l o r - b g - f i e l d ) ;  
-         c o l o r :   v a r ( - - c o l o r - t e x t ) ;  
-         b o r d e r - c o l o r :   v a r ( - - c o l o r - b o r d e r - s t r o n g ) ;  
-     }  
- }  
- 
+
+/* ===== Student stat cards (reused in student detail modal) ===== */
+.student-stat-card {
+  padding: 16px;
+  border-radius: var(--radius-xl);
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  box-shadow: var(--shadow-sm);
+  transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.student-stat-card:hover {
+  box-shadow: 0 10px 15px -3px rgba(30, 41, 59, 0.07), 0 4px 6px -4px rgba(30, 41, 59, 0.06);
+  transform: translateY(-2px);
+}
+
+.student-stat-card .stat-value {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-weight: 600;
+}
+
+.student-stat-card .stat-value > svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  padding: 6px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+.student-stat-card .stat-value strong {
+  font-size: 1.5rem;
+  color: var(--gray-900);
+}
+
+.student-stat-card .stat-label {
+  color: var(--gray-500);
+  font-size: 0.84rem;
+  margin-top: 6px;
+  display: block;
+}
+
+/* ===== Student test list (reused in student detail modal) ===== */
+.student-test-list {
+  display: grid;
+  gap: 8px;
+}
+
+.student-test-item {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+  transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.student-test-item:hover {
+  box-shadow: 0 10px 15px -3px rgba(30, 41, 59, 0.07), 0 4px 6px -4px rgba(30, 41, 59, 0.06);
+  transform: translateY(-1px);
+}
+
+.student-test-name {
+  font-weight: 600;
+  display: block;
+}
+
+.student-test-info {
+  font-size: 12px;
+  color: var(--gray-500);
+  display: block;
+}
+
+.student-test-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.student-test-score {
+  font-size: 12px;
+  margin-top: 4px;
+  color: var(--gray-900);
+}
+
+.student-test-percentile {
+  font-size: 11px;
+  margin-top: 2px;
+  color: var(--gray-500);
+}
+
+/* ===== Student link (link-style button in tables) ===== */
+.batch-student-link {
+  display: inline-block;
+  text-align: left;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--primary-color);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.batch-student-link:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+/* ===== Class Rankings section ===== */
+.batch-rankings-card {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: 18px;
+  margin-bottom: 12px;
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+}
+
+.batch-rankings-card h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  color: var(--gray-900);
+}
+
+.batch-rankings-card .student-muted {
+  font-size: 12px;
+  margin: 0 0 12px;
+  display: block;
+}
+
+.batch-rankings-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.batch-rankings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--gray-700);
+  min-width: 560px;
+}
+
+.batch-rankings-table th,
+.batch-rankings-table td {
+  text-align: left;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.batch-rankings-table thead th {
+  color: var(--gray-500);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  background: var(--gray-50);
+}
+
+.batch-rankings-table tbody tr:hover {
+  background: var(--gray-50);
+}
+
+.batch-rankings-table .batch-results-rank {
+  width: 44px;
+  font-weight: 700;
+}
+
+.batch-rankings-table .batch-results-student {
+  font-weight: 500;
+}
+
+.batch-rankings-table .batch-results-percent {
+  width: 80px;
+  text-align: right;
+  font-weight: 700;
+}
+
+/* ===== Student detail modal ===== */
+.student-detail-modal {
+  width: min(100%, 640px);
+  max-height: min(86vh, 680px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.student-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.student-detail-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--gray-900);
+}
+
+.student-detail-content {
+  padding: 20px;
+  overflow: auto;
+}
+
+.student-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.student-detail-progress {
+  margin-bottom: 24px;
+}
+
+.student-detail-progress h4,
+.student-detail-tests h4 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--gray-900);
+}
+
+.student-detail-tests {
+  margin-top: 8px;
+}
+
+.student-detail-test-item {
+  margin-bottom: 8px;
+}
+
+  /* ===== Move to select — prevent overflow on narrow rows ===== */
+@media (max-width: 768px) {
+  .batch-row-actions-select,
+  .batch-row-actions select {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* ---- Rankings table: transform to card layout ---- */
+  .batch-rankings-table thead {
+    display: none;
+  }
+
+  .batch-rankings-table,
+  .batch-rankings-table th,
+  .batch-rankings-table td {
+    min-width: 0;
+  }
+
+  .batch-rankings-table {
+    min-width: 100%;
+    font-size: 13px;
+  }
+
+  .batch-rankings-table tbody,
+  .batch-rankings-table tr,
+  .batch-rankings-table td {
+    display: block;
+  }
+
+  .batch-rankings-table tr {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-xl);
+    padding: 10px;
+    margin-bottom: 8px;
+    background: var(--white);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Each card-style row: label on the left (::before), value on the right.
+     font-weight + explicit color ensure values are never lost against the
+     label or background — the old layout showed only the ::before labels. */
+  .batch-rankings-table td {
+    text-align: right;
+    padding: 4px 10px 4px 44px;
+    position: relative;
+    border-bottom: none;
+    font-weight: 600;
+    color: var(--gray-900);
+    word-break: break-word;
+  }
+  /* Student-name button: full-width, left-aligned inside the card.
+     Left padding clears the absolutely-positioned ::before data-label.
+     box-sizing: border-box keeps width:100% from overflowing the cell. */
+  .batch-rankings-table .batch-student-link {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 2px 0 2px 56px;
+    box-sizing: border-box;
+  }
+
+  .batch-rankings-table td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gray-500);
+    text-align: left;
+  }
+
+  /* ---- Results table: transform to card layout ---- */
+  .batch-results-table thead {
+    display: none;
+  }
+
+  .batch-results-table,
+  .batch-results-table th,
+  .batch-results-table td {
+    min-width: 0;
+  }
+
+  .batch-results-table {
+    min-width: 100%;
+    font-size: 13px;
+  }
+
+  .batch-results-table tbody,
+  .batch-results-table tr,
+  .batch-results-table td {
+    display: block;
+  }
+
+  .batch-results-table tr {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-xl);
+    padding: 10px;
+    margin-bottom: 8px;
+    background: var(--white);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Each card-style row: label on the left (::before), value on the right.
+     font-weight + explicit color ensure values are never lost against the
+     label or background — the old layout showed only the ::before labels. */
+  .batch-results-table td {
+    text-align: right;
+    padding: 4px 10px 4px 44px;
+    position: relative;
+    border-bottom: none;
+    font-weight: 600;
+    color: var(--gray-900);
+    word-break: break-word;
+  }
+  /* Student-name button: full-width, left-aligned inside the card.
+     Left padding clears the absolutely-positioned ::before data-label.
+     box-sizing: border-box keeps width:100% from overflowing the cell. */
+  .batch-results-table .batch-student-link {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 2px 0 2px 56px;
+    box-sizing: border-box;
+  }
+
+  .batch-results-table td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gray-500);
+    text-align: left;
+  }
+
+  /* Student name link: left-align within card */
+  .batch-student-link {
+    text-align: left;
+  }
+
+  /* Student detail modal: full-width on mobile */
+  .student-detail-modal {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 0;
+  }
+
+  .student-detail-header,
+  .student-detail-content {
+    padding: 16px;
+  }
+
+  .student-detail-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ===== Dark mode for new elements ===== */
+@media (prefers-color-scheme: dark) {
+  .batch-student-link {
+    color: var(--color-accent);
+  }
+
+  .batch-student-link:hover {
+    color: var(--color-accent-hover);
+  }
+
+  .batch-rankings-card {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border);
+  }
+
+  .batch-rankings-card h2 {
+    color: var(--color-text);
+  }
+
+  .batch-rankings-card .student-muted {
+    color: var(--color-text-secondary);
+  }
+
+  .batch-rankings-table,
+  .batch-rankings-table th,
+  .batch-rankings-table td {
+    color: var(--color-text);
+  }
+
+  .batch-rankings-table thead th {
+    color: var(--color-text-secondary);
+    background: var(--color-bg-field);
+    border-bottom-color: var(--color-border);
+  }
+
+  .batch-rankings-table tbody tr:hover {
+    background: var(--color-bg-field);
+  }
+
+  /* Mobile card surfaces in dark mode */
+  .batch-rankings-table tr,
+  .batch-results-table tr {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border);
+  }
+
+  .batch-rankings-table td::before,
+  .batch-results-table td::before {
+    color: var(--color-text-secondary);
+  }
+  /* Re-assert value colour in dark card mode (the base card rule sets
+     var(--gray-900) which doesn't flip dark; override here so values stay
+     readable on --color-bg-elevated surfaces). */
+  .batch-rankings-table td,
+  .batch-results-table td {
+    color: var(--color-text);
+  }
+
+  /* Student detail modal dark mode */
+  .student-detail-modal {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border);
+  }
+
+  .student-detail-header {
+    border-bottom-color: var(--color-border);
+  }
+
+  .student-detail-header h3 {
+    color: var(--color-text);
+  }
+
+  .student-detail-progress h4,
+  .student-detail-tests h4 {
+    color: var(--color-text);
+  }
+
+  .student-detail-test-item {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border);
+  }
+
+  /* Student stat cards dark mode */
+  .student-stat-card {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border);
+  }
+
+  .student-stat-card .stat-value > svg {
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+  }
+
+  .student-stat-card .stat-value strong {
+    color: var(--color-text);
+  }
+
+  .student-stat-card .stat-label {
+    color: var(--color-text-secondary);
+  }
+
+  /* Student test items dark mode */
+  .student-test-item {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border);
+  }
+
+  .student-test-item .student-test-name {
+    color: var(--color-text);
+  }
+
+  .student-test-info {
+    color: var(--color-text-secondary);
+  }
+
+  .student-test-score {
+    color: var(--color-text);
+  }
+
+  .student-test-percentile {
+    color: var(--color-text-secondary);
+  }
+
+  /* Move to select dark mode */
+  .batch-row-actions-select,
+  .batch-row-actions select {
+    background: var(--color-bg-field);
+    color: var(--color-text);
+    border-color: var(--color-border-strong);
+  }
+  /* Mobile stacked action buttons keep their semantic colours in dark mode. */
+  .batch-row-actions .batch-remove-btn {
+    border-color: var(--color-danger-border);
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+  }
+  .batch-row-actions .batch-remove-btn:hover {
+    background: #7f1d1d;
+  }
+}
+/* ===== Mobile polish (M3): sticky tab bar, bottom-sheet modals, safe areas ===== */
+@media (max-width: 768px) {
+  /* Tab bar sticks to the top and spans edge-to-edge while scrolling. */
+  .batch-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    margin-left: -14px;
+    margin-right: -14px;
+    padding: 4px 10px 0;
+    scroll-snap-type: x proximity;
+    box-shadow: 0 2px 8px -4px rgb(15 23 42 / 0.18);
+  }
+  .batch-tabs::-webkit-scrollbar { display: none; }
+  .batch-tab { flex: 0 0 auto; scroll-snap-align: start; }
+
+  /* Modals dock to the bottom edge like native sheets. */
+  .batch-modal-overlay { align-items: flex-end; padding: 0; }
+  .batch-modal,
+  .student-detail-modal {
+    width: 100%;
+    max-height: 88vh;
+    border-radius: 18px 18px 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+    animation: batchSheetIn 220ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+
+@keyframes batchSheetIn {
+  from { transform: translateY(60%); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}

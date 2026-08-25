@@ -711,16 +711,16 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
       </header>
 
       <main className="pdf-review-main">
-        {!current && isGenerating && questions.length < total ? (
+        {!current ? (
           <div className="loading-next">
-            <RefreshCw className="spin" size={18} />
-            <span>
-              Still extracting question {index + 1} of {total}…
-            </span>
-          </div>
-        ) : !current ? (
-          <div className="loading-next">
-            <span>No questions have arrived yet.</span>
+            {isGenerating && questions.length < total ? (
+              <span>Waiting for question {index + 1} of {total}…</span>
+            ) : (
+              <>
+                <RefreshCw className="spin" size={18} />
+                <span>No questions have arrived yet.</span>
+              </>
+            )}
           </div>
         ) : (
           <div className="pdf-review-card">

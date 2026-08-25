@@ -18,7 +18,9 @@ export const ProgressChart: React.FC<Props> = ({ results, height = 160 }) => {
     return <p style={{ color: 'var(--color-text-secondary)' }}>No attempts yet — take a test to see your progress.</p>;
   }
 
-  const padding = 16;
+  // Left padding must fit the "100%" y-axis labels; 16px clipped them to a
+  // bare "%". 40px leaves room for three digits + the % sign.
+  const padding = 40;
   const w = 480;
   const h = height;
   const pw = w - padding * 2;
@@ -38,7 +40,9 @@ export const ProgressChart: React.FC<Props> = ({ results, height = 160 }) => {
 
   return (
     <div style={{ width: '100%', overflowX: 'auto' }}>
-      <svg width={w} height={h} style={{ width: '100%', height: 'auto' }}>
+      {/* viewBox is REQUIRED: without it a fluid-width svg clips instead of
+          scaling, which used to hide every gridline below ~40% on mobile. */}
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: 'auto', display: 'block' }}>
         <rect x={padding} y={padding} width={pw} height={ph} fill="none" stroke="var(--color-border-strong)" />
         {gridValues.map(v => {
           const gy = yFor(v);
@@ -49,18 +53,26 @@ export const ProgressChart: React.FC<Props> = ({ results, height = 160 }) => {
             </g>
           );
         })}
-        <polygon points={areaPath} fill="url(#areaGrad)" fillOpacity={0.14} />
         <defs>
           <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
             <stop stopColor="var(--color-accent)" stopOpacity={0.3} />
             <stop stopColor="var(--color-accent)" stopOpacity={0} />
           </linearGradient>
         </defs>
-        <polyline points={points.map(p => `${xFor(p.x).toFixed(1)},${yFor(p.y).toFixed(1)}`).join(' ')}
-          fill="none" stroke="var(--color-accent)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-        {points.map(p => (
-  <circle key={p.x} cx={xFor(p.x)} cy={yFor(p.y)} r={3} fill="var(--color-accent)" />
-        ))}
+        {/* Single-attempt charts degenerated into a diagonal line to the floor
+            (area closed at y=0); draw one clear dot instead of a fake trend. */}
+        {n === 1 ? (
+          <circle cx={xFor(0)} cy={yFor(points[0].y)} r={4} fill="var(--color-accent)" />
+        ) : (
+          <>
+            <polygon points={areaPath} fill="url(#areaGrad)" fillOpacity={0.14} />
+            <polyline points={points.map(p => `${xFor(p.x).toFixed(1)},${yFor(p.y).toFixed(1)}`).join(' ')}
+              fill="none" stroke="var(--color-accent)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+            {points.map(p => (
+              <circle key={p.x} cx={xFor(p.x)} cy={yFor(p.y)} r={3} fill="var(--color-accent)" />
+            ))}
+          </>
+        )}
       </svg>
     </div>
   );
