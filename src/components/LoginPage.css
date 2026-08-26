@@ -46,7 +46,7 @@
   --gradient-success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
 }
 
-/* ===== Dark Mode (core tokens + surfaces) =====
+/* ===== Dark Mode (core tokens + surfaces) ===== */
 @media (prefers-color-scheme: dark) {
   :root {
     --primary-color: #60a5fa;

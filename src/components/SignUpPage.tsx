@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SignUp } from '@clerk/react';
-import { ArrowLeft, BookOpen, Shield, Info, User, Lock, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, BookOpen, Shield, User, Lock, Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import './LoginPage.css';
 import { teacherSignUp } from '../lib/auth';

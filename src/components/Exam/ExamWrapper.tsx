@@ -488,13 +488,13 @@ const examState = useExamState();
     try {
       setStudentName(name.trim());
       const attemptMarker = getAttemptMarkerKey(testCode, name);
-      // A test past its window is only Practice Mode for anonymous students.
-      // Authenticated students (launched from their dashboard) can take expired
-      // tests for credit, and the result reflects back on their dashboard.
-      // An explicit "Practice again" launch (?practice=1) always wins.
+      // A test past its window is Practice Mode ONLY — for everyone, including
+      // signed-in students who never attempted it. Nothing is saved for credit
+      // after the cut-off. An explicit "Practice" launch (?practice=1) and
+      // students who already attempted the test also land in Practice Mode.
       const practiceMode = Boolean(
         forcePractice ||
-        (windowClosed && !studentIdentity) ||
+        windowClosed ||
         (attemptMarker && window.localStorage.getItem(attemptMarker)) ||
         await hasStudentTakenTest(test.id, name)
       );
@@ -588,7 +588,8 @@ const examState = useExamState();
               }
             : {}),
         });
-        finalResult.completedAt = new Date(savedResult.completed_at);
+        // Persisted row column arrives untyped — assert the ISO string.
+        finalResult.completedAt = new Date(savedResult.completed_at as string);
         const attemptMarker = getAttemptMarkerKey(testCode, studentName);
         if (attemptMarker) {
           window.localStorage.setItem(attemptMarker, '1');
@@ -629,8 +630,8 @@ const examState = useExamState();
   }, [examTimer.timeRemaining, currentPhase, examState.answers]);
 
   // Auto-submit only while a still-open exam is in progress. Expired exams
-  // attempted for credit (windowClosed) are exempt so the student can work
-  // through the full allotted duration instead of being auto-killed.
+  // (windowClosed) run in Practice Mode, which is already excluded below, so
+  // practice attempts always get their full allotted duration.
   useEffect(() => {
     if (
       currentPhase === 'active' &&
@@ -781,7 +782,10 @@ const examState = useExamState();
             }}
             timeInfo={timeInfo}
             studentIdentity={studentIdentity ?? undefined}
-            practiceMode={forcePractice}
+            // Expired tests are practice-only: reflect that on the entry
+            // screen (banner + "Start Practice Attempt" label) immediately,
+            // before handleStudentEntry computes the final flag.
+            practiceMode={forcePractice || windowClosed}
           />
         ) : null;
 

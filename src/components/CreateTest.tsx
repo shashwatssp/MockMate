@@ -20,6 +20,7 @@ import { createTest, getPaginatedQuestions, getBatchesForTeacher, assignTestToBa
 import type { Question, Test } from '../types/exam.types';
 import type { BatchRow } from '../lib/database';
 import { getTeacherSession } from '../lib/localAuth';
+import { notifyError, notifySuccess } from '../lib/shareToast';
 
 interface CreateTestProps {
   onBackToDashboard: () => void;
@@ -28,6 +29,36 @@ interface CreateTestProps {
 }
 
 type DifficultyLevel = 'easy' | 'medium' | 'hard';
+
+/** Minimal structural type for the Web Speech API (not in lib.dom). */
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onresult: ((event: {
+    resultIndex: number;
+    results: Array<{ isFinal: boolean; 0: { transcript: string } }>;
+  }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+}
+
+/** Structural type for the pieces of @google/genai the voice flow uses.
+ *  Kept structurally compatible with the package's own types (text is
+ *  optional upstream), so it works whether or not the package is installed. */
+interface GeminiClientCtor {
+  new (opts: { apiKey: string }): {
+    models: {
+      generateContent: (req: {
+        model: string;
+        contents: string;
+        config?: Record<string, unknown>;
+      }) => Promise<{ text?: string }>;
+    };
+  };
+}
 
 interface VoiceQuestionCriteria {
   subject: string;
@@ -208,26 +239,26 @@ const shuffleArray = <T,>(array: T[]): T[] => {
   // Voice recognition setup
   const startVoiceRecognition = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
+      notifyError('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
       return;
     }
 
-    const SpeechRecognitionCtor = (window as unknown as {
-      SpeechRecognition?: unknown;
-      webkitSpeechRecognition?: unknown;
-    }).SpeechRecognition || (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
-    const recognition = new (SpeechRecognitionCtor as new () => unknown)();
+    const SpeechRecognitionCtor =
+      (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike }).SpeechRecognition ||
+      (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognitionLike }).webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) return;
+    const recognition = new SpeechRecognitionCtor();
 
-    (recognition as { continuous: boolean }).continuous = true;
-    (recognition as { interimResults: boolean }).interimResults = true;
-    (recognition as { lang: string }).lang = 'en-US';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
 
     recognition.onstart = () => {
       setIsListening(true);
       setVoiceTranscript('');
     };
 
-    recognition.onresult = (event: { resultIndex: number; results: unknown[] }) => {
+    recognition.onresult = (event) => {
       let finalTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         if (event.results[i].isFinal) {
@@ -241,7 +272,7 @@ const shuffleArray = <T,>(array: T[]): T[] => {
 
     recognition.onerror = () => {
       setIsListening(false);
-      alert('Speech recognition error. Please try again.');
+      notifyError('Speech recognition error. Please try again.');
     };
 
     recognition.onend = () => {
@@ -261,17 +292,20 @@ const shuffleArray = <T,>(array: T[]): T[] => {
     setIsProcessingVoice(true);
 
     try {
-      let GoogleGenAI: unknown;
+      let GoogleGenAI: GeminiClientCtor | undefined;
       try {
         ({ GoogleGenAI } = await import('@google/genai'));
       } catch {
-        alert('Voice processing is unavailable. The @google/genai package is not installed. Please enter details manually.');
+        notifyError('Voice processing is unavailable. The @google/genai package is not installed. Please enter details manually.');
         setIsProcessingVoice(false);
         return;
       }
 
       const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
+      if (!GoogleGenAI) {
+        throw new Error('Gemini client unavailable');
+      }
       if (!GEMINI_API_KEY) {
         throw new Error('Gemini API key not found');
       }
@@ -328,7 +362,7 @@ Rules:
           responseMimeType: "application/json"
         },
       });
-      const rawText = response.text;
+      const rawText = response.text ?? '';
       
       try {
         // Clean the response to extract JSON
@@ -348,20 +382,20 @@ Rules:
           await applyVoiceData(fallbackData);
         } catch (fallbackError) {
           void fallbackError;
-          alert('Failed to process voice input. Please try again or enter details manually.');
+          notifyError('Failed to process voice input. Please try again or enter details manually.');
         }
       }
 
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       if (errMsg.includes('404')) {
-        alert('AI model not available. Please try again later.');
+        notifyError('AI model not available. Please try again later.');
       } else if (errMsg.includes('API key')) {
-        alert('AI configuration error. Please check your Gemini API key.');
+        notifyError('AI configuration error. Please check your Gemini API key.');
       } else if (errMsg.includes('quota') || errMsg.includes('limit')) {
-        alert('API quota exceeded. Please try again later.');
+        notifyError('API quota exceeded. Please try again later.');
       } else {
-        alert('Failed to process voice input. Please check your configuration.');
+        notifyError('Failed to process voice input. Please check your configuration.');
       }
     } finally {
       setIsProcessingVoice(false);
@@ -472,7 +506,8 @@ const applyVoiceData = async (data: VoiceData) => {
     const questionCriteria = Array.isArray(data?.questions) && (data?.questions as unknown[]).length > 0
       ? data.questions as unknown[]
       : [{ subject: 'General', topic: 'General', difficulty: 'easy' }];
-    const questions = questionCriteria.map((q: Record<string, unknown>) => {
+    const questions = questionCriteria.map((raw) => {
+        const q = raw as Record<string, unknown>;
         const useRequestedTotal = Number.isFinite(requestedCount)
           && questionCriteria.length === 1
           && (!Number.isFinite(Number(q?.count)) || Number(q.count) === 5);
@@ -481,13 +516,15 @@ const applyVoiceData = async (data: VoiceData) => {
           : Number.isFinite(Number(q?.count))
           ? Math.min(180, Math.max(1, Math.round(Number(q.count))))
           : 5;
+        const difficulty: DifficultyLevel =
+          typeof q?.difficulty === 'string' && ['easy', 'medium', 'hard'].includes(q.difficulty)
+            ? (q.difficulty as DifficultyLevel)
+            : 'easy';
         return {
           subject: String(q?.subject || 'General').trim() || 'General',
           topic: String(q?.topic || 'General').trim() || 'General',
           count,
-          difficulty: ['easy', 'medium', 'hard'].includes(q?.difficulty)
-            ? q.difficulty
-            : 'easy'
+          difficulty
         };
       });
 
@@ -609,12 +646,12 @@ const applyVoiceData = async (data: VoiceData) => {
 
   const handleCreateTest = async () => {
     if (!testName.trim() || selectedQuestions.length === 0) {
-      alert('Please enter a test name and select at least one question.');
+      notifyError('Please enter a test name and select at least one question.');
       return;
     }
 
     if (!startDate || !startTime) {
-      alert('Please select start date and time for the test.');
+      notifyError('Please select start date and time for the test.');
       return;
     }
 
@@ -661,7 +698,7 @@ settings: {
           settings: result.settings
         };
 
-        alert(`Test created successfully! Test Key: ${result.test_key}`);
+        notifySuccess(`Test created successfully! Test Key: ${result.test_key}`);
         onCreateTest(createdTest);
         
         // Reset form
@@ -675,7 +712,7 @@ settings: {
       }
 
     } catch (error) {
-      alert(`Failed to create test: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      notifyError(`Failed to create test: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsCreating(false);
     }

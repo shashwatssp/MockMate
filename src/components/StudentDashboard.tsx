@@ -308,14 +308,19 @@ export const StudentDashboard: React.FC<Props> = ({ batch: initialBatch }) => {
                         navigate(`/student/results/${test.testKey}`);
                         return;
                       }
-                      navigate(`/exam/${test.testKey}/entry`);
+                      // Expired and never attempted: practice is the only option.
+                      navigate(`/exam/${test.testKey}/entry${t === 'expired' ? '?practice=1' : ''}`);
                     }}
                     disabled={t === 'upcoming'}
                     className="student-test-btn"
                   >
-                    {attempted ? <Eye size={14} /> : null} {attempted ? 'Review' : 'Take test'}
+                    {attempted
+                      ? <Eye size={14} /> : t === 'expired'
+                        ? <RotateCcw size={14} /> : null}
+                    {' '}
+                    {attempted ? 'Review' : t === 'expired' ? 'Practice' : 'Take test'}
                   </button>
-                  {attempted && t !== 'upcoming' && (
+                  {attempted && t !== 'upcoming' && t !== 'expired' && (
                     <button
                       onClick={() => navigate(`/exam/${test.testKey}/entry?practice=1`)}
                       className="student-test-btn student-practice-btn"

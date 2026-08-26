@@ -34,6 +34,7 @@ import { getTeacherSession } from './lib/auth';
 import SignUpPage from './components/SignUpPage';
 import { extractionHealth } from './lib/extractionClient';
 import { Toaster } from 'react-hot-toast';
+import { shareTestLink } from './lib/shareToast';
 import './App.css';
 
 // AuthBridge is intentionally a no-op now that Clerk is optional.
@@ -84,8 +85,7 @@ function TeacherApp({ tests, setTests }: TeacherAppProps) {
     navigate('/dashboard');
 
     // Show success message with test link using testKey (4-letter code)
-    const testLink = `${window.location.origin}/${test.testKey}`;
-    alert(`Test created successfully!\n\nShare this link with your students:\n${testLink}\n\nTest Code: ${test.testKey}`);
+    void shareTestLink(test.testKey);
   };
 
   switch (location.pathname) {

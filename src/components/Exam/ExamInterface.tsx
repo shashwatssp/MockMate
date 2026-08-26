@@ -211,7 +211,6 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
       onCopy={(e) => { if (preventCopy) e.preventDefault(); }}
       onCut={(e) => { if (preventCopy) e.preventDefault(); }}
       onContextMenu={(e) => { if (preventCopy) e.preventDefault(); }}
-      onSelectStart={(e) => { if (preventCopy) e.preventDefault(); }}
     >
       {/* ===== Header (always visible): brand + timer + progress + controls ==== */}
       <header className="exam-header">
