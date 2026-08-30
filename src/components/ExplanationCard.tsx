@@ -1,4 +1,5 @@
 import React from 'react';
+import { LatexText } from './LatexText';
 
 export interface ExplanationCardProps {
   /** The AI-generated rationale. When absent/null/empty the card renders nothing. */
@@ -42,7 +43,7 @@ export const ExplanationCard: React.FC<ExplanationCardProps> = ({
         ) : null}
       </summary>
       <p className="explanation-text" data-testid="explanation-text">
-        {explanation}
+        <LatexText text={explanation} />
       </p>
     </details>
   );

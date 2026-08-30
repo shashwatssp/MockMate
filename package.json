@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-"dev": "vite --host 0.0.0.0",
+    "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -19,6 +19,7 @@
     "@netlify/neon": "^0.1.0",
     "@supabase/supabase-js": "^2.56.0",
     "jspdf": "^4.2.1",
+    "katex": "^0.18.4",
     "lucide-react": "^0.541.0",
     "pdfjs-dist": "^4.10.38",
     "react": "^19.1.1",

@@ -17,6 +17,7 @@ import {
   CircleDashed,
 } from 'lucide-react';
 import ExplanationCard from './ExplanationCard';
+import { LatexText } from './LatexText';
 import { generateSimplerExplanation, toExplanationInput } from '../lib/geminiDashboard';
 import './StudentResults.css';
 
@@ -258,7 +259,7 @@ export const StudentResults: React.FC = () => {
                         </span>
                       </header>
 
-                      <p className="sr-question-text">{question.text}</p>
+                      <p className="sr-question-text"><LatexText text={question.text} /></p>
 
                       <div className="sr-option-list">
                         {question.options.map((optionText, optionIndex) => {
@@ -271,7 +272,7 @@ export const StudentResults: React.FC = () => {
                           return (
                             <div key={optionIndex} className={classes.join(' ')}>
                               <span className="sr-option-letter">{String.fromCharCode(65 + optionIndex)}</span>
-                              <span className="sr-option-text">{optionText}</span>
+                              <span className="sr-option-text"><LatexText text={optionText} /></span>
                               {isKey ? <span className="sr-option-flag flag-good">correct answer</span> : null}
                               {isPick && !isKey ? <span className="sr-option-flag flag-bad">your answer</span> : null}
                             </div>

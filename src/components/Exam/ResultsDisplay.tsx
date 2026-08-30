@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import type { Test, TestResult } from '../../types/exam.types';
+import { LatexText } from '../LatexText';
 
 /** A question diagram rasterized for embedding into the PDF report. */
 interface ReportImage {
@@ -721,13 +722,13 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
                     <span className="question-num">Q{index + 1}</span>
                     <span className="question-topic">{question.topic}</span>
                     <span className="student-answer">
-                      {wasAnswered 
-                        ? formatAnswer(question, studentAnswer.selectedOption)
+                      {wasAnswered
+                        ? <LatexText text={formatAnswer(question, studentAnswer.selectedOption)} />
                         : 'Not Answered'
                       }
                     </span>
                     <span className="correct-answer">
-                      {formatAnswer(question, question.correctAnswer)}
+                      <LatexText text={formatAnswer(question, question.correctAnswer)} />
                     </span>
                     <span className={`result-status ${
                       isCorrect ? 'correct' : wasAnswered ? 'incorrect' : 'skipped'
