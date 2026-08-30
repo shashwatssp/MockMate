@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import type { Question } from '../types/exam.types';
 import './QuestionImage.css';
@@ -26,13 +26,46 @@ export const QuestionImage: React.FC<QuestionImageProps> = ({ question, maxHeigh
   // Rules of Hooks — the component still renders nothing when there is no image.
   const [isZoomOpen, setIsZoomOpen] = useState(false);
 
-  // Keep the background from scrolling while the preview is open.
+  // Holds the `popstate` handler so we can detach it before we intentionally
+  // manipulate history when closing (avoids any back-handling loop).
+  const popStateHandler = useRef<((e: PopStateEvent) => void) | null>(null);
+
+  // When the preview is open we manage browser history, body scroll and
+  // keyboard behaviour so the screen never feels "stuck": the preview can
+  // always be dismissed via the × button, the backdrop, Escape, or the mobile
+  // back button (which closes the preview instead of navigating away).
   useEffect(() => {
     if (!isZoomOpen) return undefined;
-    const original = document.body.style.overflow;
+
+    // Lock body scroll so the page behind doesn't scroll while previewing.
+    const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+
+    // Mobile back button: close the preview instead of leaving the screen.
+    // One history entry is pushed on open and popped on close, keeping the
+    // back stack balanced so subsequent back presses behave normally.
+    const onPopState = () => {
+      setIsZoomOpen(false);
+    };
+    popStateHandler.current = onPopState;
+    window.addEventListener('popstate', onPopState);
+
+    // Escape closes the preview for keyboard / laptop users.
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsZoomOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+
     return () => {
-      document.body.style.overflow = original;
+      document.body.style.overflow = originalOverflow;
+      if (popStateHandler.current) {
+        window.removeEventListener('popstate', popStateHandler.current);
+        popStateHandler.current = null;
+      }
+      window.removeEventListener('keydown', onKeyDown);
     };
   }, [isZoomOpen]);
 
@@ -49,11 +82,24 @@ export const QuestionImage: React.FC<QuestionImageProps> = ({ question, maxHeigh
 
   const openZoom = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Push a placeholder entry so the back button dismisses the preview first.
+    window.history.pushState({ zoomOpen: true }, '');
     setIsZoomOpen(true);
   };
-  const closeZoom = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const closeZoom = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    // Detach the back-handler before we touch history, so the popstate we are
+    // about to fire (via history.back) doesn't re-trigger a close.
+    if (popStateHandler.current) {
+      window.removeEventListener('popstate', popStateHandler.current);
+      popStateHandler.current = null;
+    }
     setIsZoomOpen(false);
+    // Pop the placeholder entry pushed on open so the back stack is restored
+    // and the next back press leaves the screen as expected.
+    if (window.history.state?.zoomOpen) {
+      window.history.back();
+    }
   };
 
   return (
