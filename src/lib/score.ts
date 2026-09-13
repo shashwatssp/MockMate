@@ -12,6 +12,40 @@ export interface ScoreResult {
   percentage: number;
 }
 
+/** Default pass mark (%). Single source of truth — every surface (exam entry,
+ *  results, analytics, saved-row mapping) must resolve the pass mark through
+ *  `resolvePassingScore` so a 70-vs-50 default can never diverge again. */
+export const DEFAULT_PASSING_SCORE = 70;
+
+/** Resolve a test's pass mark. `null`/`undefined`/non-finite → default (70).
+ *  An explicit 0 is honored (a pass-everything test is a valid config). */
+export const resolvePassingScore = (passingScore?: number | null): number =>
+  typeof passingScore === 'number' && Number.isFinite(passingScore)
+    ? passingScore
+    : DEFAULT_PASSING_SCORE;
+
+/** Letter grade from a percentage (same bands the results screen has always
+ *  shown): A+ ≥ 90, A ≥ 80, B ≥ 70, C ≥ 60, D ≥ 50, F < 50. */
+export const computeGrade = (percentage: number): string => {
+  if (percentage >= 90) return 'A+';
+  if (percentage >= 80) return 'A';
+  if (percentage >= 70) return 'B';
+  if (percentage >= 60) return 'C';
+  if (percentage >= 50) return 'D';
+  return 'F';
+};
+
+/** Pass/fail verdict for an attempt against the test's pass mark.
+ *  Populated on every `TestResult` (live + persisted paths) so students are
+ *  always told whether they passed. */
+export const computeVerdict = (
+  percentage: number,
+  passingScore?: number | null,
+): { passed: boolean; grade: string } => ({
+  passed: percentage >= resolvePassingScore(passingScore),
+  grade: computeGrade(percentage),
+});
+
 /**
  * Marks-aware scorer shared by the live exam result path
  * (`ExamWrapper.calculateResults`) and the persisted-results path

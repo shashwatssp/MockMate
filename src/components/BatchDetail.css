@@ -113,15 +113,6 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   font-size: 15px;
 }
 
-.batch-shell .student-empty-text {
-  color: var(--gray-500);
-  padding: 28px 16px;
-  text-align: center;
-  font-size: 14px;
-}
-
-.batch-shell .student-empty-text svg { opacity: 0.55; }
-
 .batch-shell .student-btn-plain,
 .batch-shell .student-btn-ghost {
   padding: 8px 14px;
@@ -226,9 +217,18 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   display: flex;
   align-items: center;
   gap: 10px;
+  row-gap: 6px;
+  flex-wrap: wrap;
   color: var(--gray-500);
   font-size: 13px;
   margin-top: 4px;
+  min-width: 0;
+}
+
+/* Long batch descriptions wrap instead of stretching the header card. */
+.batch-header-sub .student-muted {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .batch-header-sub code.batch-code {
@@ -366,21 +366,131 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
 
 .batch-item .batch-copy:hover { color: var(--primary-color); }
 
-.batch-item .batch-manage {
-  padding: 8px 16px;
+/* ===== BatchesHome card redesign: status rail, switch, icon actions ===== */
+/* Left rail doubles as the status indicator: green = active, gray = off. */
+.batch-shell .batch-item {
+  border-left: 5px solid var(--success-color);
+}
+
+.batch-shell .batch-item.is-inactive { border-left-color: var(--gray-300); }
+
+.batch-item-main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.batch-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+/* Pencil icon button — opens the inline rename form. */
+.batch-icon-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--gray-200);
   border-radius: var(--radius-md);
-  border: 1px solid var(--primary-color);
-  background: var(--primary-color);
-  color: #fff;
-  text-decoration: none;
-  font-size: 13px;
-  font-weight: 600;
+  background: transparent;
+  color: var(--gray-500);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: all var(--transition-fast);
 }
 
-.batch-item .batch-manage:hover {
-  background: var(--primary-hover);
-  border-color: var(--primary-hover);
+.batch-icon-btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+  color: var(--primary-dark);
+}
+
+/* Toggle switch (active/inactive) — replaces the old text pill button.
+   The hidden checkbox covers the whole label so the touch target is 44px. */
+.batch-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.batch-switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.batch-switch-track {
+  width: 44px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--gray-300);
+  position: relative;
+  display: inline-block;
+  box-sizing: border-box;
+  border: 1px solid rgb(0 0 0 / 0.06);
+  transition: background var(--transition-fast);
+}
+
+.batch-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast);
+}
+
+.batch-switch.is-on .batch-switch-track { background: var(--success-color); }
+.batch-switch.is-on .batch-switch-thumb { transform: translateX(20px); }
+
+.batch-switch input:disabled { cursor: not-allowed; }
+.batch-switch input:disabled + .batch-switch-track { opacity: 0.6; }
+
+.batch-switch input:focus-visible + .batch-switch-track {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+/* Manage chevron link — quiet, clearly navigational. */
+.batch-shell .batch-item .batch-manage-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  color: var(--primary-color);
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.batch-shell .batch-item .batch-manage-link:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+/* Mobile: card stacks; actions sit in a row below the details. */
+@media (max-width: 560px) {
+  .batch-shell .batch-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .batch-item-actions { justify-content: flex-end; padding-top: 2px; }
 }
 
 /* ===== Batch detail header (teacher) ===== */
@@ -497,6 +607,135 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   background: var(--white);
   color: var(--gray-900);
   min-width: 130px;
+}
+
+/* ===== Members tab: pencil-icon edit disclosure ===== */
+/* The row wraps so the expanded panel always sits on its own full-width
+   line below the member name — accordion pattern, one row open at a time. */
+.batch-list .batch-detail-row.batch-member-row {
+  flex-wrap: wrap;
+}
+
+.batch-member-row.is-editing {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.batch-member-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 100%;
+}
+
+.batch-member-edit-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--gray-500);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.batch-member-edit-btn:hover,
+.batch-member-edit-btn.is-open {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+  color: var(--primary-dark);
+}
+
+.batch-member-edit-panel {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: 2px;
+  padding: 12px;
+  border: 1px dashed var(--gray-300);
+  border-radius: var(--radius-lg);
+  background: var(--gray-50);
+  box-sizing: border-box;
+  animation: batchPanelIn var(--transition-fast) ease-out;
+}
+
+@keyframes batchPanelIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.batch-edit-panel-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1 1 220px;
+  min-width: 0;
+  position: relative;
+}
+
+.batch-edit-panel-field label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--gray-500);
+}
+
+.batch-edit-panel-field select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-300);
+  background: var(--white);
+  color: var(--gray-900);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.batch-panel-spinner {
+  position: absolute;
+  right: 10px;
+  bottom: 9px;
+  color: var(--primary-color);
+}
+
+.batch-edit-panel-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.batch-panel-remove {
+  padding: 8px 12px;
+  min-height: 36px;
+}
+
+/* Mobile: the panel stacks full-width below the member name, with 44px
+   touch targets (Apple HIG / WCAG 2.5.5). */
+@media (max-width: 768px) {
+  .batch-edit-panel-field { flex-basis: 100%; }
+  .batch-edit-panel-actions {
+    flex-direction: column;
+    align-items: stretch;
+    flex-basis: 100%;
+  }
+  .batch-edit-panel-actions .batch-panel-action {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+    box-sizing: border-box;
+  }
+  .batch-member-edit-btn { width: 44px; height: 44px; }
 }
 
 /* ===== Action buttons (cohesive) ===== */
@@ -926,21 +1165,30 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
 }
 
 /* ===== Add-member form ===== */
+/* Grid (not flex+flex-end): the field (label+input) and the Add button land
+   on one visual baseline — the old flex layout floated the button against
+   the label height. */
 .batch-add-form {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   gap: 12px;
-  align-items: flex-end;
-  padding: 0;
+  padding: 14px;
   background: var(--gray-50);
   border-radius: var(--radius-xl);
   border: 1px solid var(--gray-200);
 }
 
-.batch-add-form .student-form-field { flex: 1; margin-bottom: 0; }
+.batch-add-form .student-form-field { margin-bottom: 0; min-width: 0; }
 
 .batch-add-form .batch-approve-btn {
-  margin-bottom: 2px;
   flex: 0 0 auto;
+  justify-self: end;
+}
+
+@media (max-width: 560px) {
+  .batch-add-form { grid-template-columns: 1fr; }
+  .batch-add-form .batch-approve-btn { justify-self: stretch; width: 100%; justify-content: center; }
 }
 
 /* ===== Results section ===== */
@@ -1033,6 +1281,75 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   padding: 14px 6px 2px;
 }
 
+/* ===== Batch list depth: status, stats, rename, activate/deactivate ===== */
+.batch-item.is-inactive { opacity: 0.72; }
+
+.batch-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.batch-status-chip {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--gray-600);
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+}
+
+.batch-item-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
+.batch-item-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.batch-stat-pending {
+  color: #b45309;
+  background: rgb(245 158 11 / 0.14);
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+/* Buttons sharing the link-style manage row need a button reset. */
+button.batch-manage-link {
+  font: inherit;
+  font-size: 13px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.batch-toggle-btn.is-off { color: var(--success-color, #059669); }
+
+.batch-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.batch-edit-actions { display: flex; gap: 8px; }
+.batch-edit-actions .batch-btn-secondary { min-height: 38px; }
+
 /* ===== Responsive ===== */
 @media (max-width: 880px) {
   .batch-create-form { grid-template-columns: 1fr; }
@@ -1094,6 +1411,22 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   .batch-results-table { font-size: 11px; }
 }
 
+/* ===== Narrow phones: tests tab stacks, stats stay a 2x2 grid ===== */
+@media (max-width: 480px) {
+  .batch-test-card { padding: 14px 12px; gap: 12px; }
+  .batch-test-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .batch-test-stat { padding: 10px; }
+  .batch-test-stat > svg { width: 24px; height: 24px; }
+  .batch-test-stat strong { font-size: 14px; }
+  .batch-test-foot { padding-top: 10px; }
+  .batch-test-meta-line { gap: 10px; }
+}
+
+/* ===== Very narrow phones: shrink the tab pills before they overflow ===== */
+@media (max-width: 380px) {
+  .batch-tab { padding: 10px 8px; font-size: 11px; gap: 4px; }
+}
+
 /* ===== Uniform dark mode for the batch screens =====
    The :root dark flip at the top of this file flips --white/--gray-* and
    re-bases --primary-color to #818cf8 (light blue). That light-blue accent is
@@ -1101,8 +1434,8 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
    dark-on-light-blue (unreadable). The amber `.batch-results-top` callout and
    the pink/red remove-button hover also stay light. Re-assert readable tokens.
    These rules come last, so they win. */
-@media (prefers-color-scheme: dark) {
-  :root {
+
+  :root[data-theme="dark"] {
     --gray-50: #0f1117;
     --gray-100: #171b26;
     --gray-200: #1f2330;
@@ -1120,82 +1453,81 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
     --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5);
   }
 
-  .batch-shell {
+  :where([data-theme="dark"]) .batch-shell {
     background:
       radial-gradient(circle at 12% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 24%),
       radial-gradient(circle at 88% 80%, rgba(118, 75, 162, 0.12) 0%, transparent 28%),
       #0f1117;
     color: #cbd5e1;
   }
-  .batch-shell .tests-table tbody tr:hover { background: #171b26; }
-  .batch-shell .student-error-inline { background: #450a0a; border-color: #7f1d1d; color: #fca5a5; }
+  :where([data-theme="dark"]) .batch-shell .tests-table tbody tr:hover { background: #171b26; }
+  :where([data-theme="dark"]) .batch-shell .student-error-inline { background: #450a0a; border-color: #7f1d1d; color: #fca5a5; }
 
-  .batch-shell {
+  :where([data-theme="dark"]) .batch-shell {
     background: radial-gradient(circle at 12% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 24%),
       radial-gradient(circle at 88% 80%, rgba(118, 75, 162, 0.10) 0%, transparent 28%),
       var(--color-bg);
     color: var(--color-text);
   }
 
-  /* primary/confirm buttons: text must sit on a saturated accent, not the
+   /* primary/confirm buttons: text must sit on a saturated accent, :where([data-theme="dark"]) not the
      light-blue --primary-color that the base dark block re-based to. */
-  .batch-save-btn, .batch-save-btn:hover { background: var(--color-accent); color: #fff; }
-  .batch-approve-btn, .batch-approve-btn:hover { background: var(--color-success); color: #fff; }
-  .batch-reject-btn, .batch-reject-btn:hover { background: var(--color-danger); color: #fff; }
-  .batch-save-btn:disabled, .batch-approve-btn:disabled, .batch-reject-btn:disabled, .batch-remove-btn:disabled {
+  :where([data-theme="dark"]) .batch-save-btn, :where([data-theme="dark"]) .batch-save-btn:hover { background: var(--color-accent); color: #fff; }
+  :where([data-theme="dark"]) .batch-approve-btn, :where([data-theme="dark"]) .batch-approve-btn:hover { background: var(--color-success); color: #fff; }
+  :where([data-theme="dark"]) .batch-reject-btn, :where([data-theme="dark"]) .batch-reject-btn:hover { background: var(--color-danger); color: #fff; }
+  :where([data-theme="dark"]) .batch-save-btn:disabled, :where([data-theme="dark"]) .batch-approve-btn:disabled, :where([data-theme="dark"]) .batch-reject-btn:disabled, :where([data-theme="dark"]) .batch-remove-btn:disabled {
     opacity: 0.6;
   }
 
-  /* remove button: keep a dark-readable red instead of light pink */
-  .batch-remove-btn { border-color: var(--color-danger-border); background: var(--color-danger-soft); color: var(--color-danger); }
-  .batch-remove-btn:hover { background: #7f1d1d; }
+   /* remove button: keep a dark-readable red instead of light pink */
+  :where([data-theme="dark"]) .batch-remove-btn { border-color: var(--color-danger-border); background: var(--color-danger-soft); color: var(--color-danger); }
+  :where([data-theme="dark"]) .batch-remove-btn:hover { background: #7f1d1d; }
 
-  /* amber results callout -> dark amber that is readable on a dark canvas */
-  .batch-results-top { background: #29251e; border-color: #453a1f; color: #f5e9c9; }
-  .batch-results-top .batch-results-trophy { color: #fcd34d; }
+   /* amber results callout -> dark amber that is readable on a dark canvas */
+  :where([data-theme="dark"]) .batch-results-top { background: #29251e; border-color: #453a1f; color: #f5e9c9; }
+  :where([data-theme="dark"]) .batch-results-top .batch-results-trophy { color: #fcd34d; }
 
-  .batch-results-table, .batch-results-table th, .batch-results-table td { color: var(--color-text); }
-  .batch-results-table thead th { color: var(--color-text-secondary); background: var(--color-bg-elevated); }
-  .batch-results-table tbody tr:hover { background: var(--color-bg-elevated); }
-  .batch-detail-row .row-name, .batch-detail-name, .batch-results-student { color: var(--color-text); }
-  .batch-detail-row .row-sub, .batch-detail-sub { color: var(--color-text-secondary); }
-  .student-btn-ghost:hover, .student-btn-plain:hover { background: var(--color-bg-elevated); color: var(--color-text); }
-  .batch-footer-stats { color: var(--color-text-secondary); }
-  .batch-toggle-btn { background: var(--color-bg-elevated); color: var(--color-ink-secondary); border-color: var(--color-border); }
-  .batch-toggle-btn.active { background: var(--color-accent); color: #fff; border-color: var(--color-accent-hover); }
-  .batch-add-form { background: var(--color-bg-elevated); border-color: var(--color-border); }
+  :where([data-theme="dark"]) .batch-results-table, :where([data-theme="dark"]) .batch-results-table th, :where([data-theme="dark"]) .batch-results-table td { color: var(--color-text); }
+  :where([data-theme="dark"]) .batch-results-table thead th { color: var(--color-text-secondary); background: var(--color-bg-elevated); }
+  :where([data-theme="dark"]) .batch-results-table tbody tr:hover { background: var(--color-bg-elevated); }
+  :where([data-theme="dark"]) .batch-detail-row .row-name, :where([data-theme="dark"]) .batch-detail-name, :where([data-theme="dark"]) .batch-results-student { color: var(--color-text); }
+  :where([data-theme="dark"]) .batch-detail-row .row-sub, :where([data-theme="dark"]) .batch-detail-sub { color: var(--color-text-secondary); }
+  :where([data-theme="dark"]) .student-btn-ghost:hover, :where([data-theme="dark"]) .student-btn-plain:hover { background: var(--color-bg-elevated); color: var(--color-text); }
+  :where([data-theme="dark"]) .batch-footer-stats { color: var(--color-text-secondary); }
+  :where([data-theme="dark"]) .batch-toggle-btn { background: var(--color-bg-elevated); color: var(--color-ink-secondary); border-color: var(--color-border); }
+  :where([data-theme="dark"]) .batch-toggle-btn.active { background: var(--color-accent); color: #fff; border-color: var(--color-accent-hover); }
+  :where([data-theme="dark"]) .batch-add-form { background: var(--color-bg-elevated); border-color: var(--color-border); }
 
-  .student-form-field input, .student-form-field select, .student-form-field-input {
+  :where([data-theme="dark"]) .student-form-field input, :where([data-theme="dark"]) .student-form-field select, :where([data-theme="dark"]) .student-form-field-input {
     background: var(--color-bg-field);
     color: var(--color-text);
     border-color: var(--color-border-strong);
   }
 
-  /* Tests tab cards + assign modal */
-  .batch-test-card { background: var(--color-bg-elevated); border-color: var(--color-border); }
-  .batch-test-stat { background: var(--color-bg-field); border-color: var(--color-border); }
-  .batch-test-stat > svg { background: rgba(129, 140, 248, 0.16); color: #a5b4fc; }
-  .batch-test-stat strong { color: var(--color-text); }
-  .batch-test-stat span, .batch-test-meta-line { color: var(--color-text-secondary); }
-  .batch-print-btn { border-color: var(--color-border); color: var(--color-ink-secondary); }
-  .batch-print-btn:hover { background: var(--color-bg-field); border-color: var(--color-accent); color: var(--color-text); }
-  .batch-test-empty-hint { background: transparent; border-color: var(--color-border); color: var(--color-text-secondary); }
-  .batch-test-warn-hint { background: #29251e; border-color: #453a1f; color: #f5e9c9; }
-  .batch-test-foot { border-top-color: var(--color-border); }
-  .batch-chip { background: var(--color-bg-field); border-color: var(--color-border); color: var(--color-text-secondary); }
-  .batch-chip-note { color: var(--color-text-secondary); }
-  .batch-assign-btn, .batch-assign-btn:hover { background: var(--color-accent); color: #fff; }
-  .batch-modal { background: var(--color-bg-elevated); border-color: var(--color-border); }
-  .batch-modal h3 { color: var(--color-text); }
-  .batch-modal-sub { color: var(--color-text-secondary); }
-  .batch-modal-option { border-color: var(--color-border); }
-  .batch-modal-option:hover { background: var(--color-bg-field); }
-  .batch-modal-option.checked { background: var(--color-accent-soft); border-color: var(--color-accent); }
-  .batch-modal-option-name { color: var(--color-text); }
-  .batch-modal-option-code { color: var(--color-text-secondary); }
-  .batch-btn-secondary { background: transparent; border-color: var(--color-border-strong); color: var(--color-text); }
-  .batch-btn-secondary:hover { background: var(--color-bg-field); }
-}
+   /* Tests tab cards + assign modal */
+  :where([data-theme="dark"]) .batch-test-card { background: var(--color-bg-elevated); border-color: var(--color-border); }
+  :where([data-theme="dark"]) .batch-test-stat { background: var(--color-bg-field); border-color: var(--color-border); }
+  :where([data-theme="dark"]) .batch-test-stat > svg { background: rgba(129, 140, 248, 0.16); color: #a5b4fc; }
+  :where([data-theme="dark"]) .batch-test-stat strong { color: var(--color-text); }
+  :where([data-theme="dark"]) .batch-test-stat span, :where([data-theme="dark"]) .batch-test-meta-line { color: var(--color-text-secondary); }
+  :where([data-theme="dark"]) .batch-print-btn { border-color: var(--color-border); color: var(--color-ink-secondary); }
+  :where([data-theme="dark"]) .batch-print-btn:hover { background: var(--color-bg-field); border-color: var(--color-accent); color: var(--color-text); }
+  :where([data-theme="dark"]) .batch-test-empty-hint { background: transparent; border-color: var(--color-border); color: var(--color-text-secondary); }
+  :where([data-theme="dark"]) .batch-test-warn-hint { background: #29251e; border-color: #453a1f; color: #f5e9c9; }
+  :where([data-theme="dark"]) .batch-test-foot { border-top-color: var(--color-border); }
+  :where([data-theme="dark"]) .batch-chip { background: var(--color-bg-field); border-color: var(--color-border); color: var(--color-text-secondary); }
+  :where([data-theme="dark"]) .batch-chip-note { color: var(--color-text-secondary); }
+  :where([data-theme="dark"]) .batch-assign-btn, :where([data-theme="dark"]) .batch-assign-btn:hover { background: var(--color-accent); color: #fff; }
+  :where([data-theme="dark"]) .batch-modal { background: var(--color-bg-elevated); border-color: var(--color-border); }
+  :where([data-theme="dark"]) .batch-modal h3 { color: var(--color-text); }
+  :where([data-theme="dark"]) .batch-modal-sub { color: var(--color-text-secondary); }
+  :where([data-theme="dark"]) .batch-modal-option { border-color: var(--color-border); }
+  :where([data-theme="dark"]) .batch-modal-option:hover { background: var(--color-bg-field); }
+  :where([data-theme="dark"]) .batch-modal-option.checked { background: var(--color-accent-soft); border-color: var(--color-accent); }
+  :where([data-theme="dark"]) .batch-modal-option-name { color: var(--color-text); }
+  :where([data-theme="dark"]) .batch-modal-option-code { color: var(--color-text-secondary); }
+  :where([data-theme="dark"]) .batch-btn-secondary { background: transparent; border-color: var(--color-border-strong); color: var(--color-text); }
+  :where([data-theme="dark"]) .batch-btn-secondary:hover { background: var(--color-bg-field); }
 
 /* ===== Student stat cards (reused in student detail modal) ===== */
 .student-stat-card {
@@ -1385,6 +1717,132 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   font-weight: 700;
 }
 
+/* ---- Weakest-students controls (§3.3) ---- */
+.batch-rankings-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.batch-rankings-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--gray-200);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--gray-700);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.batch-rankings-toggle:hover {
+  background: var(--gray-50);
+  color: var(--gray-900);
+}
+
+.batch-rankings-toggle.is-on {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.batch-rankings-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--gray-600);
+  cursor: pointer;
+}
+
+.batch-rankings-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary-color);
+  cursor: pointer;
+}
+
+/* ---- Podium medal badges (gold / silver / bronze) — shared by the
+   aggregated rankings table and the per-test tables ---- */
+.batch-rankings-table .batch-results-rank,
+.batch-results-table .batch-results-rank {
+  white-space: nowrap;
+}
+
+.batch-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--gray-600);
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+}
+
+.batch-rank-badge svg { flex-shrink: 0; }
+
+.batch-rank-badge.top-1 { color: #b45309; background: #fef3c7; border-color: #fcd34d; }
+.batch-rank-badge.top-2 { color: #475569; background: #f1f5f9; border-color: #cbd5e1; }
+.batch-rank-badge.top-3 { color: #7c2d12; background: #ffedd5; border-color: #fdba74; }
+
+/* ---- Improvement-since-first-attempt indicator ---- */
+.batch-results-change {
+  width: 76px;
+  white-space: nowrap;
+}
+
+.batch-improvement {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  font-size: 12.5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.batch-improvement.is-up {
+  color: var(--success-color, #059669);
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.batch-improvement.is-down {
+  color: var(--error-color, #dc2626);
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+/* ---- Percentile pill ---- */
+.batch-pctile-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--gray-600);
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+}
+
+.batch-results-pctile { white-space: nowrap; }
+
 /* ===== Student detail modal ===== */
 .student-detail-modal {
   width: min(100%, 640px);
@@ -1440,6 +1898,18 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   margin-bottom: 8px;
 }
 
+/* Let the meta block (score + "Completed <timestamp>") drop to its own full-
+   width line when the test name squeezes it — squeezing collapsed the
+   timestamp to one word per line (a vertical date column). nowrap keeps the
+   timestamp itself on one horizontal line. */
+.student-detail-test-item {
+  flex-wrap: wrap;
+}
+.student-detail-test-item .student-test-score,
+.student-detail-test-item .student-test-percentile {
+  white-space: nowrap;
+}
+
   /* ===== Move to select — prevent overflow on narrow rows ===== */
 @media (max-width: 768px) {
   .batch-row-actions-select,
@@ -1450,145 +1920,151 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
     box-sizing: border-box;
   }
 
-  /* ---- Rankings table: transform to card layout ---- */
-  .batch-rankings-table thead {
-    display: none;
-  }
-
+  /* ---- Results + Rankings: unified card reflow ----
+     Each table row becomes one student card: line 1 = rank badge + name,
+     then a labelled row per stat (small uppercase label left, value right).
+     No min-width anywhere, so nothing ever scrolls sideways. */
   .batch-rankings-table,
-  .batch-rankings-table th,
-  .batch-rankings-table td {
+  .batch-results-table {
     min-width: 0;
-  }
-
-  .batch-rankings-table {
-    min-width: 100%;
+    width: 100%;
     font-size: 13px;
   }
 
-  .batch-rankings-table tbody,
-  .batch-rankings-table tr,
-  .batch-rankings-table td {
-    display: block;
-  }
-
-  .batch-rankings-table tr {
-    border: 1px solid var(--gray-200);
-    border-radius: var(--radius-xl);
-    padding: 10px;
-    margin-bottom: 8px;
-    background: var(--white);
-    box-shadow: var(--shadow-sm);
-  }
-
-  /* Each card-style row: label on the left (::before), value on the right.
-     font-weight + explicit color ensure values are never lost against the
-     label or background — the old layout showed only the ::before labels. */
-  .batch-rankings-table td {
-    text-align: right;
-    padding: 4px 10px 4px 44px;
-    position: relative;
-    border-bottom: none;
-    font-weight: 600;
-    color: var(--gray-900);
-    word-break: break-word;
-  }
-  /* Student-name button: full-width, left-aligned inside the card.
-     Left padding clears the absolutely-positioned ::before data-label.
-     box-sizing: border-box keeps width:100% from overflowing the cell. */
-  .batch-rankings-table .batch-student-link {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 2px 0 2px 56px;
-    box-sizing: border-box;
-  }
-
-  .batch-rankings-table td::before {
-    content: attr(data-label);
-    position: absolute;
-    left: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--gray-500);
-    text-align: left;
-  }
-
-  /* ---- Results table: transform to card layout ---- */
+  .batch-rankings-table thead,
   .batch-results-table thead {
     display: none;
   }
 
-  .batch-results-table,
-  .batch-results-table th,
-  .batch-results-table td {
-    min-width: 0;
-  }
-
-  .batch-results-table {
-    min-width: 100%;
-    font-size: 13px;
-  }
-
+  .batch-rankings-table tbody,
+  .batch-rankings-table tr,
+  .batch-rankings-table td,
   .batch-results-table tbody,
   .batch-results-table tr,
   .batch-results-table td {
     display: block;
+    min-width: 0;
   }
 
+  .batch-rankings-table tr,
   .batch-results-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     border: 1px solid var(--gray-200);
-    border-radius: var(--radius-xl);
-    padding: 10px;
-    margin-bottom: 8px;
+    border-radius: var(--radius-lg);
+    padding: 4px 14px 6px;
+    margin-bottom: 10px;
     background: var(--white);
     box-shadow: var(--shadow-sm);
   }
+  .batch-rankings-table tr:last-child,
+  .batch-results-table tr:last-child {
+    margin-bottom: 0;
+  }
 
-  /* Each card-style row: label on the left (::before), value on the right.
-     font-weight + explicit color ensure values are never lost against the
-     label or background — the old layout showed only the ::before labels. */
+  /* Stat rows: label left, value right, 44px-class touch height. */
+  .batch-rankings-table td,
   .batch-results-table td {
-    text-align: right;
-    padding: 4px 10px 4px 44px;
-    position: relative;
-    border-bottom: none;
+    display: flex;
+    flex: 1 1 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 44px;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--gray-100);
     font-weight: 600;
     color: var(--gray-900);
+    text-align: right;
     word-break: break-word;
   }
-  /* Student-name button: full-width, left-aligned inside the card.
-     Left padding clears the absolutely-positioned ::before data-label.
-     box-sizing: border-box keeps width:100% from overflowing the cell. */
-  .batch-results-table .batch-student-link {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 2px 0 2px 56px;
-    box-sizing: border-box;
+  .batch-rankings-table tr td:last-of-type,
+  .batch-results-table tr td:last-of-type {
+    border-bottom: none;
   }
 
+  .batch-rankings-table td::before,
   .batch-results-table td::before {
     content: attr(data-label);
-    position: absolute;
-    left: 8px;
-    top: 50%;
-    transform: translateY(-50%);
+    flex-shrink: 0;
+    position: static;
+    transform: none;
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
     color: var(--gray-500);
     text-align: left;
   }
 
-  /* Student name link: left-align within card */
-  .batch-student-link {
+  /* Completed timestamp stays on one horizontal line in the card reflow
+     (word-per-line stacking read like a vertical date column). */
+  .batch-results-table td[data-label="Completed"] {
+    word-break: normal;
+    white-space: nowrap;
+  }
+
+  /* Card head: rank badge + student name share the first line, no labels. */
+  .batch-rankings-table td.batch-results-rank,
+  .batch-results-table td.batch-results-rank,
+  .batch-rankings-table td.batch-results-student,
+  .batch-results-table td.batch-results-student {
+    padding: 10px 0;
+    border-bottom: none;
+  }
+  .batch-rankings-table td.batch-results-rank::before,
+  .batch-results-table td.batch-results-rank::before,
+  .batch-rankings-table td.batch-results-student::before,
+  .batch-results-table td.batch-results-student::before {
+    display: none;
+  }
+  .batch-rankings-table td.batch-results-rank,
+  .batch-results-table td.batch-results-rank {
+    flex: 0 0 auto;
+    justify-content: center;
+    padding-right: 10px;
+  }
+  .batch-rankings-table td.batch-results-rank .batch-rank-badge,
+  .batch-results-table td.batch-results-rank .batch-rank-badge {
+    flex-shrink: 0;
+  }
+  /* flex-basis auto (NOT 0): a zero basis let long student names collapse to
+     a sliver in the All Tests cards. The cell takes its share of the line and
+     the name wraps within it — never clipped, never stripped. */
+  .batch-rankings-table td.batch-results-student,
+  .batch-results-table td.batch-results-student {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: flex-start;
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .batch-rankings-table .batch-student-link,
+  .batch-results-table .batch-student-link {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    box-sizing: border-box;
     text-align: left;
+    font-size: 14.5px;
+    font-weight: 700;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* Per-test result cards breathe with the section card. */
+  .batch-results-test {
+    padding: 14px;
+  }
+  .batch-results-summary {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 6px 14px;
   }
 
   /* Student detail modal: full-width on mobile */
@@ -1609,151 +2085,249 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
 }
 
 /* ===== Dark mode for new elements ===== */
-@media (prefers-color-scheme: dark) {
-  .batch-student-link {
+
+  :where([data-theme="dark"]) .batch-student-link {
     color: var(--color-accent);
   }
 
-  .batch-student-link:hover {
+  :where([data-theme="dark"]) .batch-student-link:hover {
     color: var(--color-accent-hover);
   }
 
-  .batch-rankings-card {
+  :where([data-theme="dark"]) .batch-rankings-card {
     background: var(--color-bg-elevated);
     border-color: var(--color-border);
   }
 
-  .batch-rankings-card h2 {
+  :where([data-theme="dark"]) .batch-rankings-card h2 {
     color: var(--color-text);
   }
 
-  .batch-rankings-card .student-muted {
+  :where([data-theme="dark"]) .batch-rankings-card .student-muted {
     color: var(--color-text-secondary);
   }
 
-  .batch-rankings-table,
-  .batch-rankings-table th,
-  .batch-rankings-table td {
+  :where([data-theme="dark"]) .batch-rankings-table, :where([data-theme="dark"]) .batch-rankings-table th, :where([data-theme="dark"]) .batch-rankings-table td {
     color: var(--color-text);
   }
 
-  .batch-rankings-table thead th {
+  :where([data-theme="dark"]) .batch-rankings-table thead th {
     color: var(--color-text-secondary);
     background: var(--color-bg-field);
     border-bottom-color: var(--color-border);
   }
 
-  .batch-rankings-table tbody tr:hover {
+  :where([data-theme="dark"]) .batch-rankings-table tbody tr:hover {
     background: var(--color-bg-field);
   }
 
-  /* Mobile card surfaces in dark mode */
-  .batch-rankings-table tr,
-  .batch-results-table tr {
+   /* Weakest-students controls */
+  :where([data-theme="dark"]) .batch-rankings-toggle {
+    border-color: var(--color-border);
+    color: var(--color-text-secondary);
+  }
+  :where([data-theme="dark"]) .batch-rankings-toggle:hover {
+    background: var(--color-bg-field);
+    color: var(--color-text);
+  }
+  :where([data-theme="dark"]) .batch-rankings-toggle.is-on {
+    background: var(--color-accent-soft);
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+  :where([data-theme="dark"]) .batch-rankings-check {
+    color: var(--color-text-secondary);
+  }
+
+   /* Medal badges + percentile pill + improvement chips in dark */
+  :where([data-theme="dark"]) .batch-rank-badge {
+    color: var(--color-text-secondary);
+    background: var(--color-bg-field);
+    border-color: var(--color-border);
+  }
+  :where([data-theme="dark"]) .batch-rank-badge.top-1 { color: #fcd34d; background: rgb(251 191 36 / 0.12); border-color: rgb(251 191 36 / 0.35); }
+  :where([data-theme="dark"]) .batch-rank-badge.top-2 { color: #cbd5e1; background: rgb(148 163 184 / 0.12); border-color: rgb(148 163 184 / 0.3); }
+  :where([data-theme="dark"]) .batch-rank-badge.top-3 { color: #fdba74; background: rgb(251 146 60 / 0.12); border-color: rgb(251 146 60 / 0.3); }
+
+  :where([data-theme="dark"]) .batch-pctile-pill {
+    color: var(--color-text-secondary);
+    background: var(--color-bg-field);
+    border-color: var(--color-border);
+  }
+
+  :where([data-theme="dark"]) .batch-improvement.is-up {
+    color: #34d399;
+    background: rgb(16 185 129 / 0.12);
+    border-color: rgb(16 185 129 / 0.35);
+  }
+  :where([data-theme="dark"]) .batch-improvement.is-down {
+    color: #f87171;
+    background: rgb(239 68 68 / 0.12);
+    border-color: rgb(239 68 68 / 0.35);
+  }
+
+   /* Mobile card surfaces in dark mode */
+  :where([data-theme="dark"]) .batch-rankings-table tr, :where([data-theme="dark"]) .batch-results-table tr {
     background: var(--color-bg-elevated);
     border-color: var(--color-border);
   }
 
-  .batch-rankings-table td::before,
-  .batch-results-table td::before {
+  :where([data-theme="dark"]) .batch-rankings-table td::before, :where([data-theme="dark"]) .batch-results-table td::before {
     color: var(--color-text-secondary);
   }
-  /* Re-assert value colour in dark card mode (the base card rule sets
+  :where([data-theme="dark"]) .batch-rankings-table td, :where([data-theme="dark"]) .batch-results-table td {
+    border-bottom-color: var(--color-border);
+  }
+  :where([data-theme="dark"]) .batch-rankings-table td.batch-results-student, :where([data-theme="dark"]) .batch-results-table td.batch-results-student {
+    border-bottom-color: var(--color-border);
+  }
+   /* Re-assert value colour in dark card mode (the base card rule sets
      var(--gray-900) which doesn't flip dark; override here so values stay
      readable on --color-bg-elevated surfaces). */
-  .batch-rankings-table td,
-  .batch-results-table td {
+  :where([data-theme="dark"]) .batch-rankings-table td, :where([data-theme="dark"]) .batch-results-table td {
     color: var(--color-text);
   }
 
-  /* Student detail modal dark mode */
-  .student-detail-modal {
+   /* Student detail modal dark mode */
+  :where([data-theme="dark"]) .student-detail-modal {
     background: var(--color-bg-elevated);
     border-color: var(--color-border);
   }
 
-  .student-detail-header {
+  :where([data-theme="dark"]) .student-detail-header {
     border-bottom-color: var(--color-border);
   }
 
-  .student-detail-header h3 {
+  :where([data-theme="dark"]) .student-detail-header h3 {
     color: var(--color-text);
   }
 
-  .student-detail-progress h4,
-  .student-detail-tests h4 {
+  :where([data-theme="dark"]) .student-detail-progress h4, :where([data-theme="dark"]) .student-detail-tests h4 {
     color: var(--color-text);
   }
 
-  .student-detail-test-item {
+  :where([data-theme="dark"]) .student-detail-test-item {
     background: var(--color-bg-elevated);
     border-color: var(--color-border);
   }
 
-  /* Student stat cards dark mode */
-  .student-stat-card {
+   /* Student stat cards dark mode */
+  :where([data-theme="dark"]) .student-stat-card {
     background: var(--color-bg-elevated);
     border-color: var(--color-border);
   }
 
-  .student-stat-card .stat-value > svg {
+  :where([data-theme="dark"]) .student-stat-card .stat-value > svg {
     background: var(--color-accent-soft);
     color: var(--color-accent);
   }
 
-  .student-stat-card .stat-value strong {
+  :where([data-theme="dark"]) .student-stat-card .stat-value strong {
     color: var(--color-text);
   }
 
-  .student-stat-card .stat-label {
+  :where([data-theme="dark"]) .student-stat-card .stat-label {
     color: var(--color-text-secondary);
   }
 
-  /* Student test items dark mode */
-  .student-test-item {
+   /* Student test items dark mode */
+  :where([data-theme="dark"]) .student-test-item {
     background: var(--color-bg-elevated);
     border-color: var(--color-border);
   }
 
-  .student-test-item .student-test-name {
+  :where([data-theme="dark"]) .student-test-item .student-test-name {
     color: var(--color-text);
   }
 
-  .student-test-info {
+  :where([data-theme="dark"]) .student-test-info {
     color: var(--color-text-secondary);
   }
 
-  .student-test-score {
+  :where([data-theme="dark"]) .student-test-score {
     color: var(--color-text);
   }
 
-  .student-test-percentile {
+  :where([data-theme="dark"]) .student-test-percentile {
     color: var(--color-text-secondary);
   }
 
-  /* Move to select dark mode */
-  .batch-row-actions-select,
-  .batch-row-actions select {
+   /* Move to select dark mode */
+  :where([data-theme="dark"]) .batch-row-actions-select, :where([data-theme="dark"]) .batch-row-actions select {
     background: var(--color-bg-field);
     color: var(--color-text);
     border-color: var(--color-border-strong);
   }
-  /* Mobile stacked action buttons keep their semantic colours in dark mode. */
-  .batch-row-actions .batch-remove-btn {
+   /* Mobile stacked action buttons keep their semantic colours in dark mode. */
+  :where([data-theme="dark"]) .batch-row-actions .batch-remove-btn {
     border-color: var(--color-danger-border);
     background: var(--color-danger-soft);
     color: var(--color-danger);
   }
-  .batch-row-actions .batch-remove-btn:hover {
+  :where([data-theme="dark"]) .batch-row-actions .batch-remove-btn:hover {
     background: #7f1d1d;
   }
-}
+
+   /* Members edit-disclosure panel */
+  :where([data-theme="dark"]) .batch-member-row.is-editing {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-soft);
+  }
+  :where([data-theme="dark"]) .batch-member-edit-btn {
+    border-color: var(--color-border);
+    color: var(--color-text-secondary);
+  }
+  :where([data-theme="dark"]) .batch-member-edit-btn:hover, :where([data-theme="dark"]) .batch-member-edit-btn.is-open {
+    background: var(--color-accent-soft);
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+  :where([data-theme="dark"]) .batch-member-edit-panel {
+    background: var(--color-bg-field);
+    border-color: var(--color-border);
+  }
+  :where([data-theme="dark"]) .batch-edit-panel-field label { color: var(--color-text-secondary); }
+  :where([data-theme="dark"]) .batch-edit-panel-field select {
+    background: var(--color-bg-field);
+    color: var(--color-text);
+    border-color: var(--color-border-strong);
+  }
+  :where([data-theme="dark"]) .batch-panel-spinner { color: var(--color-accent); }
+
+   /* BatchesHome card: switch, :where([data-theme="dark"]) pencil icon button, :where([data-theme="dark"]) manage chevron */
+  :where([data-theme="dark"]) .batch-shell .batch-item.is-inactive { border-left-color: var(--color-border-strong); }
+  :where([data-theme="dark"]) .batch-icon-btn {
+    border-color: var(--color-border);
+    color: var(--color-text-secondary);
+  }
+  :where([data-theme="dark"]) .batch-icon-btn:hover {
+    background: var(--color-accent-soft);
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+  :where([data-theme="dark"]) .batch-switch-track {
+    background: var(--color-border);
+    border-color: transparent;
+  }
+  :where([data-theme="dark"]) .batch-switch.is-on .batch-switch-track { background: var(--color-success); }
+  :where([data-theme="dark"]) .batch-switch input:focus-visible + .batch-switch-track { outline-color: var(--color-accent); }
+  :where([data-theme="dark"]) .batch-shell .batch-item .batch-manage-link { color: var(--color-accent); }
+  :where([data-theme="dark"]) .batch-shell .batch-item .batch-manage-link:hover { color: var(--color-accent-hover); }
 /* ===== Mobile polish (M3): sticky tab bar, bottom-sheet modals, safe areas ===== */
 @media (max-width: 768px) {
+  /* Safe areas: keep interactive content clear of notches / home indicators
+     (env() is live since index.html sets viewport-fit=cover). */
+  .batch-shell {
+    padding: 14px;
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+
   /* Tab bar sticks to the top and spans edge-to-edge while scrolling. */
   .batch-tabs {
     position: sticky;
-    top: 0;
+    top: env(safe-area-inset-top);
     z-index: 40;
     margin-left: -14px;
     margin-right: -14px;
@@ -1763,6 +2337,50 @@ html { font-feature-settings: "rlig" 1, "calt" 1; }
   }
   .batch-tabs::-webkit-scrollbar { display: none; }
   .batch-tab { flex: 0 0 auto; scroll-snap-align: start; }
+
+  /* ---- 44px minimum touch targets on interactive batch rows
+         (Apple HIG / WCAG 2.5.5 target size). ---- */
+  .batch-tab {
+    min-height: 44px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  .batch-copy,
+  .batch-item .batch-copy,
+  .batch-shell .batch-copy {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+  .batch-row-actions select,
+  .batch-row-actions-select {
+    min-height: 44px;
+  }
+  .batch-row-actions .batch-remove-btn,
+  .batch-row-actions .batch-approve-btn,
+  .batch-row-actions .batch-reject-btn,
+  .batch-add-form .batch-approve-btn {
+    min-height: 44px;
+    justify-content: center;
+  }
+  .batch-shell .student-btn-plain {
+    min-height: 44px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .batch-submit {
+    min-height: 44px;
+  }
+  /* Student rows are ≥44px via the card td min-height; keep the name tap
+     area generous without the old fixed paddings. */
+  .batch-results-table td.batch-results-student,
+  .batch-rankings-table td.batch-results-student {
+    min-height: 48px;
+  }
 
   /* Modals dock to the bottom edge like native sheets. */
   .batch-modal-overlay { align-items: flex-end; padding: 0; }

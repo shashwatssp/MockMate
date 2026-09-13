@@ -47,8 +47,8 @@
 }
 
 /* ===== Dark Mode (core tokens + surfaces) ===== */
-@media (prefers-color-scheme: dark) {
-  :root {
+
+  :root[data-theme="dark"] {
     --primary-color: #60a5fa;
     --primary-light: #3b82f6;
     --primary-hover: #818cf8;
@@ -76,8 +76,7 @@
     --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.6);
   }
 
-  .login-card, .features-preview { background: #111827; }
-}
+  :where([data-theme="dark"]) .login-card, :where([data-theme="dark"]) .features-preview { background: #111827; }
 
 /* ===== Base Styles ===== */
 * {
@@ -331,6 +330,17 @@
 .security-icon {
   width: 1rem;
   height: 1rem;
+}
+
+/* ===== Funnel join note (teacher-page ?batch=CODE) ===== */
+.funnel-join-note {
+  margin: 0.75rem 0 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--primary-light);
+  color: #1e3a8a;
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 /* ===== Form Styles ===== */
@@ -1290,24 +1300,53 @@
 }
 
 /* ===== Dark Mode Support ===== */
-@media (prefers-color-scheme: dark) {
-  .features-preview {
+
+  :where([data-theme="dark"]) .features-preview {
     background: rgba(0, 0, 0, 0.8);
     color: #fff;
   }
+
+  /* Login inputs (teacher + student — StudentAuth shares this stylesheet):
+     explicit theme-token colors so TYPED text is always visible in dark mode.
+     .login-wrapper raises specificity to (0,2,0) and this block sits last in
+     the file, so no base rule can win the cascade back. Chrome's autofill
+     forces its own light background + text unless -webkit-text-fill-color
+     and the inset box-shadow trick override it (standard :autofill included
+     for Firefox). */
+  :where([data-theme="dark"]) .login-wrapper .form-input,
+  :where([data-theme="dark"]) .login-wrapper .form-input:-webkit-autofill,
+  :where([data-theme="dark"]) .login-wrapper .form-input:autofill {
+    color: var(--color-text);
+    -webkit-text-fill-color: var(--color-text);
+    caret-color: var(--color-text);
+    background: var(--color-bg-field);
+    border-color: var(--color-border-strong);
+  }
+  :where([data-theme="dark"]) .login-wrapper .form-input:-webkit-autofill,
+  :where([data-theme="dark"]) .login-wrapper .form-input:autofill {
+    -webkit-box-shadow: 0 0 0 1000px var(--color-bg-field) inset;
+    box-shadow: 0 0 0 1000px var(--color-bg-field) inset;
+    transition: background-color 9999s ease-out;
+  }
+  :where([data-theme="dark"]) .login-wrapper .form-input::placeholder { color: var(--color-text-tertiary); }
+  :where([data-theme="dark"]) .login-wrapper .form-input:focus {
+    background: var(--color-bg-elevated);
+    box-shadow: 0 0 0 3px var(--color-accent-soft);
+  }
+
+  :where([data-theme="dark"]) .funnel-join-note { color: #eff6ff; }
   
-  .feature-name {
+  :where([data-theme="dark"]) .feature-name {
     color: #fff;
   }
   
-  .feature-description {
+  :where([data-theme="dark"]) .feature-description {
     color: var(--gray-500);
   }
   
-  .features-title {
+  :where([data-theme="dark"]) .features-title {
     color: #fff;
   }
-}
 
 .login-wrapper {
   overflow-y: auto;

@@ -1,24 +1,29 @@
+import { toErrorMessage } from '../lib/errors';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   getStudentProfile,
   getStudentResults,
+  getStudentResultsForTest,
   getTestByKey,
 } from '../lib/database';
 import { getStudentSession, setStudentSession } from '../lib/studentSession';
 import type { StudentIdentity } from '../lib/database';
 import type { Question, Test, TestResult } from '../types/exam.types';
 import {
-  Loader2,
   AlertCircle,
   RotateCcw,
   CheckCircle2,
   XCircle,
   CircleDashed,
 } from 'lucide-react';
+import { Skeleton, SkeletonList } from './Skeleton';
+import { EmptyState } from './EmptyState';
+import { ProgressChart } from './ProgressChart';
 import ExplanationCard from './ExplanationCard';
 import { LatexText } from './LatexText';
 import { generateSimplerExplanation, toExplanationInput } from '../lib/geminiDashboard';
+import { resolvePassingScore } from '../lib/score';
 import './StudentResults.css';
 
 type AnswerFilter = 'all' | 'correct' | 'incorrect' | 'unanswered';
@@ -63,6 +68,8 @@ export const StudentResults: React.FC = () => {
   const [simplerExplanations, setSimplerExplanations] = useState<Record<string, string>>({});
   // Students care most about what went wrong, so the review opens on Incorrect.
   const [filter, setFilter] = useState<AnswerFilter>('incorrect');
+  // Every scored attempt for this test, newest first (§3.5 history chart).
+  const [attemptHistory, setAttemptHistory] = useState<TestResult[]>([]);
 
   const handleRegenerateSimpler = async (q: Question) => {
     if (!q.explanation || !q.text) return;
@@ -93,7 +100,7 @@ export const StudentResults: React.FC = () => {
         const match = allResults.find(r => r.testId === t.id);
         setResult(match ?? null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(toErrorMessage(err));
       } finally {
         setLoading(false);
       }
@@ -101,6 +108,19 @@ export const StudentResults: React.FC = () => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testCode]);
+
+  // Load the full attempt history for this test once the identity is known.
+  useEffect(() => {
+    if (!test || !me) return;
+    let cancelled = false;
+    void getStudentResultsForTest(me.id, test.id, {
+      studentEmail: me.email,
+      studentName: me.name ?? undefined,
+    })
+      .then(rows => { if (!cancelled) setAttemptHistory(rows); })
+      .catch(() => { if (!cancelled) setAttemptHistory([]); });
+    return () => { cancelled = true; };
+  }, [test, me]);
 
   const reviewItems = useMemo<ReviewItem[]>(() => {
     if (!test || !result) return [];
@@ -131,6 +151,37 @@ export const StudentResults: React.FC = () => {
     [reviewItems],
   );
 
+  // Topic buckets for this attempt (report card §3.1): per-topic accuracy
+  // recomputed from the test's questions + saved answers, weakest first.
+  // The DB stores raw answers only, so this is derived at view time — the
+  // same computation ExamWrapper performs when a live attempt finishes.
+  const topicBuckets = useMemo(() => {
+    if (!test || !result) return [];
+    const buckets = new Map<string, { correct: number; total: number }>();
+    test.questions.forEach(question => {
+      const topic = question.topic || 'General';
+      if (!buckets.has(topic)) buckets.set(topic, { correct: 0, total: 0 });
+      const bucket = buckets.get(topic)!;
+      bucket.total += 1;
+      const answer = result.answers.find(a => a.questionId === question.id);
+      if (
+        answer &&
+        answer.selectedOption >= 0 &&
+        answer.selectedOption === question.correctAnswer
+      ) {
+        bucket.correct += 1;
+      }
+    });
+    return Array.from(buckets.entries())
+      .map(([topic, { correct, total }]) => ({
+        topic,
+        correct,
+        total,
+        pct: total > 0 ? Math.round((correct / total) * 100) : 0,
+      }))
+      .sort((a, b) => a.pct - b.pct || b.total - a.total);
+  }, [test, result]);
+
   // If the active filter has nothing to show (e.g. a perfect paper), fall back
   // to the most relevant non-empty bucket instead of an empty wall.
   useEffect(() => {
@@ -144,25 +195,45 @@ export const StudentResults: React.FC = () => {
   }, [filter, counts, result]);
 
   if (loading) {
-    return <div className="student-loading"><Loader2 className="animate-spin" /> Loading results…</div>;
+    return (
+      <div className="student-shell student-content" role="status" aria-busy="true">
+        <span className="skel-sr">Loading results…</span>
+        <div className="skeleton-card skel-results-hero">
+          <Skeleton className="skel-ring" />
+          <div className="skel-results-lines">
+            <Skeleton className="skeleton-line" style={{ width: '55%', height: 22 }} />
+            <Skeleton className="skeleton-line skeleton-line-thin" style={{ width: '85%' }} />
+            <Skeleton className="skeleton-line skeleton-line-thin" style={{ width: '72%' }} />
+          </div>
+        </div>
+        <div className="skel-filter-row" aria-hidden="true">
+          {['Incorrect', 'Unanswered', 'Correct', 'All'].map(label => (
+            <Skeleton key={label} className="skel-pill" />
+          ))}
+        </div>
+        <SkeletonList rows={3} />
+      </div>
+    );
   }
 
   if (!test || !me) {
     return (
       <div className="student-shell student-content">
         <button onClick={() => navigate('/student/dashboard')} className="student-btn-plain">← Back to dashboard</button>
-        <div className="student-empty-state">
-          <AlertCircle size={30} />
-          <h2>Result not available</h2>
-          <p>We couldn&apos;t find this test, or your session has expired. Try opening your dashboard again.</p>
-          <button className="sr-primary-btn" onClick={() => navigate('/student/dashboard')}>Go to dashboard</button>
-        </div>
+        <EmptyState
+          icon={AlertCircle}
+          title="Result not available"
+          description="We couldn't find this test, or your session has expired. Try opening your dashboard again."
+          actionLabel="Go to dashboard"
+          onAction={() => navigate('/student/dashboard')}
+        />
       </div>
     );
   }
 
   const pct = Math.max(0, Math.min(100, Math.round(result?.percentage ?? 0)));
   const ringTone = pct >= 75 ? 'is-good' : pct >= 40 ? 'is-ok' : 'is-poor';
+  const bestPct = attemptHistory.reduce((best, a) => Math.max(best, a.percentage), 0);
   const visibleItems = filter === 'all'
     ? reviewItems
     : reviewItems.filter(item => item.outcome === filter);
@@ -198,10 +269,17 @@ export const StudentResults: React.FC = () => {
                   questions correctly
                   {result.totalMarks != null && (
                     <> · scored <b>{result.score}</b>/{result.totalMarks} marks</>
-                  )}.
+                  )}{' '}
+                  · pass mark {resolvePassingScore(test.passingScore)}%
                   {result.isPractice ? ' Practice attempt — not counted in teacher reports.' : ''}
                 </p>
                 <div className="sr-chip-row">
+                  {result.passed != null ? (
+                    <span className={`sr-chip ${result.passed ? 'sr-chip-verdict-good' : 'sr-chip-verdict-bad'}`}>
+                      {result.passed ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+                      {result.passed ? 'Passed' : 'Not passed'} · Grade {result.grade ?? '—'}
+                    </span>
+                  ) : null}
                   <span className="sr-chip sr-chip-good"><CheckCircle2 size={14} /> {result.correctAnswers} correct</span>
                   <span className="sr-chip sr-chip-bad"><XCircle size={14} /> {result.incorrectAnswers} incorrect</span>
                   <span className="sr-chip sr-chip-skip"><CircleDashed size={14} /> {result.unansweredQuestions} unanswered</span>
@@ -218,6 +296,68 @@ export const StudentResults: React.FC = () => {
               </button>
             </div>
           </section>
+
+          {/* ── What to practise next (topic buckets, weakest first) ─ */}
+          {topicBuckets.length > 0 ? (
+            <section className="sr-topics" aria-label="Topic performance and practice suggestions">
+              <h2>What to practise next</h2>
+              <div className="sr-topic-list">
+                {topicBuckets.map(bucket => {
+                  const tone = bucket.pct >= 75 ? 'good' : bucket.pct >= 40 ? 'ok' : 'poor';
+                  return (
+                    <div key={bucket.topic} className={`sr-topic tone-${tone}`}>
+                      <div className="sr-topic-head">
+                        <span className="sr-topic-name">{bucket.topic}</span>
+                        <span className="sr-topic-score">{bucket.correct}/{bucket.total} · {bucket.pct}%</span>
+                      </div>
+                      <div
+                        className="sr-topic-bar"
+                        role="img"
+                        aria-label={`${bucket.pct} percent accuracy on ${bucket.topic}`}
+                      >
+                        <span className="sr-topic-fill" style={{ width: `${bucket.pct}%` }} />
+                      </div>
+                      <p className="sr-topic-tip">
+                        {bucket.pct >= 100
+                          ? 'Full marks on this topic — keep it up.'
+                          : tone === 'good'
+                            ? 'Nearly there — review the missed questions below.'
+                            : tone === 'ok'
+                              ? 'Focus revision here before your next test.'
+                              : 'Priority topic — rebuild the basics, then retry the questions below.'}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          {/* ── Attempt history (§3.5) ───────────────────────────── */}
+          {attemptHistory.length > 1 ? (
+            <section className="sr-history" aria-label="Attempt history and improvement over time">
+              <h2>
+                Attempt history
+                {test.maxAttempts != null && test.maxAttempts > 1
+                  ? ` · ${attemptHistory.length} of ${test.maxAttempts} used`
+                  : ` · ${attemptHistory.length} attempts`}
+              </h2>
+              <ProgressChart results={attemptHistory} height={140} />
+              <div className="sr-attempt-chips">
+                {attemptHistory.map((attempt, i) => {
+                  const isBest = attempt.percentage === bestPct;
+                  return (
+                    <span
+                      key={attempt.id ?? `${attempt.completedAt}-${i}`}
+                      className={`sr-attempt-chip ${isBest ? 'is-best' : ''}`}
+                    >
+                      #{attemptHistory.length - i} · {attempt.percentage}%{isBest ? ' · best' : ''}
+                    </span>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
 
           {/* ── Question review ────────────────────────────────────── */}
           <section className="sr-review" aria-label="Question-by-question review">
@@ -238,10 +378,12 @@ export const StudentResults: React.FC = () => {
             </div>
 
             {visibleItems.length === 0 ? (
-              <div className="student-empty-state">
-                <CheckCircle2 size={26} />
-                <p>Nothing here — no questions match this filter for this attempt.</p>
-              </div>
+              <EmptyState
+                variant="compact"
+                icon={CheckCircle2}
+                title="Nothing here"
+                description="No questions match this filter for this attempt."
+              />
             ) : (
               <div className="sr-question-list">
                 {visibleItems.map(({ question, index, selectedOption, outcome }) => {
@@ -301,14 +443,13 @@ export const StudentResults: React.FC = () => {
           </section>
         </>
       ) : (
-        <div className="student-empty-state">
-          <CircleDashed size={28} />
-          <h2>No attempt yet</h2>
-          <p>You haven&apos;t attempted this test, so there&apos;s nothing to analyse yet. Start whenever you&apos;re ready.</p>
-          <button className="sr-primary-btn" onClick={() => navigate(`/exam/${test.testKey}/entry`)}>
-            Start this test
-          </button>
-        </div>
+        <EmptyState
+          icon={CircleDashed}
+          title="No attempt yet"
+          description="You haven't attempted this test, so there's nothing to analyse yet. Start whenever you're ready."
+          actionLabel="Start this test"
+          onAction={() => navigate(`/exam/${test.testKey}/entry`)}
+        />
       )}
     </div>
   );

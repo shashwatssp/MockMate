@@ -10,70 +10,67 @@ export const useExamTimer = () => {
   });
   
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startTimeRef = useRef<number>(0);
-  const pausedTimeRef = useRef<number>(0);
+  /** Absolute wall-clock end time (ms epoch) while running. The remaining
+   *  time is always DERIVED from this deadline, never from decrementing a
+   *  counter, so background-tab/OS interval throttling cannot stretch the
+   *  exam and switching apps can never grant free time. */
+  const deadlineRef = useRef<number>(0);
+  /** Last computed remaining seconds (used by pause/resume/addTime). */
+  const remainingRef = useRef<number>(0);
 
-  const start = useCallback((initialTime: number) => {
-    setTimeRemaining(initialTime);
-    setIsRunning(true);
-    startTimeRef.current = Date.now();
-    
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-
-    intervalRef.current = setInterval(() => {
-      setTimeRemaining(prev => {
-        const newTime = Math.max(0, prev - 1);
-        
-        // Trigger warnings
-        setWarnings(prevWarnings => ({
-          fifteenMinutes: newTime <= 900 || prevWarnings.fifteenMinutes, // 15 minutes
-          fiveMinutes: newTime <= 300 || prevWarnings.fiveMinutes, // 5 minutes
-          oneMinute: newTime <= 60 || prevWarnings.oneMinute // 1 minute
-        }));
-
-        if (newTime === 0) {
-          setIsRunning(false);
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-          }
-        }
-
-        return newTime;
-      });
-    }, 1000);
-  }, []);
-
-  const pause = useCallback(() => {
+  const clearTicker = () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+  };
+
+  const tick = useCallback((): number => {
+    const newTime = deadlineRef.current > 0
+      ? Math.max(0, Math.ceil((deadlineRef.current - Date.now()) / 1000))
+      : 0;
+    remainingRef.current = newTime;
+    setTimeRemaining(newTime);
+
+    // Trigger warnings
+    setWarnings(prevWarnings => ({
+      fifteenMinutes: newTime <= 900 || prevWarnings.fifteenMinutes, // 15 minutes
+      fiveMinutes: newTime <= 300 || prevWarnings.fiveMinutes, // 5 minutes
+      oneMinute: newTime <= 60 || prevWarnings.oneMinute // 1 minute
+    }));
+
+    if (newTime === 0) {
+      setIsRunning(false);
+      clearTicker();
+    }
+    return newTime;
+  }, []);
+
+  const start = useCallback((initialTime: number) => {
+    deadlineRef.current = Date.now() + initialTime * 1000;
+    setIsRunning(true);
+    clearTicker();
+    tick();
+    intervalRef.current = setInterval(tick, 1000);
+  }, [tick]);
+
+  const pause = useCallback(() => {
+    // Freeze at the last computed remaining time. On resume the deadline is
+    // recomputed as now + remaining, so a paused exam consumes no extra time
+    // but also never gains any.
+    clearTicker();
     setIsRunning(false);
-    pausedTimeRef.current = Date.now();
   }, []);
 
   const resume = useCallback(() => {
-    if (!isRunning && timeRemaining > 0) {
+    if (!isRunning && remainingRef.current > 0) {
+      deadlineRef.current = Date.now() + remainingRef.current * 1000;
       setIsRunning(true);
-      
-      intervalRef.current = setInterval(() => {
-        setTimeRemaining(prev => {
-          const newTime = Math.max(0, prev - 1);
-          
-          if (newTime === 0) {
-            setIsRunning(false);
-            if (intervalRef.current) {
-              clearInterval(intervalRef.current);
-            }
-          }
-
-          return newTime;
-        });
-      }, 1000);
+      clearTicker();
+      tick();
+      intervalRef.current = setInterval(tick, 1000);
     }
-  }, [isRunning, timeRemaining]);
+  }, [isRunning, tick]);
 
   const stop = useCallback(() => {
     if (intervalRef.current) {
@@ -84,10 +81,9 @@ export const useExamTimer = () => {
   }, []);
 
   const reset = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
+    clearTicker();
+    deadlineRef.current = 0;
+    remainingRef.current = 0;
     setTimeRemaining(0);
     setIsRunning(false);
     setWarnings({
@@ -95,13 +91,17 @@ export const useExamTimer = () => {
       fiveMinutes: false,
       oneMinute: false
     });
-    startTimeRef.current = 0;
-    pausedTimeRef.current = 0;
   }, []);
 
   const addTime = useCallback((seconds: number) => {
-    setTimeRemaining(prev => prev + seconds);
-  }, []);
+    if (isRunning) {
+      deadlineRef.current += seconds * 1000;
+      tick();
+    } else {
+      remainingRef.current = Math.max(0, remainingRef.current + seconds);
+      setTimeRemaining(remainingRef.current);
+    }
+  }, [isRunning, tick]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -112,22 +112,11 @@ export const useExamTimer = () => {
     };
   }, []);
 
-  // Handle page visibility change (pause when tab is hidden)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden && isRunning) {
-        pause();
-      } else if (!document.hidden && pausedTimeRef.current > 0) {
-        resume();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isRunning, pause, resume]);
+  // NOTE: there is intentionally NO `visibilitychange` pause here. Pausing
+  // while the tab/app is hidden was an exploit: a student could switch apps
+  // for ten minutes and lose nothing. Background ticks may be throttled by the
+  // browser, but the wall-clock derivation means no tick is needed to lose
+  // time — the remaining time is already in the past when the next tick fires.
 
   return {
     timeRemaining,

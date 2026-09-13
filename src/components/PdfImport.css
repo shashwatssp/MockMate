@@ -676,17 +676,15 @@
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
 
-@media (prefers-color-scheme: dark) {
-  .pdf-import-card,
-  .pdf-review-card {
+
+  :where([data-theme="dark"]) .pdf-import-card, :where([data-theme="dark"]) .pdf-review-card {
     box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4);
   }
-  .crop-rect {
+  :where([data-theme="dark"]) .crop-rect {
     border-color: var(--color-bg-card);
   }
-  .classify-input {
+  :where([data-theme="dark"]) .classify-input {
     background: var(--color-bg-field);
     color: var(--color-text);
     border-color: var(--color-border-strong);
   }
-}

@@ -1,3 +1,4 @@
+import { toErrorMessage } from '../lib/errors';
 /**
  * Spatial PDF/Image → question extraction pipeline.
  *
@@ -1555,7 +1556,7 @@ export async function extractQuestionsFromFile(
       pageImages.push(pageImage);
       errors.push(...pageErrors);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = toErrorMessage(err);
       errors.push(`Page ${i}: ${msg}`);
     }
   }

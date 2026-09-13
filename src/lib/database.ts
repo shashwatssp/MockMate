@@ -1,7 +1,7 @@
 import { supabase, callRpc } from './supabase'
 import type { Question, Difficulty, Test, TestResult, TestSettings, TestResultInput, StudentAnswer } from '../types/exam.types'
 import { normalizeQuestionKey, normalizeQuestionText } from './questionImport'
-import { scoreQuestions } from './score'
+import { scoreQuestions, computeVerdict } from './score'
 import {
   assignCompetitionRanks,
   getBatchByCode as getLocalBatchByCode,
@@ -27,7 +27,7 @@ import {
   generateBatchCode,
   ensureLocalDirectory,
 } from './localAuth'
-import type { BatchLeaderboardEntry, BatchRow, EnrollmentRow, StudentIdentity, StudentRow } from './localAuth'
+import type { BatchLeaderboardEntry, BatchRow, EnrollmentRow, LocalTestResult, StudentIdentity, StudentRow } from './localAuth'
 export type { BatchLeaderboardEntry, BatchRow, EnrollmentRow, StudentIdentity, StudentRow } from './localAuth'
 export { generateBatchCode, ensureLocalDirectory }
 
@@ -323,6 +323,148 @@ export const updateQuestionImage = async (questionId: string, imageUrl: string):
   if (error) {
     console.warn('[updateQuestionImage] REST update failed:', error);
   }
+};
+
+// ---------------------------------------------------------------------------
+// Question bank edit/delete (§3.4) — teacher-owned questions only. The RPCs
+// enforce ownership server-side (ingested_by must match the session teacher);
+// shared-pool questions (ingested_by null / 'teacher') are immutable. Bank
+// edits never rewrite existing tests — tests embed frozen copies, so running
+// exams and snapshots stay valid (migration-safe re-render).
+// ---------------------------------------------------------------------------
+
+/** Bank question with ownership info for the manager UI. */
+export interface BankQuestionRow extends Question {
+  /** Raw `ingested_by` value (owner username, or null for the shared pool). */
+  owner: string | null;
+  /** True when the signed-in teacher ingested this question themselves. */
+  ownedByMe: boolean;
+}
+
+/** Every VISIBLE bank question with ownership info. Prefers
+ *  app_list_questions (server-enforced visibility); falls back to a filtered
+ *  REST read when the RPC is unavailable. */
+export const getBankQuestionsWithOwner = async (): Promise<BankQuestionRow[]> => {
+  const username = currentTeacherUsername();
+  const withOwner = (row: Record<string, unknown>): BankQuestionRow => {
+    const owner = (row.ingested_by as string | null | undefined) ?? null;
+    return {
+      ...rowToQuestion(row),
+      owner,
+      ownedByMe: Boolean(owner && username && normalizeOwner(owner) === normalizeOwner(username)),
+    };
+  };
+
+  try {
+    const token = getTeacherToken() ?? null;
+    const result = await callRpc<{ questions?: unknown[]; total?: number }>('app_list_questions', {
+      p_token: token,
+      p_search: null,
+      p_limit: 100000,
+      p_offset: 0,
+    });
+    const rows = Array.isArray(result?.questions) ? result.questions : [];
+    return rows.map(row => withOwner(row as Record<string, unknown>));
+  } catch (rpcError) {
+    console.warn('app_list_questions unavailable for the bank manager; falling back to REST:', rpcError);
+  }
+
+  const { data, error } = await supabase
+    .from('questions')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? [])
+    .filter(row => visibleToTeacher(row.ingested_by as string | null | undefined, username))
+    .map(row => withOwner(row as Record<string, unknown>));
+};
+
+/** Editable fields on a bank question. Undefined keys keep their stored value;
+ *  explanation/imageUrl accept null to clear them. */
+export interface BankQuestionPatch {
+  text?: string;
+  options?: string[];
+  correctAnswer?: number;
+  topic?: string;
+  subject?: string;
+  year?: string;
+  difficulty?: Difficulty;
+  explanation?: string | null;
+  imageUrl?: string | null;
+}
+
+/** Edit a bank question the signed-in teacher owns. Throws with the server's
+ *  message when the question is shared-pool or not found (shown as a toast). */
+export const updateBankQuestion = async (
+  questionId: string,
+  patch: BankQuestionPatch,
+): Promise<void> => {
+  const token = getTeacherToken();
+  if (!token) throw new Error('Not authenticated');
+  const updates: Record<string, unknown> = {};
+  if (patch.text != null) updates.text = patch.text;
+  if (patch.options != null) updates.options = patch.options;
+  if (patch.correctAnswer != null) updates.correct_answer = patch.correctAnswer;
+  if (patch.topic != null) updates.topic = patch.topic;
+  if (patch.subject != null) updates.subject = patch.subject;
+  if (patch.year != null) updates.year = patch.year;
+  if (patch.difficulty != null) updates.difficulty = patch.difficulty;
+  if (patch.explanation !== undefined) updates.explanation = patch.explanation;
+  if (patch.imageUrl !== undefined) updates.image_url = patch.imageUrl;
+  await callRpc('app_edit_question', {
+    p_token: token,
+    p_question_id: questionId,
+    p_updates: updates,
+  });
+};
+
+/** Delete a bank question the signed-in teacher owns. Existing tests keep
+ *  their embedded copies — only future tests are affected. */
+export const deleteBankQuestion = async (questionId: string): Promise<void> => {
+  const token = getTeacherToken();
+  if (!token) throw new Error('Not authenticated');
+  await callRpc('app_delete_question', {
+    p_token: token,
+    p_question_id: questionId,
+  });
+};
+
+/** Fork a bank question into the signed-in teacher's own private copy.
+ *  Shared-pool rows are read-only, but saving a duplicate is allowed. Goes
+ *  straight through app_insert_questions (bypassing insertQuestions' text
+ *  de-dup, which would silently drop a fork whose text matches the shared
+ *  original). The RPC sets `ingested_by` server-side from the session token. */
+export const forkBankQuestion = async (question: BankQuestionRow): Promise<Question> => {
+  const token = getTeacherToken();
+  if (!token) throw new Error('Not authenticated');
+  const copy = {
+    text: question.text,
+    options: question.options,
+    correctAnswer: question.correctAnswer,
+    topic: question.topic,
+    subject: question.subject,
+    year: question.year,
+    difficulty: question.difficulty,
+    imageUrl: question.imageUrl,
+    explanation: question.explanation,
+  };
+  await callRpc('app_insert_questions', {
+    p_token: token,
+    p_questions: [questionToRow(copy)],
+  });
+  // Best-effort id resolution by exact text, newest first (same approach as
+  // insertQuestions — the RPC doesn't echo the saved row back).
+  try {
+    const { data } = await supabase
+      .from('questions')
+      .select('*')
+      .eq('text', question.text)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const row = (data ?? [])[0] as Record<string, unknown> | undefined;
+    if (row) return rowToQuestion(row);
+  } catch { /* return without id */ }
+  return { ...copy, id: '' };
 };
 
 /** Upload a question image to the public `questions` storage bucket and return its public URL. */
@@ -689,7 +831,65 @@ export const createTest = async (testData: Omit<Test, 'id' | 'createdAt'>) => {
   return data[0]
 }
 
+/** All tests owned by the signed-in teacher (same ownership scoping as the
+ *  dashboard list: local-owner map OR created_by), newest first. Used by the
+ *  topic-mastery dashboard (§3.2). */
+export const getOwnedTestsForTeacher = async (): Promise<Test[]> => {
+  const teacher = getTeacherSession();
+  const { data, error } = await supabase
+    .from('tests')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  const ownedIds = teacher ? new Set(getOwnedTestIds(teacher.id)) : new Set<string>();
+  return (data ?? [])
+    .filter(test => {
+      if (!teacher) return true;
+      return ownedIds.has(test.id) || test.created_by === teacher.id;
+    })
+    .map(mapRowToTest);
+};
+
 export const getTestByKey = async (testKey: string) => {
+  // Preferred: rate-limited lookup RPC (§4.2) — throttles scripted key
+  // enumeration. An explicit "not allowed" (rate cap tripped) is treated as
+  // not-found so abusive clients cannot fall back to the raw select; the REST
+  // select below only runs when the RPC itself is unavailable (deployment
+  // lag), keeping the dual-path architecture intact.
+  try {
+    const result = await callRpc<{ allowed?: boolean; test?: Record<string, unknown> | null }>(
+      'app_lookup_test_key',
+      { p_key: testKey },
+    );
+    if (result && result.allowed === false) return null; // rate-limited
+    if (result?.test && typeof result.test === 'object') {
+      const data = result.test as Record<string, unknown>;
+      const settings = (data.settings ?? {}) as TestSettings;
+      return {
+        id: data.id,
+        testKey: data.test_key,
+        name: data.name,
+        description: data.description || undefined,
+        questions: data.questions,
+        settings,
+        endTime: data.end_date ? new Date(data.end_date as string) : undefined,
+        createdAt: new Date(data.created_at as string),
+        startDate: data.start_date ? new Date(data.start_date as string) : undefined,
+        endDate: settings.endDate ? new Date(settings.endDate) : undefined,
+        duration: (data.duration as number | null) ?? (data.time_limit as number | null) ?? 90,
+        timeLimit: (data.duration as number | null) ?? (data.time_limit as number | null) ?? 90,
+        allowReview: settings.allowReview ?? true,
+        maxAttempts: settings.maxAttempts ?? 1,
+        passingScore: settings.passingScore ?? 70,
+        isProctored: settings.isProctored ?? false,
+        instructions: data.instructions as string | undefined,
+      } as Test;
+    }
+    return null; // allowed but no such key
+  } catch (rpcError) {
+    console.warn('app_lookup_test_key unavailable; falling back to REST key lookup:', rpcError);
+  }
+
   const { data, error } = await supabase
     .from('tests')
     .select('*')
@@ -864,6 +1064,71 @@ export const saveTestResult = async (result: TestResultInput) => {
   };
 };
 
+/** Authoritative server-side scoring result (§4.1) — mapped from the
+ *  app_submit_attempt RPC's jsonb. */
+export interface ServerScoredAttempt {
+  id: string;
+  score: number;
+  totalMarks: number;
+  correctAnswers: number;
+  incorrectAnswers: number;
+  unansweredQuestions: number;
+  percentage: number;
+  grade: string;
+  passed: boolean;
+  completedAt: string;
+}
+
+/** Submit an attempt for SERVER-SIDE scoring (§4.1): the app_submit_attempt
+ *  RPC recomputes the score in Postgres from the test's stored questions and
+ *  persists the row. Returns the authoritative result, or null when the RPC
+ *  is unavailable (not yet deployed / offline) — callers then fall back to
+ *  the legacy client-side scoring + insert path. Never throws for
+ *  unavailability; only genuine shape errors surface as warnings. */
+export const submitScoredAttempt = async (input: {
+  testId: string;
+  answers: StudentAnswer[];
+  studentId?: string;
+  studentName: string;
+  studentEmail?: string;
+  batchId?: string;
+  timeTaken?: number;
+}): Promise<ServerScoredAttempt | null> => {
+  const token = getTeacherToken() || getStudentToken();
+  if (!token) return null; // anonymous attempts use the client path
+  try {
+    const res = await callRpc<Record<string, unknown>>('app_submit_attempt', {
+      p_token: token,
+      p_test_id: input.testId,
+      p_answers: input.answers,
+      p_student_id: input.studentId ?? null,
+      p_student_name: input.studentName ?? null,
+      p_student_email: input.studentEmail ?? null,
+      p_batch_id: input.batchId ?? null,
+      p_time_taken:
+        input.timeTaken != null && Number.isFinite(input.timeTaken)
+          ? Math.max(0, Math.round(input.timeTaken))
+          : null,
+    });
+    if (!res || typeof res !== 'object') return null;
+    return {
+      id: String(res.id ?? ''),
+      score: Number(res.score ?? 0),
+      totalMarks: Number(res.total_marks ?? 0),
+      correctAnswers: Number(res.correct ?? 0),
+      incorrectAnswers: Number(res.incorrect ?? 0),
+      unansweredQuestions: Number(res.unanswered ?? 0),
+      percentage: Number(res.percentage ?? 0),
+      grade: String(res.grade ?? ''),
+      passed: Boolean(res.passed),
+      completedAt: String(res.completed_at ?? new Date().toISOString()),
+    };
+  } catch (error) {
+    console.warn('[submitScoredAttempt] server-side scoring unavailable; falling back to client path:', error);
+    return null;
+  }
+};
+
 export const hasStudentTakenTest = async (testId: string, studentName: string) => {
   const normalizedName = studentName.trim().toLocaleLowerCase();
   if (!testId || !normalizedName) return false;
@@ -884,6 +1149,178 @@ export const hasStudentTakenTest = async (testId: string, studentName: string) =
     String(row.student_name || '').trim().toLocaleLowerCase() === normalizedName
   );
 }
+
+// ---------------------------------------------------------------------------
+// Multi-attempt history (§3.5) — attempts stay persisted as individual rows;
+// these helpers COUNT them and expose the full per-test history so maxAttempts
+// can be enforced and improvement-over-time plotted.
+// ---------------------------------------------------------------------------
+
+/** Identity matcher used by the attempt-count helpers: a row counts as this
+ *  student's when any known identity key matches (id, email, or name — the
+ *  latter two cover rows saved before student_id was recorded). */
+const attemptMatchesStudent = (
+  row: { studentId?: string | null; studentEmail?: string | null; studentName?: string | null; studentUsername?: string | null },
+  keys: { id: string; email: string; name: string },
+): boolean =>
+  (keys.id !== '' && String(row.studentId ?? '').trim().toLowerCase() === keys.id) ||
+  (keys.email !== '' && String(row.studentEmail ?? row.studentUsername ?? '').trim().toLowerCase() === keys.email) ||
+  (keys.name !== '' && String(row.studentName ?? '').trim().toLowerCase() === keys.name);
+
+/** Count prior attempts for one student on one test. Supabase is the source
+ *  of truth when reachable — device-local rows are its pre-upload mirror, so
+ *  counting both would double every attempt. When the DB is unreachable
+ *  (offline retake), fall back to device-local rows only (fail-open, consistent
+ *  with the dual-path architecture). */
+export const getStudentAttemptCount = async (
+  testId: string,
+  hints: StudentResultsHints = {},
+): Promise<number> => {
+  const keys = {
+    id: String(hints.studentId ?? '').trim().toLowerCase(),
+    email: String(hints.studentEmail ?? '').trim().toLowerCase(),
+    name: String(hints.studentName ?? '').trim().toLowerCase(),
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('test_results')
+      .select('student_id, student_email, student_name')
+      .eq('test_id', testId);
+    if (error) throw error;
+    return (data ?? []).filter(row => attemptMatchesStudent(
+      { studentId: row.student_id as string | null, studentEmail: row.student_email as string | null, studentName: row.student_name as string | null },
+      keys,
+    )).length;
+  } catch (error) {
+    console.warn('Unable to count persisted attempts; using local rows only:', error);
+  }
+
+  try {
+    const localRows = await getLocalResultsForTest(testId);
+    return localRows.filter(row => attemptMatchesStudent(row, keys)).length;
+  } catch {
+    return 0;
+  }
+};
+
+/** Attempts per test for one student (test_id → count). Tests whose rows are
+ *  missing from the DB fall back to their device-local count so offline
+ *  attempts are still honored. Used for retake buttons on the dashboard. */
+export const getStudentAttemptCountsByTest = async (
+  studentId: string,
+  hints: StudentResultsHints = {},
+): Promise<Record<string, number>> => {
+  const keys = {
+    id: String(hints.studentId ?? studentId ?? '').trim().toLowerCase(),
+    email: String(hints.studentEmail ?? '').trim().toLowerCase(),
+    name: String(hints.studentName ?? '').trim().toLowerCase(),
+  };
+
+  let dbRows: SupabaseResultRow[] = [];
+  try {
+    dbRows = await fetchSupabaseResultsForStudent(studentId, hints);
+  } catch (error) {
+    console.warn('Unable to load persisted attempts for counts; local rows only:', error);
+  }
+
+  const counts: Record<string, number> = {};
+  for (const row of dbRows) {
+    if (!attemptMatchesStudent(
+      { studentId: row.student_id, studentEmail: row.student_email, studentName: row.student_name },
+      keys,
+    )) continue;
+    counts[row.test_id] = (counts[row.test_id] ?? 0) + 1;
+  }
+
+  // Local rows only matter for tests with no persisted rows (they would have
+  // been uploaded by syncPendingLocalResults otherwise).
+  const localRows = await getLocalResultsForStudent(studentId).catch(() => [] as LocalTestResult[]);
+  for (const row of localRows) {
+    if (counts[row.testId] != null) continue;
+    if (!attemptMatchesStudent(row, keys)) continue;
+    counts[row.testId] = (counts[row.testId] ?? 0) + 1;
+  }
+  return counts;
+};
+
+/** ALL attempts for one student on one test, newest first. Unlike
+ *  getStudentResults (which collapses to the latest attempt per test), this
+ *  returns every scored attempt for the report-card history chart. */
+export const getStudentResultsForTest = async (
+  studentId: string,
+  testId: string,
+  hints: StudentResultsHints = {},
+): Promise<TestResult[]> => {
+  const test = await getTestById(testId).catch(() => null);
+  const questions: Question[] = (test?.questions ?? []) as Question[];
+
+  let dbRows: SupabaseResultRow[] = [];
+  try {
+    dbRows = await fetchSupabaseResultsForStudent(studentId, hints);
+  } catch (error) {
+    console.warn('Unable to load persisted attempt history; local rows only:', error);
+  }
+
+  const mapDbRow = (row: SupabaseResultRow): TestResult => mapAttemptToTestResult(
+    {
+      id: row.id,
+      testId: row.test_id,
+      studentName: row.student_name,
+      studentId: row.student_id ?? studentId,
+      batchId: row.batch_id ?? undefined,
+      studentEmail: row.student_email ?? undefined,
+      answers: row.answers,
+      timeTaken: row.time_taken,
+      completedAt: row.completed_at ?? new Date().toISOString(),
+    },
+    questions,
+    test?.passingScore,
+  );
+
+  const testDbRows = dbRows.filter(row => row.test_id === testId);
+  const dbResults = testDbRows.map(mapDbRow);
+
+  // Local-only attempts (offline saves / legacy rows) — same conservative
+  // dedupe as getStudentResults: a local row matching a persisted attempt
+  // (identity + ~completion time) is dropped.
+  const localRows = await getLocalResultsForStudent(studentId).catch(() => [] as LocalTestResult[]);
+  const localResults = localRows
+    .filter(row => row.testId === testId)
+    .filter(localRow => !testDbRows.some(dbRow => isSameAttempt(
+      {
+        studentId: localRow.studentId,
+        studentEmail: localRow.studentEmail,
+        studentName: localRow.studentName,
+        completedAt: localRow.completedAt,
+      },
+      {
+        studentId: dbRow.student_id,
+        studentEmail: dbRow.student_email,
+        studentName: dbRow.student_name,
+        completedAt: dbRow.completed_at ?? '',
+      },
+    )))
+    .map(row => mapAttemptToTestResult(
+      {
+        id: row.id,
+        testId: row.testId,
+        studentName: row.studentName,
+        studentId: row.studentId,
+        batchId: row.batchId ?? undefined,
+        studentEmail: row.studentEmail,
+        answers: row.answers,
+        timeTaken: row.timeTaken,
+        completedAt: row.completedAt,
+      },
+      questions,
+      test?.passingScore,
+    ));
+
+  return [...dbResults, ...localResults].sort(
+    (a, b) => b.completedAt.getTime() - a.completedAt.getTime(),
+  );
+};
 
 export const getTestById = async (testId: string) => {
   const { data, error } = await supabase
@@ -1002,6 +1439,7 @@ const mapAttemptToTestResult = (
     completedAt: string | Date;
   },
   testQuestions: Question[],
+  passingScore?: number | null,
 ): TestResult => {
   const answers = Array.isArray(attempt.answers) ? (attempt.answers as StudentAnswer[]) : [];
   const scored = scoreQuestions(testQuestions, answers);
@@ -1018,6 +1456,8 @@ const mapAttemptToTestResult = (
     },
     0,
   );
+
+  const verdict = computeVerdict(scored.percentage, passingScore);
 
   return {
     id: attempt.id,
@@ -1037,6 +1477,8 @@ const mapAttemptToTestResult = (
     timeTaken: attempt.timeTaken ?? recordedQuestionTime,
     completedAt: new Date(attempt.completedAt),
     isPractice: false,
+    grade: verdict.grade,
+    passed: verdict.passed,
   } as TestResult;
 };
 
@@ -1062,6 +1504,7 @@ export const getTestResults = async (testId: string) => {
         completedAt: row.completed_at ?? new Date().toISOString(),
       },
       testQuestions,
+      test?.passingScore,
     ),
   );
 };
@@ -1364,6 +1807,26 @@ export const removeStudentFromBatch = async (studentId: string): Promise<Student
   return null;
 };
 
+/** Rename / re-describe / activate-deactivate a batch the signed-in teacher
+ *  owns (server RPC `app_update_batch` enforces ownership). Deactivating a
+ *  batch hides it from join-by-code AND from the public Teacher Page funnel. */
+export const updateBatch = async (
+  batchId: string,
+  patch: { name?: string; description?: string | null; isActive?: boolean },
+): Promise<BatchRow> => {
+  const token = getTeacherToken();
+  if (!token) throw new Error('Not authenticated');
+  const updates: Record<string, unknown> = {};
+  if (patch.name != null) updates.name = patch.name;
+  if (patch.description !== undefined) updates.description = patch.description ?? '';
+  if (patch.isActive != null) updates.is_active = patch.isActive;
+  return callRpc<BatchRow>('app_update_batch', {
+    p_batch_id: batchId,
+    p_token: token,
+    p_updates: updates,
+  });
+};
+
 export const assignTestToBatches = async (testId: string, batchIds: string[]): Promise<TestBatchLink[]> => {
   const token = getTeacherToken();
   if (!token) throw new Error('Not authenticated');
@@ -1504,6 +1967,7 @@ export const getBatchResults = async (testId: string, batchId: string) => {
           completedAt: row.completed_at ?? new Date().toISOString(),
         },
         testQuestions,
+        test?.passingScore,
       ),
     );
 
@@ -1558,6 +2022,8 @@ export const isTestBatchScoped = async (testId: string): Promise<boolean> => {
 };
 export const setTestBatches = assignTestToBatches;
 export interface StudentResultsHints {
+  /** Stable account id — primary match for rows saved with student_id. */
+  studentId?: string | null;
   /** Student's email — matches rows saved before student_id was recorded. */
   studentEmail?: string | null;
   /** Student's display name — last-resort match for legacy rows. */

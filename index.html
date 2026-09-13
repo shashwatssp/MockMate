@@ -2,11 +2,33 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f8fc" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f1117" />
+    <link rel="icon" type="image/svg+xml" href="/mockmate-icon.svg" />
+    <!-- viewport-fit=cover lets env(safe-area-inset-*) report real notch/home-indicator values -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f6f8fc" />
     <meta name="color-scheme" content="light dark" />
+    <script>
+      // Theme pre-paint: set data-theme on <html> from the saved preference
+      // (light/dark/system) BEFORE first render so the wrong theme never
+      // flashes. The JS controller (src/lib/theme.ts) owns it after boot.
+      (function () {
+        try {
+          var mode = localStorage.getItem('mockmate-theme');
+          var dark = mode === 'dark' || (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? '#0f1117' : '#f6f8fc');
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
+    <!-- PWA installability (5.4): manifest + maskable apple icon -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/mockmate-icon.svg" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>MockMate</title>
   </head>
   <body>

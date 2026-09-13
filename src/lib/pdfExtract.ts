@@ -557,7 +557,7 @@ export { parseQuestionText, extractQuestionsFromFile, extractQuestionsFromImage,
 //       }
 //       parsePage(i, pageImage, pageBlob, lines, questions, diagramRegions);
 //     } catch (err) {
-//       const msg = err instanceof Error ? err.message : String(err);
+//       const msg = toErrorMessage(err);
 //       errors.push(`Page ${i}: ${msg}`);
 //     }
 //   }

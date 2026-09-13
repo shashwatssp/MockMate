@@ -35,8 +35,8 @@
 }
 
 /* ===== Dark Mode Support ===== */
-@media (prefers-color-scheme: dark) {
-  :root {
+
+  :root[data-theme="dark"] {
     --primary-color: #60a5fa;
     --primary-hover: #818cf8;
     --primary-light: #3b82f6;
@@ -56,7 +56,6 @@
     --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5);
     --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.6);
   }
-}
 
 /* ===== Base Styles ===== */
 * {
@@ -151,94 +150,9 @@
   }
 }
 
-/* ===== Responsive visual polish ===== */
-.hero-content {
-  width: min(100%, 1240px);
-  padding-inline: clamp(18px, 4vw, 36px);
-  gap: clamp(28px, 5vw, 72px);
-}
-
-.hero-title {
-  font-size: clamp(44px, 5vw, 72px);
-}
-
-.dashboard-mockup {
-  max-width: 620px;
-  margin-inline: auto;
-}
-
-.features-container,
-.testimonials-container {
-  width: min(100%, 1240px);
-}
-
-@media (max-width: 900px) {
-  .hero-content {
-    grid-template-columns: 1fr;
-    text-align: center;
-  }
-
-  .hero-actions,
-  .hero-stats {
-    justify-content: center;
-  }
-
-  .hero-description {
-    max-width: 620px;
-    margin-inline: auto;
-  }
-
-  .hero-visual {
-    width: min(100%, 620px);
-    margin-inline: auto;
-  }
-}
-
-@media (max-width: 520px) {
-  .hero-section {
-    min-height: auto;
-  }
-
-  .hero-content {
-    padding-top: 84px;
-    padding-bottom: 56px;
-  }
-
-  .hero-badge {
-    font-size: 11px;
-  }
-
-  .hero-actions {
-    align-items: stretch;
-  }
-
-  .cta-primary,
-  .cta-secondary {
-    justify-content: center;
-    width: 100%;
-  }
-
-  .hero-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
-  }
-
-  .stat-item {
-    gap: 8px;
-  }
-
-  .stat-number {
-    font-size: 18px;
-  }
-
-  .stat-label {
-    font-size: 11px;
-  }
-
-  .mockup-sidebar {
-    display: none;
-  }
-}
+/* NOTE: an earlier copy of the "responsive visual polish" overrides used to
+   sit here; it was fully shadowed by the base rules + the identical block at
+   the end of this file, so it has been removed (single source of truth). */
 
 .hero-content {
   max-width: 1500px;
@@ -303,6 +217,7 @@
   color: rgba(255, 255, 255, 0.95);
   margin: 0 0 1rem 0;
   line-height: 1.3;
+  letter-spacing: -0.01em;
 }
 
 .subtitle-highlight {
@@ -323,7 +238,7 @@
 
 .hero-description {
   font-size: 1.125rem;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.85);
   margin: 0 0 2.5rem 0;
   line-height: 1.6;
 }
@@ -334,6 +249,8 @@
   margin-bottom: 3rem;
 }
 
+/* Primary CTA: the ORIGINAL orange gradient (the 2.7 violet experiment is
+   reverted — the hero's warm accent is the brand look on this page). */
 .cta-primary {
   display: flex;
   align-items: center;
@@ -589,10 +506,10 @@
   justify-content: center;
 }
 
-.chart-icon {
-  width: 3rem;
-  height: 3rem;
-  color: var(--gray-400);
+.analytics-spark {
+  width: 100%;
+  height: 100%;
+  padding: 12px;
 }
 
 /* ===== Features Section ===== */
@@ -634,6 +551,7 @@
   gap: 2rem;
 }
 
+/* The card highlights on hover but is not clickable — no pointer cursor. */
 .feature-card {
   background: var(--white);
   padding: 2rem;
@@ -641,7 +559,7 @@
   box-shadow: var(--shadow-md);
   transition: all var(--transition-normal);
   border: 2px solid transparent;
-  cursor: pointer;
+  cursor: default;
 }
 
 .feature-card:hover {
@@ -663,6 +581,24 @@
   align-items: center;
   justify-content: center;
   margin-bottom: 1.5rem;
+}
+
+/* The old markup used Tailwind gradient utilities this project doesn't ship,
+   so the icon badges rendered transparent (white icon on white card). These
+   are the real gradients, one per feature card. */
+.feature-icon-wrapper.grad-amber {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  box-shadow: var(--shadow-md);
+}
+
+.feature-icon-wrapper.grad-blue {
+  background: linear-gradient(135deg, #38bdf8 0%, #06b6d4 100%);
+  box-shadow: var(--shadow-md);
+}
+
+.feature-icon-wrapper.grad-violet {
+  background: linear-gradient(135deg, #a78bfa 0%, #ec4899 100%);
+  box-shadow: var(--shadow-md);
 }
 
 .feature-icon {
@@ -1025,6 +961,19 @@
     margin-right: 0.5rem;
   }
 }
+
+/* ===== Dark-mode surface fixes =====
+   The :root flip above turns --white into the page background (#0f1117), so
+   cards that used var(--white) vanished into the sections behind them.
+   Re-base them on the elevated grays for real layering. */
+
+  :where([data-theme="dark"]) .feature-card, :where([data-theme="dark"]) .testimonial-card, :where([data-theme="dark"]) .dashboard-mockup, :where([data-theme="dark"]) .mockup-main {
+    background: var(--gray-100);
+  }
+
+  :where([data-theme="dark"]) .mockup-header, :where([data-theme="dark"]) .mockup-sidebar, :where([data-theme="dark"]) .analytics-preview, :where([data-theme="dark"]) .test-card {
+    background: var(--gray-200);
+  }
 
 /* ===== Accessibility & Performance ===== */
 @media (prefers-reduced-motion: reduce) {

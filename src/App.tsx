@@ -26,9 +26,13 @@ import StudentProfile from './components/StudentProfile';
 import StudentResults from './components/StudentResults';
 import BatchesHome from './components/BatchesHome';
 import BatchDetail from './components/BatchDetail';
+import TeacherTopicDashboard from './components/TeacherTopicDashboard';
+import QuestionBankManager from './components/QuestionBankManager';
+import TeacherPagePublic from './components/TeacherPagePublic';
+import TeacherPageBuilder from './components/TeacherPageBuilder';
+import TeacherShell from './components/TeacherShell';
 import type { Test } from './types/exam.types';
 import type { StudentIdentity } from './lib/database';
-import { signOut } from './lib/auth';
 import { setStudentSession } from './lib/studentSession';
 import { getTeacherSession } from './lib/auth';
 import SignUpPage from './components/SignUpPage';
@@ -41,6 +45,17 @@ import './App.css';
 // The local auth system (localAuth.ts) manages all sessions directly.
 // Keep the component slot so the tree structure is unchanged.
 const AuthBridge = () => null;
+
+/** Scroll to top on route change. React Router keeps the window scroll, so a
+ *  tall page (e.g. login) left the NEXT page scrolled mid-way — the dashboard
+ *  greeting sat behind the fixed mobile top bar right after signing in. */
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+};
 
 const ExamRouteWrapper = () => {
   const { testCode } = useParams();
@@ -66,19 +81,9 @@ const RequireTeacherAuth = ({ children }: { children: ReactNode }) => {
   return <>{children}</>;
 };
 
-function TeacherApp({ tests, setTests }: TeacherAppProps) {
+function TeacherApp({ setTests }: TeacherAppProps) {
   const navigate = useNavigate();
   const location = useLocation();
-
-  const handleLogout = async () => {
-    try {
-      await signOut(); // clears local sessions
-    } catch (error) {
-      console.warn('Unable to sign out:', error);
-    } finally {
-      navigate('/');
-    }
-  };
 
   const handleTestCreated = (test: Test) => {
     setTests(prev => [...prev, test]);
@@ -96,12 +101,27 @@ function TeacherApp({ tests, setTests }: TeacherAppProps) {
         return <LoginPage onLogin={() => navigate('/dashboard')} onBack={() => navigate('/')} />;
       }
       return (
-        <Dashboard
-          onCreateTest={() => navigate('/create-test')}
-          onCreateQuestion={() => navigate('/create-question')}
-          onLogout={handleLogout}
-          tests={tests}
-        />
+        <TeacherShell>
+          <Dashboard />
+        </TeacherShell>
+      );
+    case '/dashboard/topics':
+      if (!getTeacherSession()) {
+        return <LoginPage onLogin={() => navigate('/dashboard')} onBack={() => navigate('/')} />;
+      }
+      return (
+        <TeacherShell>
+          <TeacherTopicDashboard />
+        </TeacherShell>
+      );
+    case '/dashboard/questions':
+      if (!getTeacherSession()) {
+        return <LoginPage onLogin={() => navigate('/dashboard')} onBack={() => navigate('/')} />;
+      }
+      return (
+        <TeacherShell>
+          <QuestionBankManager />
+        </TeacherShell>
       );
     case '/create-test':
       return (
@@ -196,10 +216,13 @@ function App() {
     <div className="App">
       <Toaster position="bottom-right" />
       <AuthBridge />
+      <ScrollToTop />
       <Routes>
           <Route path="/" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/login" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/dashboard" element={<TeacherApp tests={tests} setTests={setTests} />} />
+          <Route path="/dashboard/topics" element={<TeacherApp tests={tests} setTests={setTests} />} />
+          <Route path="/dashboard/questions" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/create-test" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/create-question" element={<TeacherApp tests={tests} setTests={setTests} />} />
           <Route path="/import-pdf" element={<TeacherApp tests={tests} setTests={setTests} />} />
@@ -216,8 +239,15 @@ function App() {
           <Route path="/student/results/:testCode" element={<StudentResults />} />
 
           {/* Teacher batch-management routes (Clerk + local guard). */}
-          <Route path="/batches" element={<RequireTeacherAuth><BatchesHome /></RequireTeacherAuth>} />
-          <Route path="/batches/:code" element={<RequireTeacherAuth><BatchDetail /></RequireTeacherAuth>} />
+          <Route path="/batches" element={<RequireTeacherAuth><TeacherShell><BatchesHome /></TeacherShell></RequireTeacherAuth>} />
+          <Route path="/batches/:code" element={<RequireTeacherAuth><TeacherShell><BatchDetail /></TeacherShell></RequireTeacherAuth>} />
+
+          {/* Public Teacher Page (portfolio + enrollment funnel). Drafts
+              render only with the exact ?preview= token. */}
+          <Route path="/t/:slug" element={<TeacherPagePublic />} />
+
+          {/* Teacher Page builder (auth-gated editor). */}
+          <Route path="/teacher-page" element={<RequireTeacherAuth><TeacherPageBuilder /></RequireTeacherAuth>} />
 
           <Route path="/exam/:testCode" element={<LegacyExamRedirect />} />
           <Route path="/exam/:testCode/entry" element={<ExamRouteWrapper />} />

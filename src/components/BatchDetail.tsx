@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { toErrorMessage } from '../lib/errors';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   getBatchByCode, getPendingEnrollments, getStudentsInBatch,
@@ -9,16 +10,31 @@ import {
 } from '../lib/database';
 import { getTeacherSession, assignCompetitionRanks } from '../lib/localAuth';
 import { toTeacherUuid } from '../lib/database';
-import type { BatchRow, StudentRow, BatchLeaderboardEntry } from '../lib/database';
+import type { BatchRow, StudentRow, BatchLeaderboardEntry, EnrollmentRow } from '../lib/database';
 import type { Test, TestResult } from '../types/exam.types';
 import {
   Users, Check, X, RefreshCw, Loader2, AlertCircle, Share2, Trash2, Mail,
   Trophy, Medal, Award, FileText, Clock, BarChart3, Target, Link2, Printer,
+  UserPlus, TrendingDown, TrendingUp, Download, Pencil, Eye,
 } from 'lucide-react';
+import { resolvePassingScore } from '../lib/score';
+import { downloadCsv } from '../lib/csv';
+import { formatCompletedAt } from '../lib/dateTime';
 import { ProgressChart } from './ProgressChart';
+import { SkeletonList, SkeletonStats } from './Skeleton';
+import { EmptyState } from './EmptyState';
 import './BatchDetail.css';
 
 type Tab = 'members' | 'pending' | 'tests' | 'results';
+
+/** Minimal identity slice the student-detail modal needs; lets member rows
+ *  (plain StudentRow) open the same modal as full leaderboard entries. */
+type StudentRef = Pick<BatchLeaderboardEntry, 'studentId' | 'email' | 'username' | 'name'>;
+
+/** Aggregated ranking row: a leaderboard entry enriched with the number of
+ *  tests the student attempted and the improvement delta (latest test % minus
+ *  first test %, chronological — null when there is only one data point). */
+type RankingEntry = BatchLeaderboardEntry & { attempts: number; improvement: number | null };
 
 export const BatchDetail: React.FC = () => {
   const { code } = useParams<{ code: string }>();
@@ -26,7 +42,7 @@ export const BatchDetail: React.FC = () => {
   const [batch, setBatch] = useState<BatchRow | null>(null);
   const [teacherId, setTeacherId] = useState<string | null>(null);
   const [members, setMembers] = useState<StudentRow[]>([]);
-  const [pending, setPending] = useState<any[]>([]);
+  const [pending, setPending] = useState<EnrollmentRow[]>([]);
   const [tests, setTests] = useState<Test[]>([]);
   const [teacherBatches, setTeacherBatches] = useState<BatchRow[]>([]);
   const [tab, setTab] = useState<Tab>('members');
@@ -44,13 +60,21 @@ export const BatchDetail: React.FC = () => {
   // Assign-to-batch modal state: open when set to a test id.
   const [assigningTestId, setAssigningTestId] = useState<string | null>(null);
   const [assignSelection, setAssignSelection] = useState<Record<string, boolean>>({});
+  // Weakest-students controls for the Class Rankings card (§3.3).
+  const [rankingsMode, setRankingsMode] = useState<'top' | 'weak'>('top');
+  const [strugglingOnly, setStrugglingOnly] = useState(false);
   // Results auto-load + aggregated rankings (Results tab).
   const [resultsLoaded, setResultsLoaded] = useState(false);
-  const [studentDetailEntry, setStudentDetailEntry] = useState<BatchLeaderboardEntry | null>(null);
+  const [studentDetailEntry, setStudentDetailEntry] = useState<StudentRef | null>(null);
   const [studentDetailResults, setStudentDetailResults] = useState<TestResult[]>([]);
   const [studentDetailLoading, setStudentDetailLoading] = useState(false);
+  // Members tab: which member row has its edit (pencil) panel expanded —
+  // accordion pattern, only one row open at a time.
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
 
-  const loadBatch = async () => {
+  // useCallback so the effects below can list it as a dependency without
+  // re-running on every render (identity only changes when `code` does).
+  const loadBatch = useCallback(async () => {
     if (!code) return;
     setError(null); setLoading(true);
     try {
@@ -71,22 +95,13 @@ export const BatchDetail: React.FC = () => {
       setResultsLoaded(false);
       setBatchResults({})
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(toErrorMessage(err));
     } finally {
       setLoading(false);
     }
-  };
+  }, [code, navigate]);
 
-  useEffect(() => { void loadBatch(); }, [code]);
-
-  // Auto-load all test results when the Results tab becomes active, so the
-  // teacher never has to click "Load All Results" manually.
-  useEffect(() => {
-    if (tab === 'results' && tests.length > 0 && !resultsLoaded) {
-      setResultsLoaded(true);
-      void loadAllResults();
-    }
-  }, [tab, tests.length, resultsLoaded, batch]);
+  useEffect(() => { void loadBatch(); }, [loadBatch]);
 
   // Tests tab data: attempt stats + which batches share each test. Loaded once
   // per visit so opening the tab is instant on repeat navigations.
@@ -132,7 +147,7 @@ export const BatchDetail: React.FC = () => {
 
   const run = async (key: string, fn: () => Promise<void>) => {
     setActing(a => ({ ...a, [key]: true }));
-    try { await fn(); } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    try { await fn(); } catch (err) { setError(toErrorMessage(err)); }
     finally { setActing(a => { const n = { ...a }; delete n[key]; return n; }); }
   };
 
@@ -209,8 +224,9 @@ export const BatchDetail: React.FC = () => {
     });
   };
 
-  // Load leaderboards for all batch tests (lazy – triggered when Results tab opens)
-  const loadAllResults = async () => {
+  // Load leaderboards for all batch tests (lazy – triggered when Results tab
+  // opens). useCallback keeps a stable identity for the auto-load effect.
+  const loadAllResults = useCallback(async () => {
     if (!batch) return;
     setResultsLoading(true);
     try {
@@ -223,18 +239,31 @@ export const BatchDetail: React.FC = () => {
         }
       }
       setBatchResults(results);
-    } catch (err) {
+    } catch {
       // best-effort; individual test failures are empty arrays
     } finally {
       setResultsLoading(false);
     }
-  };
+  }, [batch, tests]);
+
+  // Auto-load all test results when the Results tab becomes active, so the
+  // teacher never has to click "Load All Results" manually. Defined after
+  // loadAllResults so the dep array can reference its stable identity.
+  useEffect(() => {
+    if (tab === 'results' && tests.length > 0 && !resultsLoaded) {
+      setResultsLoaded(true);
+      void loadAllResults();
+    }
+  }, [tab, tests.length, resultsLoaded, loadAllResults]);
 
   // Aggregated class ranking: merge all per-test leaderboards into one overall
   // ranking based on each student's best percentage across every test.
-  const batchRankings = useMemo<BatchLeaderboardEntry[]>(() => {
+  const batchRankings = useMemo<RankingEntry[]>(() => {
     if (Object.keys(batchResults).length === 0) return [];
     const bestByStudent = new Map<string, BatchLeaderboardEntry>();
+    // Chronological attempt timeline per student (best % per test, ordered by
+    // completion time) powers the improvement-since-first-attempt indicator.
+    const timelineByStudent = new Map<string, { pct: number; at: string }[]>();
     for (const entries of Object.values(batchResults)) {
       for (const entry of entries) {
         const key = entry.studentId ?? entry.email;
@@ -242,16 +271,58 @@ export const BatchDetail: React.FC = () => {
         if (!existing || entry.percentage > existing.percentage) {
           bestByStudent.set(key, { ...entry });
         }
+        const timeline = timelineByStudent.get(key) ?? [];
+        timeline.push({ pct: entry.percentage, at: entry.completedAt });
+        timelineByStudent.set(key, timeline);
       }
     }
     const sorted = Array.from(bestByStudent.values()).sort(
       (a, b) => b.percentage - a.percentage || a.completedAt.localeCompare(b.completedAt),
     );
-    return assignCompetitionRanks(sorted);
+    return assignCompetitionRanks(sorted).map(entry => {
+      const key = entry.studentId ?? entry.email;
+      const timeline = (timelineByStudent.get(key) ?? []).sort((a, b) => a.at.localeCompare(b.at));
+      const improvement = timeline.length >= 2
+        ? timeline[timeline.length - 1].pct - timeline[0].pct
+        : null;
+      return { ...entry, attempts: timeline.length, improvement };
+    });
   }, [batchResults]);
 
+  // Pass mark for the "below pass mark only" filter — the batch's first
+  // test's pass mark if configured, else the shared default (§3.3).
+  const rankingsPassMark = resolvePassingScore(tests[0]?.passingScore);
+
+  // Rankings CSV export (§5.1) — respects the active filter/sort.
+  const exportRankings = () => {
+    if (!batch) return;
+    downloadCsv(
+      `batch-${batch.code}-rankings.csv`,
+      displayRankings.map(entry => ({
+        Rank: entry.rank,
+        Student: entry.name || entry.username || entry.email,
+        'Best %': entry.percentage,
+        Percentile: entry.percentile,
+        Tests: entry.attempts,
+        Change: entry.improvement == null ? '' : entry.improvement,
+        Completed: formatCompletedAt(entry.completedAt, ''),
+      })),
+    );
+  };
+
+  // The rankings list as filtered/ordered by the weakest-students controls.
+  // Entry.rank keeps the real competition rank, so rows stay labelled with
+  // their true standing regardless of display order.
+  const displayRankings = useMemo(() => {
+    const base = strugglingOnly
+      ? batchRankings.filter(entry => entry.percentage < rankingsPassMark)
+      : batchRankings;
+    if (rankingsMode === 'top') return base;
+    return [...base].sort((a, b) => a.percentage - b.percentage);
+  }, [batchRankings, rankingsMode, strugglingOnly, rankingsPassMark]);
+
   // Open the student-detail modal — fetches this student's full attempt history.
-  const openStudentDetail = async (entry: BatchLeaderboardEntry) => {
+  const openStudentDetail = async (entry: StudentRef) => {
     setStudentDetailEntry(entry);
     setStudentDetailLoading(true);
     try {
@@ -267,7 +338,12 @@ export const BatchDetail: React.FC = () => {
     }
   };
 
-  if (loading) return (<div className="batch-shell"><div className="student-loading"><Loader2 className="animate-spin" /> Loading batch…</div></div>);
+  if (loading) return (
+    <div className="batch-shell" role="status" aria-busy="true">
+      <span className="skel-sr">Loading batch…</span>
+      <SkeletonList rows={4} />
+    </div>
+  );
   if (!batch) return null;
 
   /** Read-only chip list of the batches a test is assigned to, with an
@@ -301,7 +377,6 @@ export const BatchDetail: React.FC = () => {
         </div>
         <div className="student-header-actions">
           <button onClick={loadBatch} className="student-btn-plain"><RefreshCw size={14} /> Refresh</button>
-          <button onClick={() => navigate('/batches')} className="student-btn-plain">← All batches</button>
         </div>
       </div>
 
@@ -317,14 +392,16 @@ export const BatchDetail: React.FC = () => {
       </div>
 
       {tab === 'results' && tests.length === 0 ? (
-        <div className="batch-list">
-          <p className="student-empty-text">No tests assigned to this batch yet.</p>
-        </div>
+        <EmptyState
+          icon={FileText}
+          title="No tests yet"
+          description="Assign a test to this batch to see results and rankings here."
+        />
       ) : null}
 
       {tab === 'results' && tests.length > 0 && resultsLoading && Object.keys(batchResults).length === 0 ? (
-        <div className="batch-list">
-          <div className="student-loading">Loading batch results…</div>
+        <div className="batch-list" role="status" aria-busy="true">
+          <SkeletonList rows={3} />
         </div>
       ) : null}
 
@@ -347,7 +424,12 @@ export const BatchDetail: React.FC = () => {
             </button>
           </form>
           {pending.length === 0 ? (
-            <p className="student-empty-text">No pending approval requests.</p>
+            <EmptyState
+              variant="compact"
+              icon={Mail}
+              title="No pending requests"
+              description="Approval requests from students who register with the batch code will show up here."
+            />
           ) : pending.map(e => (
             <div key={e.id} className="batch-detail-row">
               <div>
@@ -372,44 +454,89 @@ export const BatchDetail: React.FC = () => {
       {tab === 'members' && (
         <div className="batch-list">
           {members.length === 0 ? (
-            <p className="student-empty-text">No students have joined this batch yet. Share the batch code <strong>{batch.code}</strong> to let students register.</p>
-          ) : members.map(s => (
-            <div key={s.id} className="batch-detail-row">
-              <div>
-                <div className="batch-detail-name">{s.name || <i>{s.username || s.email}</i>}</div>
-                {/* Only show the sub-line when it adds information — otherwise
-                    the card displays the same email twice. */}
-                {(s.name && (s.username || s.email)) || (!s.name && s.username && s.email && s.username !== s.email) ? (
-                  <div className="batch-detail-sub">{s.username || s.email}</div>
+            <EmptyState
+              icon={UserPlus}
+              title="No students yet"
+              description={<>Share the batch code <strong>{batch.code}</strong> to let students register.</>}
+            />
+          ) : members.map(s => {
+            const isEditing = editingMemberId === s.id;
+            const moveTargets = teacherBatches.filter(b => b.id !== batch.id);
+            return (
+              <div key={s.id} className={`batch-detail-row batch-member-row ${isEditing ? 'is-editing' : ''}`}>
+                <div className="batch-member-head">
+                  <div>
+                    <div className="batch-detail-name">{s.name || <i>{s.username || s.email}</i>}</div>
+                    {/* Only show the sub-line when it adds information — otherwise
+                        the card displays the same email twice. */}
+                    {(s.name && (s.username || s.email)) || (!s.name && s.username && s.email && s.username !== s.email) ? (
+                      <div className="batch-detail-sub">{s.username || s.email}</div>
+                    ) : null}
+                  </div>
+                  <button
+                    onClick={() => setEditingMemberId(isEditing ? null : s.id)}
+                    className={`batch-member-edit-btn ${isEditing ? 'is-open' : ''}`}
+                    title={isEditing ? 'Close member options' : 'Edit member'}
+                    aria-expanded={isEditing}
+                    aria-label={`${isEditing ? 'Close' : 'Edit'} options for ${s.name || s.username || s.email}`}
+                  >
+                    {isEditing ? <X size={13} /> : <Pencil size={13} />}
+                  </button>
+                </div>
+                {isEditing ? (
+                  <div className="batch-member-edit-panel">
+                    <div className="batch-edit-panel-field">
+                      <label>Move to batch</label>
+                      <select
+                        defaultValue=""
+                        onChange={e => {
+                          const target = e.target.value;
+                          if (!target) return;
+                          setEditingMemberId(null);
+                          void moveTo(s.id, target);
+                        }}
+                        disabled={moveTargets.length === 0 || !!acting[`move-${s.id}`]}
+                      >
+                        <option value="" disabled>Choose a batch…</option>
+                        {moveTargets.map(b => (
+                          <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
+                        ))}
+                        {moveTargets.length === 0 ? <option value="" disabled>No other batches</option> : null}
+                      </select>
+                      {acting[`move-${s.id}`] ? <Loader2 size={12} className="animate-spin batch-panel-spinner" /> : null}
+                    </div>
+                    <div className="batch-edit-panel-actions">
+                      <button
+                        onClick={() => {
+                          setEditingMemberId(null);
+                          void openStudentDetail({ studentId: s.id, email: s.email, username: s.username, name: s.name });
+                        }}
+                        className="batch-btn-secondary batch-panel-action"
+                      >
+                        <Eye size={13} /> View performance
+                      </button>
+                      <button onClick={() => removeMember(s.id)} disabled={!!acting[`remove-${s.id}`]}
+                        title="Remove this student from the batch"
+                        className="batch-remove-btn batch-panel-action batch-panel-remove">
+                        {acting[`remove-${s.id}`] ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Remove from batch
+                      </button>
+                    </div>
+                  </div>
                 ) : null}
               </div>
-              <div className="batch-row-actions">
-                <select
-                  defaultValue=""
-                  onChange={e => e.target.value ? moveTo(s.id, e.target.value) : undefined}
-                  className="batch-row-actions-select"
-                  disabled={!!acting[`move-${s.id}`]}
-                >
-                  <option value="" disabled>Move to…</option>
-                  {teacherBatches.filter(b => b.id !== batch.id).map(b => (
-                    <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
-                  ))}
-                </select>
-                {acting[`move-${s.id}`] ? <Loader2 size={12} className="animate-spin" /> : null}
-                <button onClick={() => removeMember(s.id)} disabled={!!acting[`remove-${s.id}`]} title="Remove from batch"
-                  className="batch-remove-btn">
-                  {acting[`remove-${s.id}`] ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {tab === 'tests' && (
         <div className="batch-list">
           {tests.length === 0 ? (
-            <p className="student-empty-text">No tests assigned to this batch yet. Use “Manage tests” above to attach one.</p>
+            <EmptyState
+              icon={FileText}
+              title="No tests assigned"
+              description="Use “Manage assignment” on a test card to attach one to this batch."
+            />
           ) : tests.map(t => {
             const stat = testStats[t.id];
             return (
@@ -530,6 +657,36 @@ export const BatchDetail: React.FC = () => {
           <div className="batch-rankings-card">
             <h2>Class Rankings</h2>
             <p className="student-muted">Overall ranking based on best percentage across all {tests.length} tests. Click a student to see their detailed performance.</p>
+            <div className="batch-rankings-controls">
+              <button
+                type="button"
+                className={`batch-rankings-toggle ${rankingsMode === 'weak' ? 'is-on' : ''}`}
+                onClick={() => setRankingsMode(m => (m === 'weak' ? 'top' : 'weak'))}
+                title={rankingsMode === 'weak' ? 'Back to best-performing first' : 'Show students who need the most help first'}
+              >
+                {rankingsMode === 'weak' ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                {rankingsMode === 'weak' ? 'Top first' : 'Weakest first'}
+              </button>
+              <button
+                type="button"
+                onClick={exportRankings}
+                className="batch-rankings-toggle"
+                title="Download the rankings as a CSV file"
+              >
+                <Download size={14} /> Export CSV
+              </button>
+              <label className="batch-rankings-check">
+                <input
+                  type="checkbox"
+                  checked={strugglingOnly}
+                  onChange={e => setStrugglingOnly(e.target.checked)}
+                />
+                Below {rankingsPassMark}% only
+              </label>
+            </div>
+            {displayRankings.length === 0 ? (
+              <p className="batch-chip-note">No students are below {rankingsPassMark}% — nothing to worry about here.</p>
+            ) : (
             <div className="batch-rankings-table-wrapper">
               <table className="batch-rankings-table">
                 <thead>
@@ -538,14 +695,18 @@ export const BatchDetail: React.FC = () => {
                     <th>Student</th>
                     <th>Best %</th>
                     <th>Percentile</th>
+                    <th>Change</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {batchRankings.map(entry => {
+                  {displayRankings.map(entry => {
                     const rankIcon = entry.rank === 1 ? <Trophy size={16} /> : entry.rank === 2 ? <Medal size={16} /> : entry.rank === 3 ? <Award size={16} /> : null;
+                    const rankClass = entry.rank === 1 ? 'top-1' : entry.rank === 2 ? 'top-2' : entry.rank === 3 ? 'top-3' : '';
                     return (
-                      <tr key={entry.studentId ?? entry.email} className={`batch-results-row ${entry.rank <= 3 ? 'top-three' : ''}`}>
-                        <td className="batch-results-rank" data-label="Rank">{rankIcon}{entry.rank}</td>
+                      <tr key={entry.studentId ?? entry.email} className={`batch-results-row ${rankClass}`}>
+                        <td className="batch-results-rank" data-label="Rank">
+                          <span className={`batch-rank-badge ${rankClass}`}>{rankIcon}<span>{entry.rank}</span></span>
+                        </td>
                         <td className="batch-results-student" data-label="Student">
                           <button
                             onClick={() => openStudentDetail(entry)}
@@ -556,13 +717,24 @@ export const BatchDetail: React.FC = () => {
                           </button>
                         </td>
                         <td className="batch-results-percent" data-label="Best %">{entry.percentage}%</td>
-                        <td className="student-muted" data-label="Percentile">{entry.percentile}th</td>
+                        <td className="batch-results-pctile" data-label="Percentile"><span className="batch-pctile-pill">{entry.percentile}th</span></td>
+                        <td className="batch-results-change" data-label="Change">
+                          {entry.improvement == null ? (
+                            <span className="student-muted">—</span>
+                          ) : (
+                            <span className={`batch-improvement ${entry.improvement > 0 ? 'is-up' : entry.improvement < 0 ? 'is-down' : ''}`}>
+                              {entry.improvement > 0 ? <TrendingUp size={13} /> : entry.improvement < 0 ? <TrendingDown size={13} /> : null}
+                              {entry.improvement > 0 ? '+' : ''}{entry.improvement}%
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         </div>
       ) : null}
@@ -594,7 +766,12 @@ export const BatchDetail: React.FC = () => {
                 </div>
 
                 {entries.length === 0 ? (
-                  <p className="student-empty-text">No results yet for this test.</p>
+                  <EmptyState
+                    variant="compact"
+                    icon={BarChart3}
+                    title="No results yet"
+                    description="No one has attempted this test yet."
+                  />
                 ) : (
                   <table className="batch-results-table">
                     <thead>
@@ -609,13 +786,14 @@ export const BatchDetail: React.FC = () => {
                     <tbody>
                       {entries.map((e, i) => {
                         const rankIcon = i === 0 ? <Trophy size={16} /> : i === 1 ? <Medal size={16} /> : i === 2 ? <Award size={16} /> : null;
-                        const timeStr = e.completedAt
-                          ? new Date(e.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                          : '—';
+                        const rankClass = i === 0 ? 'top-1' : i === 1 ? 'top-2' : i === 2 ? 'top-3' : '';
+                        // Null-safe friendly timestamp — legacy rows carrying
+                        // junk (e.g. "1:7:53") render as "—", never garbage.
+                        const timeStr = formatCompletedAt(e.completedAt);
                         return (
                           <tr key={e.studentId ?? e.email} className={`batch-results-row ${i < 3 ? 'top-three' : ''}`}>
                         <td className="batch-results-rank" data-label="Rank">
-                          {rankIcon}{e.rank || i + 1}
+                          <span className={`batch-rank-badge ${rankClass}`}>{rankIcon}<span>{e.rank || i + 1}</span></span>
                         </td>
                             <td className="batch-results-student" data-label="Student">
                               <button
@@ -662,9 +840,17 @@ export const BatchDetail: React.FC = () => {
               </button>
             </div>
             {studentDetailLoading ? (
-              <div className="student-loading">Loading student data…</div>
+              <div className="student-detail-content" role="status" aria-busy="true">
+                <SkeletonStats count={4} />
+                <SkeletonList rows={3} />
+              </div>
             ) : studentDetailResults.length === 0 ? (
-              <p className="student-empty-text">No attempt data found for this student.</p>
+              <EmptyState
+                variant="compact"
+                icon={Users}
+                title="No attempt data"
+                description="No attempt data found for this student."
+              />
             ) : (
               <div className="student-detail-content">
                 {(() => {
@@ -697,7 +883,7 @@ export const BatchDetail: React.FC = () => {
                                 </div>
                                 <div className="student-test-meta">
                                   <div className="student-test-score">Score: {r.score ?? 0}/{r.totalMarks ?? r.totalQuestions ?? 0} · {r.percentage ?? 0}%</div>
-                                  <div className="student-test-percentile">Completed {r.completedAt ? new Date(r.completedAt).toLocaleDateString() : '—'}</div>
+                                  <div className="student-test-percentile">Completed {formatCompletedAt(r.completedAt)}</div>
                                 </div>
                               </div>
                             );

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { studentSignIn, studentSignUp } from '../lib/auth';
 import { getStudentProfile, createBatchEnrollment } from '../lib/database';
 import type { StudentIdentity } from '../lib/database';
+import { getStudentSession } from '../lib/studentSession';
 import { User, Lock, KeyRound, BookOpen, LogIn, Eye, EyeOff, ArrowLeft, Shield, Mail } from 'lucide-react';
 import './LoginPage.css';
 
@@ -14,6 +15,7 @@ interface Props {
 
 export const StudentAuth: React.FC<Props> = ({ onBack, onAuthenticated }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<'login' | 'register'>(
     location.pathname.includes('/register') ? 'register' : 'login'
   );
@@ -23,6 +25,42 @@ export const StudentAuth: React.FC<Props> = ({ onBack, onAuthenticated }) => {
     const newMode = location.pathname.includes('/register') ? 'register' : 'login';
     setMode(newMode);
   }, [location.pathname]);
+
+  // Teacher Page enrollment funnel: /student/register?batch=CODE pre-fills
+  // the batch code so students joining from a teacher's page register
+  // straight into the right batch.
+  const [funnelBatch, setFunnelBatch] = useState<string | null>(null);
+
+  useEffect(() => {
+    const batchParam = new URLSearchParams(location.search).get('batch');
+    if (!batchParam) return;
+    const code = batchParam.trim().toUpperCase();
+    setFunnelBatch(code);
+
+    // Funnel polish: a student with an existing session joins the batch
+    // directly instead of being dropped into the register form.
+    const existing = getStudentSession();
+    if (existing) {
+      let cancelled = false;
+      void (async () => {
+        try {
+          await createBatchEnrollment({ email: existing.email, batchCode: code });
+          if (!cancelled) toast.success(`Joined batch ${code}`);
+        } catch (err) {
+          // Already a member / invalid code — still send them to the dashboard.
+          if (!cancelled) {
+            toast.error(err instanceof Error ? err.message : 'Could not join batch');
+          }
+        } finally {
+          if (!cancelled) navigate('/student/dashboard', { replace: true });
+        }
+      })();
+      return () => { cancelled = true; };
+    }
+
+    setBatchCode(code);
+    setMode('register');
+  }, [location.search, navigate]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [batchCode, setBatchCode] = useState('');
@@ -60,6 +98,15 @@ export const StudentAuth: React.FC<Props> = ({ onBack, onAuthenticated }) => {
         if (!profile.isApproved) {
           setAwaiting({ email: profile.email, batchCode: profile.pendingBatchCode ?? 'pending' });
           return;
+        }
+        // Funnel: arriving from a teacher page with ?batch=CODE joins the
+        // batch right after sign-in. Best-effort — already being a member
+        // must never block login.
+        if (funnelBatch) {
+          try {
+            await createBatchEnrollment({ email: profile.email, batchCode: funnelBatch });
+            toast.success(`Joined batch ${funnelBatch}`);
+          } catch { /* already a member — continue to the dashboard */ }
         }
         onAuthenticated(profile);
       }
@@ -211,6 +258,11 @@ export const StudentAuth: React.FC<Props> = ({ onBack, onAuthenticated }) => {
                   ? 'Enter your credentials to access your dashboard'
                   : 'Create your account to start learning'}
               </p>
+              {mode === 'login' && funnelBatch ? (
+                <p className="funnel-join-note">
+                  You&apos;re joining batch <strong>{funnelBatch}</strong> — sign in to continue.
+                </p>
+              ) : null}
             </div>
             <div className="security-badge">
               <Shield className="security-icon" />

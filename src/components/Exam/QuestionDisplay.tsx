@@ -90,14 +90,25 @@ export const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
 
         <QuestionImage question={question} maxHeight={220} />
 
-        {/* Answer Options */}
-        <div className="options-container">
+        {/* Answer Options — real radio inputs: reliable touch handling and
+            keyboard/switch-access/screen-reader operable (the old markup was
+            a <label> with onClick and no input, so it was invisible to
+            assistive tech and flaky on touch). The input itself is visually
+            hidden; the visible option chrome stays unchanged. */}
+        <div className="options-container" role="radiogroup" aria-label={`Options for question ${questionIndex + 1}`}>
           {question.options.map((option, index) => (
             <label
               key={index}
               className={`option-item ${selectedAnswer === index ? 'selected' : ''}`}
-              onClick={() => onAnswerSelect(index)}
             >
+              <input
+                type="radio"
+                name={`question-${question.id}`}
+                className="visually-hidden-input"
+                checked={selectedAnswer === index}
+                onChange={() => onAnswerSelect(index)}
+                aria-label={`Option ${String.fromCharCode(65 + index)}: ${option}`}
+              />
               <div className="option-radio">
                 {selectedAnswer === index && <CheckCircle size={16} />}
               </div>

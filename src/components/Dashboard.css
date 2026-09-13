@@ -48,48 +48,32 @@
 }
 
 /* ===== Dark Mode Support (token flip, no rewrite) =====
-@media (prefers-color-scheme: dark) {
-  :root {
-    --gray-50: #0f1117;
-    --gray-100: #171b26;
-    --gray-200: #1f2330;
-    --gray-300: #2a2f3a;
-    --gray-400: #33415b;
-    --gray-500: #4b5563;
-    --gray-600: #6b7280;
-    --gray-700: #94a3b8;
-    --gray-800: #cbd5e1;
-    --gray-900: #e4e6eb;
-    --white: #0f1117;
-    --black: #e4e6eb;
-    --primary-light: #3b82f6;
-    --primary-hover: #818cf8;
-    --success-light: #064e35;
-    --warning-light: #451a03;
-    --info-light: #073142;
-    --error-light: #450a0a;
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5);
-    --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.6);
-  }
-
-  .tests-table tbody tr:hover { background: #171b26; }
-
-  /* Integrity warning banner — light-red surface is illegible on dark. */
-  .integrity-warning-banner {
-    background: #450a0a;
-    border-color: #7f1d1d;
-    color: #fecaca;
-    box-shadow: 0 6px 20px rgba(253, 97, 97, 0.35);
-  }
-  /* Preview/analytics card surfaces. */
-  .preview-question-card,
-  .question-analytics-card {
-    background: #1f2937;
-  }
-}
+   NOTE: this block was trapped inside an unterminated comment (the opener
+   lost its closing delimiter), so it NEVER applied. The authoritative dark mode
+   for the Dashboard is the "Uniform dark mode" block at the bottom of this
+   file — whose comment claims this top flip handles var(--white/--gray-*)
+   surfaces, which was silently false. Worse, the broken comment leaked two
+   rules (preview/analytics card backgrounds forced to #1f2937) into LIGHT
+   mode and left a stray `}` that made every CSS minifier warn.
+   The dead block is preserved below, reformatted as a true comment. If you
+   re-enable it, reconcile the --gray-* values with the bottom block first
+   (they conflict: #2a2f3a vs #9ca3af for --gray-300).
+   ---
+   
+     :root:where([data-theme="dark"]) {
+       --gray-50: #0f1117;       --gray-100: #171b26;      --gray-200: #1f2330;
+       --gray-300: #2a2f3a;      --gray-400: #33415b;      --gray-500: #4b5563;
+       --gray-600: #6b7280;      --gray-700: #94a3b8;      --gray-800: #cbd5e1;
+       --gray-900: #e4e6eb;      --white: #0f1117;         --black: #e4e6eb;
+       --primary-light: #3b82f6; --primary-hover: #818cf8;
+       --success-light: #064e35; --warning-light: #451a03; --info-light: #073142;
+       --error-light: #450a0a;
+       --shadow-sm..--shadow-2xl: same values, rgb(0 0 0 / 0.3..0.6) shadows
+     }
+     :where([data-theme="dark"]) .tests-table tbody tr:hover { background: #171b26; }
+     :where([data-theme="dark"]) .integrity-warning-banner { background: #450a0a; border-color: #7f1d1d; color: #fecaca; }
+     :where([data-theme="dark"]) .preview-question-card, :where([data-theme="dark"]) .question-analytics-card { background: #1f2937; }
+===================================================== */
 
 /* Expired badges — error tokens auto-flip in dark mode. */
 .expired-badge,
@@ -295,16 +279,10 @@
 
 
 
-/* ===== Header Styles ===== */
-.dashboard-header {
-  background: var(--white);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--gray-200);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  padding: 1.5rem 0; /* Increased padding for better presence */
-}
+/* ===== Header Styles =====
+   The sticky header strip was removed (sidebar owns navigation); nothing
+   renders .dashboard-header anymore. Kept-out intentionally: its old
+   z-index:100 sticky bar used to float over the mobile sidebar drawer. */
 
 .header-content {
   max-width: 1600px; /* Increased from 1400px */
@@ -951,115 +929,6 @@
   box-shadow: 0 0 0 3px var(--primary-light);
 }
 
-/* ===== Empty State ===== */
-.empty-state {
-  background: var(--white);
-  border-radius: var(--radius-2xl);
-  padding: 5rem 3rem; /* Increased padding */
-  text-align: center;
-  backdrop-filter: blur(20px);
-  border: 1px solid var(--gray-200);
-}
-
-.empty-visual {
-  position: relative;
-  display: inline-block;
-  margin-bottom: 3rem; /* Increased margin */
-}
-
-.empty-icon {
-  width: 6rem; /* Increased size */
-  height: 6rem;
-  background: var(--gray-100);
-  border-radius: var(--radius-2xl);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto;
-  position: relative;
-  z-index: 1;
-}
-
-.empty-icon .icon {
-  width: 3rem; /* Increased size */
-  height: 3rem;
-  color: var(--gray-400);
-}
-
-.empty-decoration {
-  position: absolute;
-  inset: -1.5rem; /* Increased inset */
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-}
-
-.decoration-circle {
-  width: 1rem; /* Increased size */
-  height: 1rem;
-  border-radius: 50%;
-  background: var(--primary-light);
-  animation: float-decoration 3s ease-in-out infinite;
-}
-
-.decoration-circle:nth-child(2) {
-  animation-delay: 1s;
-}
-
-.decoration-circle:nth-child(3) {
-  animation-delay: 2s;
-}
-
-@keyframes float-decoration {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-}
-
-.empty-content {
-  max-width: 600px; /* Increased max-width */
-  margin: 0 auto;
-}
-
-.empty-title {
-  font-size: 1.75rem; /* Increased font size */
-  font-weight: 700;
-  color: var(--gray-900);
-  margin: 0 0 1.25rem 0; /* Increased margin */
-}
-
-.empty-description {
-  font-size: 1.25rem; /* Increased font size */
-  color: var(--gray-600);
-  margin: 0 0 2.5rem 0; /* Increased margin */
-  line-height: 1.6;
-}
-
-.empty-cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 1rem; /* Increased gap */
-  padding: 1.25rem 2.5rem; /* Increased padding */
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-lg);
-  font-weight: 600;
-  font-size: 1.125rem; /* Increased font size */
-  cursor: pointer;
-  transition: all var(--transition-normal);
-  box-shadow: var(--shadow-lg);
-}
-
-.empty-cta:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-2xl);
-}
-
-.cta-icon {
-  width: 1.375rem; /* Increased size */
-  height: 1.375rem;
-}
-
 /* ===== Tests Grid ===== */
 .tests-grid {
   display: grid;
@@ -1302,35 +1171,6 @@
 
 .test-card:hover .progress-fill {
   transform: translateX(0);
-}
-
-/* ===== No Results State ===== */
-.no-results {
-  text-align: center;
-  padding: 4rem 3rem; /* Increased padding */
-  background: var(--white);
-  border-radius: var(--radius-xl);
-  backdrop-filter: blur(10px);
-}
-
-.no-results-icon {
-  width: 3.5rem; /* Increased size */
-  height: 3.5rem;
-  color: var(--gray-400);
-  margin: 0 auto 1.5rem auto; /* Increased margin */
-}
-
-.no-results-title {
-  font-size: 1.5rem; /* Increased font size */
-  font-weight: 600;
-  color: var(--gray-900);
-  margin: 0 0 0.75rem 0; /* Increased margin */
-}
-
-.no-results-description {
-  font-size: 1.125rem; /* Increased font size */
-  color: var(--gray-600);
-  margin: 0;
 }
 
 /* ===== Large Desktop Optimizations ===== */
@@ -1613,6 +1453,16 @@
 .insight-regenerate-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+/* Muted variant: "not configured" / "generation failed" states — same shape,
+   deliberately quieter than the real insight banner. */
+.insight-banner.insight-unconfigured {
+  background: var(--color-bg-elevated, var(--gray-100));
+  border: 1px dashed var(--color-border-strong, var(--gray-300));
+  color: var(--color-text-secondary, var(--gray-600));
+}
+.insight-banner.insight-unconfigured .insight-banner-icon {
+  color: var(--color-text-tertiary, var(--gray-400));
 }
 
 /* At-risk student row tint */
@@ -2495,6 +2345,12 @@
 .rank-2 { color: #475569; background: #e2e8f0; }
 .rank-3 { color: #92400e; background: #fed7aa; }
 
+/* Percentile cell in the insights ranking table (rank-derived, not a score). */
+.analytics-percentile {
+  color: var(--gray-600);
+  font-weight: 700;
+}
+
 .question-analytics-card {
   display: flex;
   align-items: flex-start;
@@ -3068,14 +2924,6 @@
     white-space: nowrap;
   }
 
-  /* Tighten empty / no-results padding so content isn't squeezed off narrow screens */
-  .no-results {
-    padding: 2rem 1rem;
-  }
-
-  .empty-state {
-    padding: 2rem 1rem;
-  }
 }
 
 @media (max-width: 480px) {
@@ -3128,6 +2976,115 @@
   }
 }
 
+/* ===== Phase D: dashboard header + analytics table on small screens ===== */
+/* Icon-only header actions below 900px — 8 labelled buttons cannot fit next to
+   the brand on tablets; every action keeps its aria-label + title tooltip. */
+@media (max-width: 900px) {
+  .header-actions .btn-text { display: none; }
+
+  .header-actions .create-btn,
+  .header-actions .logout-btn,
+  .header-actions .refresh-btn {
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+
+/* Below 560px even icon-only actions can overflow: turn the row into a
+   horizontal scroll strip (hidden scrollbar, snap, momentum) so nothing
+   wraps, squeezes, or leaks past the viewport edge. */
+@media (max-width: 560px) {
+  .header-actions {
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .header-actions::-webkit-scrollbar { display: none; }
+  .header-actions > button,
+  .header-actions > a { scroll-snap-align: start; }
+}
+
+/* Analytics table (insights modal): card reflow below 640px — the 560px
+   min-width forces sideways scroll on phones, so rows become labelled cards. */
+@media (max-width: 640px) {
+  .analytics-table-wrap {
+    overflow-x: visible;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .analytics-table {
+    min-width: 100%;
+    width: 100%;
+    font-size: 0.8rem;
+  }
+
+  .analytics-table thead { display: none; }
+
+  .analytics-table,
+  .analytics-table tbody,
+  .analytics-table tr,
+  .analytics-table td {
+    display: block;
+    min-width: 0;
+  }
+
+  .analytics-table tbody tr {
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs);
+  }
+  .analytics-table tbody tr:last-child { margin-bottom: 0; }
+
+  /* Label on the left, value on the right — same card pattern as the batch
+     rankings table. font-weight + explicit colour keep values readable. */
+  .analytics-table td {
+    position: relative;
+    padding: 6px 8px 6px 92px;
+    text-align: right;
+    font-weight: 600;
+    color: var(--gray-800);
+    white-space: normal;
+    border-bottom: none;
+    word-break: break-word;
+  }
+
+  .analytics-table td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gray-500);
+    text-align: left;
+  }
+}
+
+/* Dark-mode surfaces for the analytics cards (Dashboard's dead top :root flip
+   means --white stays light down here — the explicit token re-assert is what
+   the other mobile cards use too). */
+
+  :where([data-theme="dark"]) .analytics-table tbody tr {
+    background: var(--color-bg-card);
+    border-color: var(--color-border);
+  }
+  :where([data-theme="dark"]) .analytics-table tbody tr td { color: var(--color-text); }
+  :where([data-theme="dark"]) .analytics-table tbody tr td::before { color: var(--color-text-secondary); }
+
 /* ===== Uniform dark mode for the Dashboard =====
    The :root dark flip at the top of this file handles var(--white/--gray-*)
    surfaces, but several hard-coded legacy colours stay invisible on the dark
@@ -3135,92 +3092,114 @@
    uses #1c2d4c, `.tests-subtitle` uses #64748b, the insights question card is
    #fbfcff, and badge/primary text reuses var(--white) (which flips dark-on-violet).
    Re-assert readable tokens here (these rules come last, so they win). */
-@media (prefers-color-scheme: dark) {
-  :root {
+
+  :root[data-theme="dark"] {
+    /* Surfaces: the light-only gray scale was staying bright on the dark
+       canvas (blinding patches + light-on-light text). Flip the full ramp. */
+    --gray-50: #0f1117;
+    --gray-100: #171b26;
+    --gray-200: #1f2330;
+    /* Text ramp */
     --gray-300: #9ca3af;
     --gray-400: #6b7280;
     --gray-500: #7b8794;
     --gray-600: #94a3b8;
     --gray-700: #cbd5e1;
     --gray-800: #e2e5ea;
+    /* THE headline fix: headings/stat numbers used var(--gray-900) which
+       stayed near-black (#111827) on the dark card — completely invisible
+       (quick-stats numbers, greeting, modal headings). */
+    --gray-900: #e4e6eb;
+    /* White/black are surfaces + badge text on this page — flip them too
+       (index.css now also flips these app-wide; belt and suspenders). */
+    --white: #0f1117;
+    --black: #e4e6eb;
   }
 
-  .dashboard-wrapper {
+  /* Quick stats (Tests Created / Question Bank / This Week): the indigo-500
+     value + gray-500 label were borderline-invisible on dark cards. */
+  :where([data-theme="dark"]) .stat-value { color: #818cf8; }
+  :where([data-theme="dark"]) .stat-label { color: var(--color-text-secondary); }
+
+  /* Welcome hero text — explicit, never relies on the gray-ramp flip. */
+  :where([data-theme="dark"]) .greeting-title { color: var(--color-text); }
+  :where([data-theme="dark"]) .greeting-subtitle { color: var(--color-text-secondary); }
+
+  /* View toggle: the active chip kept a hard-coded white background. */
+  :where([data-theme="dark"]) .view-toggle-btn.active {
+    background: var(--color-bg-elevated);
+    color: var(--color-accent);
+  }
+
+  :where([data-theme="dark"]) .dashboard-wrapper {
     background: radial-gradient(circle at 10% 0%, rgba(99, 102, 241, 0.12), transparent 28%),
       var(--color-bg);
     color: var(--color-text);
   }
 
-  .tests-title { color: var(--color-text); }
-  .tests-subtitle { color: var(--color-text-secondary); }
-  .preview-question-card { background: var(--color-bg-card); border-color: var(--color-border); }
-  .preview-question-heading > span {
+  :where([data-theme="dark"]) .tests-title { color: var(--color-text); }
+  :where([data-theme="dark"]) .tests-subtitle { color: var(--color-text-secondary); }
+  :where([data-theme="dark"]) .preview-question-card { background: var(--color-bg-card); border-color: var(--color-border); }
+  :where([data-theme="dark"]) .preview-question-heading > span {
     color: #fff;
   }
-  .preview-options > div.correct {
+  :where([data-theme="dark"]) .preview-options > div.correct {
     background: var(--color-success-soft);
     border-color: var(--color-success-border);
   }
 
-  /* Primary/insights buttons were var(--primary-color) on a light-blue dark bg
+   /* Primary/insights buttons were var(--primary-color) on a light-blue dark bg
      with white text -> unreadable. Re-base them on the saturated accent. */
-  .test-actions .action-btn.analytics,
-  .table-insights-btn.analytics,
-  .table-insights-btn:hover {
+  :where([data-theme="dark"]) .test-actions .action-btn.analytics, :where([data-theme="dark"]) .table-insights-btn.analytics, :where([data-theme="dark"]) .table-insights-btn:hover {
     color: var(--color-text);
     background: var(--color-accent);
     border-color: var(--color-accent);
   }
 
-  .header-actions .refresh-btn {
+  :where([data-theme="dark"]) .header-actions .refresh-btn {
     background: var(--color-bg-card);
     color: var(--color-ink-secondary);
     border-color: var(--color-border);
   }
-  .header-actions .refresh-btn:hover {
+  :where([data-theme="dark"]) .header-actions .refresh-btn:hover {
     background: var(--color-bg-elevated);
     color: var(--color-accent);
     border-color: var(--color-border);
   }
 
-  .tests-table tbody tr:hover { background: var(--color-bg-elevated); }
-  /* Mobile table cards — ensure card surface & divider visibility in dark mode */
-  .tests-table tbody tr {
+  :where([data-theme="dark"]) .tests-table tbody tr:hover { background: var(--color-bg-elevated); }
+   /* Mobile table cards — ensure card surface & divider visibility in dark mode */
+  :where([data-theme="dark"]) .tests-table tbody tr {
     background: var(--color-bg-card);
     border-color: var(--color-border);
   }
-  .tests-table th,
-  .tests-table td {
+  :where([data-theme="dark"]) .tests-table th, :where([data-theme="dark"]) .tests-table td {
     border-bottom-color: var(--color-border);
   }
-  .tests-table th[scope="row"] {
+  :where([data-theme="dark"]) .tests-table th[scope="row"] {
     border-bottom-color: var(--color-border-strong);
   }
-  .analytics-table tbody tr:hover { background: var(--color-bg-elevated); }
-  .analytics-table thead th, .analytics-summary-grid > div { background: var(--color-bg-elevated); }
-  .analytics-summary-grid strong { color: var(--color-text); }
+  :where([data-theme="dark"]) .analytics-table tbody tr:hover { background: var(--color-bg-elevated); }
+  :where([data-theme="dark"]) .analytics-table thead th, :where([data-theme="dark"]) .analytics-summary-grid > div { background: var(--color-bg-elevated); }
+  :where([data-theme="dark"]) .analytics-summary-grid strong { color: var(--color-text); }
 
-  .rank-1 { color: #78350f; background: #fde68a; }
-  .rank-2 { color: #0f172a; background: #cbd5e1; }
-  .rank-3 { color: #78350f; background: #fed7aa; }
+  :where([data-theme="dark"]) .rank-1 { color: #78350f; background: #fde68a; }
+  :where([data-theme="dark"]) .rank-2 { color: #0f172a; background: #cbd5e1; }
+  :where([data-theme="dark"]) .rank-3 { color: #78350f; background: #fed7aa; }
 
-  .insights-modal, .welcome-content, .stat-card, .test-card, .tests-table-wrapper,
-  .empty-state, .no-results, .highlight-card, .quick-stat, .view-toggle, .preview-options > div {
+  :where([data-theme="dark"]) .insights-modal, :where([data-theme="dark"]) .welcome-content, :where([data-theme="dark"]) .stat-card, :where([data-theme="dark"]) .test-card, :where([data-theme="dark"]) .tests-table-wrapper, :where([data-theme="dark"]) .highlight-card, :where([data-theme="dark"]) .quick-stat, :where([data-theme="dark"]) .view-toggle, :where([data-theme="dark"]) .preview-options > div {
     background: var(--color-bg-card);
     border-color: var(--color-border);
   }
 
-  .search-input, .filter-select, .analytics-section-heading select {
+  :where([data-theme="dark"]) .search-input, :where([data-theme="dark"]) .filter-select, :where([data-theme="dark"]) .analytics-section-heading select {
     background: var(--color-bg-field);
     color: var(--color-text);
     border-color: var(--color-border-strong);
   }
 
-  /* Stat icons inside their colored accent circles use dark text on a light
+   /* Stat icons inside their colored accent circles use dark text on a light
      accent bg -> flip to canvas-black for contrast. */
-  .stat-icon-small.questions .stat-icon-xs,
-  .stat-icon-small.duration .stat-icon-xs,
-  .stat-icon-small.status .stat-icon-xs {
+  :where([data-theme="dark"]) .stat-icon-small.questions .stat-icon-xs, :where([data-theme="dark"]) .stat-icon-small.duration .stat-icon-xs, :where([data-theme="dark"]) .stat-icon-small.status .stat-icon-xs {
     color: var(--color-bg);
   }
-}

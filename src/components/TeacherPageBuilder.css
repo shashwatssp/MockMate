@@ -1,0 +1,845 @@
+/* Teacher Page builder — phone-first editor shell, cohesive with the
+   student/batch design language (tokens from index.css). */
+
+.tpb-shell {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: 16px 16px calc(96px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 860px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ---- Header ---- */
+.tpb-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tpb-header h1 {
+  margin: 0;
+  font-size: 20px;
+  flex: 1;
+}
+
+.tpb-header-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tpb-status-chip {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.tpb-status-chip.is-live {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  border-color: var(--color-success-border);
+}
+
+.tpb-save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.tpb-save-state.is-saved { color: var(--color-success); }
+
+.tpb-live-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--color-success-soft);
+  border: 1px solid var(--color-success-border);
+  color: var(--color-text);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.tpb-live-url b { letter-spacing: 0.02em; }
+
+.tpb-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-danger-soft);
+  border: 1px solid var(--color-danger-border);
+  color: var(--color-danger);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+/* ---- Buttons ---- */
+.tpb-btn-ghost,
+.tpb-btn-primary,
+.tpb-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+  text-decoration: none;
+}
+
+.tpb-btn-ghost:hover { background: var(--color-bg-elevated); }
+.tpb-btn-ghost:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ---- Cover photo editor (sits BELOW the profile-photo editor) ---- */
+.tpb-cover-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Mirror of the old margin-bottom: keeps the same 26px visual rhythm
+     (12px card-body gap + 14px) between the two editors now that the
+     cover block renders last. */
+  margin-top: 14px;
+}
+
+.tpb-cover-preview {
+  height: 120px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tpb-cover-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.tpb-cover-preview.is-empty {
+  color: var(--color-text-tertiary);
+  font-size: 12.5px;
+}
+
+.tpb-cover-preview.is-empty span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  text-align: center;
+}
+
+.tpb-cover-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tpb-btn-ghost.is-danger { color: var(--color-danger); border-color: var(--color-danger-border); }
+.tpb-btn-ghost.is-subtle { font-weight: 500; color: var(--color-text-secondary); }
+
+.tpb-btn-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+
+.tpb-btn-primary:hover { background: var(--color-accent-hover); }
+.tpb-btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.tpb-btn-danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger-border);
+}
+
+/* ---- Preview toggle ---- */
+.tpb-preview-toggle {
+  display: flex;
+  gap: 6px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 4px;
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 30;
+}
+
+.tpb-toggle-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.tpb-toggle-btn.is-active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+/* ---- Device-frame preview ----
+   The FRAME carries the width (not the inner .tp-shell): .tp-viewport inside
+   it is the inline-size container, so @container queries evaluate against the
+   frame width and each preview renders its TRUE layout. */
+.tpb-preview-frame {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+/* Phone: a real 390px viewport — the container query (min-width: 768px)
+   cannot match here, so the mobile layout renders even on a desktop screen. */
+.tpb-preview-frame.tpb-frame-phone {
+  width: 390px;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.tpb-preview-frame .tp-shell {
+  min-height: 480px;
+  padding-bottom: 24px;
+}
+
+.tpb-preview-frame.tpb-frame-phone .tp-shell { min-height: 640px; }
+
+.tpb-frame-body { background: var(--color-bg); }
+
+/* Desktop: fixed 1280px canvas, scaled to fit via `zoom` (see component).
+   overflow-x auto is the fallback for the rare browser without zoom. */
+.tpb-desktop-canvas { overflow-x: auto; }
+.tpb-preview-frame.tpb-frame-desktop { margin: 0 auto; }
+
+/* ---- Device chrome (makes the preview mode unmistakable) ---- */
+.tpb-device-chrome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  background: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tpb-chrome-phone { justify-content: center; }
+
+.tpb-notch {
+  width: 86px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--color-border-strong);
+}
+
+.tpb-chrome-desktop .tpb-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-border-strong);
+  flex-shrink: 0;
+}
+
+.tpb-chrome-url {
+  margin-left: 10px;
+  overflow: hidden;
+  max-width: 460px;
+  padding: 3px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg-card);
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The public page's fixed CTA bar must not escape the preview frame (a fixed
+   element pins to the browser viewport, not the frame). Sticky keeps it in
+   the frame's flow, riding the bottom edge like the real page. */
+.tpb-preview-frame .tp-cta-bar {
+  position: sticky;
+  bottom: 0;
+}
+
+/* The lightbox is a viewport-level modal; inside a preview frame it should
+   still cover the frame area only, which position: fixed already approximates
+   acceptably — no override needed. */
+
+/* ---- Section cards ---- */
+.tpb-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.tpb-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.tpb-card-head svg:first-child { color: var(--color-accent); }
+.tpb-card-head span { flex: 1; }
+
+.tpb-card-body {
+  padding: 4px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* ---- Fields ---- */
+.tpb-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.tpb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+}
+
+.tpb-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.tpb-field input,
+.tpb-field textarea {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  background: var(--color-bg-field);
+  color: var(--color-text);
+  font-size: 14px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.tpb-field textarea { resize: vertical; min-height: 120px; height: auto; }
+
+.tpb-field input:focus,
+.tpb-field textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.tpb-field input:disabled { opacity: 0.6; }
+
+.tpb-color { height: 44px; padding: 4px; }
+
+.tpb-char-count {
+  align-self: flex-end;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+/* ---- Slug row ---- */
+.tpb-slug-row {
+  display: flex;
+  align-items: stretch;
+}
+
+.tpb-slug-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-strong);
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.tpb-slug-row input {
+  border-radius: 0 10px 10px 0 !important;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+.tpb-slug-status { display: block; }
+
+.tpb-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.tpb-hint.is-ok { color: var(--color-success); }
+.tpb-hint.is-bad { color: var(--color-danger); flex-direction: column; align-items: flex-start; gap: 8px; }
+
+.tpb-hint.is-bad > span { display: inline-flex; align-items: center; gap: 6px; }
+
+.tpb-slug-suggestions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tpb-slug-suggestions button {
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  border-radius: 999px;
+  padding: 6px 12px;
+  min-height: 36px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  cursor: pointer;
+}
+
+/* ---- Hero editor ---- */
+.tpb-hero-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tpb-hero-photo-edit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tpb-hero-photo-edit img,
+.tpb-hero-photo-empty {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--color-bg-elevated);
+  border: 2px solid var(--color-accent-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+}
+
+/* ---- Media editor rows ---- */
+.tpb-media-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tpb-media-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--color-bg-field);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.tpb-media-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--color-bg-elevated);
+}
+
+.tpb-media-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.tpb-media-fields input {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  font-size: 13px;
+  min-height: 40px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.tpb-media-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tpb-media-actions button {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.tpb-media-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+.tpb-media-actions button.is-danger { color: var(--color-danger); border-color: var(--color-danger-border); }
+
+.tpb-add-media { align-self: flex-start; }
+
+/* ---- Batch preview ---- */
+.tpb-batch-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tpb-batch-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: var(--color-bg-field);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.tpb-batch-name { font-weight: 600; font-size: 14px; }
+
+.tpb-batch-code {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
+
+.tpb-batch-code code {
+  background: var(--color-bg-elevated);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+/* ---- Batch management rows (active toggle, copy, open, stats) ---- */
+.tpb-batch-row.is-inactive { opacity: 0.68; }
+
+.tpb-batch-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tpb-batch-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.tpb-batch-off-chip {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+}
+
+.tpb-batch-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.tpb-batch-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tpb-batch-pending {
+  color: #b45309;
+  background: rgb(245 158 11 / 0.14);
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.tpb-batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tpb-batch-icon-btn {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms;
+}
+
+.tpb-batch-icon-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.tpb-batch-switch {
+  position: relative;
+  width: 52px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg-elevated);
+  cursor: pointer;
+  transition: background 140ms, border-color 140ms;
+  padding: 0;
+}
+
+.tpb-batch-switch .tpb-batch-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  transition: transform 140ms;
+}
+
+.tpb-batch-switch.is-on {
+  background: var(--color-success, #10b981);
+  border-color: var(--color-success, #10b981);
+}
+
+.tpb-batch-switch.is-on .tpb-batch-switch-knob { transform: translateX(22px); }
+.tpb-batch-switch:disabled { opacity: 0.6; cursor: wait; }
+
+@media (max-width: 480px) {
+  .tpb-batch-row { flex-direction: column; align-items: stretch; }
+  .tpb-batch-actions { justify-content: flex-end; padding-top: 4px; }
+}
+
+/* ---- Bottom action bar ---- */
+.tpb-action-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px max(10px, env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--color-bg-card) 90%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--color-border);
+}
+
+.tpb-action-spacer { flex: 1; }
+
+/* ---- Modals ---- */
+.tpb-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgb(15 23 42 / 0.55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.tpb-modal {
+  width: 100%;
+  max-width: 480px;
+  max-height: 88vh;
+  overflow: auto;
+  background: var(--color-bg-card);
+  border-radius: 18px 18px 0 0;
+  padding: 18px 18px max(18px, env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: tpb-sheet-in 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.tpb-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tpb-modal-head h3 { margin: 0; font-size: 17px; }
+
+@keyframes tpb-sheet-in {
+  from { transform: translateY(60%); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}
+
+.tpb-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tpb-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  background: var(--color-bg-field);
+  border: 1px solid var(--color-border);
+}
+
+.tpb-checklist li.is-ok { color: var(--color-success); border-color: var(--color-success-border); }
+.tpb-checklist li.is-pending { color: var(--color-text-secondary); }
+
+.tpb-publish-cta { justify-content: center; }
+
+/* ---- Success sheet ---- */
+.tpb-success-body {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.tpb-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.tpb-qr canvas { display: block; }
+
+.tpb-qr span {
+  font-size: 11px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.tpb-success-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.tpb-success-url {
+  font-size: 13px;
+  background: var(--color-bg-elevated);
+  border-radius: 8px;
+  padding: 10px 12px;
+  word-break: break-all;
+}
+
+/* ---- Desktop ---- */
+@media (min-width: 768px) {
+  .tpb-modal-overlay {
+    align-items: center;
+  }
+
+  .tpb-modal {
+    border-radius: 18px;
+    padding: 20px;
+  }
+
+  .tpb-hero-edit {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .tpb-preview-frame.tpb-frame-phone {
+    max-width: 420px;
+  }
+}

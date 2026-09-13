@@ -7,14 +7,15 @@ import { LoadingScreen } from './LoadingScreen';
 import { ErrorScreen } from './ErrorScreen';
 import { useExamState } from '../../hooks/useExamState';
 import { useExamTimer } from '../../hooks/useExamTimer';
-import { getTestByKey, hasStudentTakenTest, saveTestResult, isTestBatchScoped } from '../../lib/database';
+import { getTestByKey, getStudentAttemptCount, saveTestResult, submitScoredAttempt, isTestBatchScoped } from '../../lib/database';
 import { getStudentSession } from '../../lib/studentSession';
-import { scoreQuestions } from '../../lib/score'; // Import your database functions
+import { scoreQuestions, computeVerdict } from '../../lib/score'; // Import your database functions
 import { shuffleTestQuestions } from '../../lib/shuffle';
 import { useExamIntegrity } from '../../hooks/useExamIntegrity';
 import type { Test, ExamSession, TestResult, StudentAnswer } from '../../types/exam.types';
 import type { StudentIdentity } from '../../lib/database';
-import { Clock, Shield, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Clock, Shield, RefreshCw, AlertTriangle, X } from 'lucide-react';
+import { formatInLocalZone } from '../../lib/dateTime';
 import './styles.css';
 import './ExamIntegrity.css';
 
@@ -58,11 +59,6 @@ const getExamSnapshotKey = (testCode?: string, studentId?: string) => {
   const code = testCode.toUpperCase();
   return studentId ? `mockmate.exam.${code}.${studentId}` : `mockmate.exam.${code}`;
 };
-
-const getAttemptMarkerKey = (testCode: string | undefined, studentName: string) =>
-  testCode
-    ? `mockmate.completed.${testCode.toUpperCase()}.${studentName.trim().toLocaleLowerCase()}`
-    : '';
 
 const readExamSnapshot = (testCode?: string, studentId?: string): PersistedExamSnapshot | null => {
   const key = getExamSnapshotKey(testCode, studentId);
@@ -168,6 +164,13 @@ const examState = useExamState();
     return () => clearInterval(timer);
   }, []);
 
+  // Every phase change (entry → test → results) remounts a tall screen, and
+  // the browser KEEPS the previous scroll offset — students landed at the
+  // bottom and had to scroll up before they could start. Snap to the top.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentPhase]);
+
   // Calculate time-based access logic
   const timeInfo = useMemo((): TimeInfo => {
     if (!test?.startDate) {
@@ -211,6 +214,8 @@ const examState = useExamState();
       setError('No test code provided. Please use a valid test link.');
       setCurrentPhase('invalid');
     }
+    // loadTest reads props/session directly; it must run once per code change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testCode, initialTest]);
 
   const loadTest = async (code: string) => {
@@ -422,6 +427,12 @@ const examState = useExamState();
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  // Exam snapshot persistence — WRITES ON STATE CHANGE + 15s HEARTBEAT.
+  // The old behavior re-serialized the ENTIRE test JSON to localStorage every
+  // single second (it depended on examTimer.timeRemaining) — measurable
+  // battery/jank cost on low-end Androids. Time is not lost by throttling:
+  // restore recomputes remaining from the persisted wall-clock `deadline`,
+  // which is written on every state change regardless.
   useEffect(() => {
     if (
       currentPhase !== 'active' ||
@@ -433,25 +444,40 @@ const examState = useExamState();
       return;
     }
 
-    writeExamSnapshot(testCode, {
-      phase: 'active',
-      test: examSession.test,
-      studentName: examSession.studentName,
-      studentId: (studentIdentity ?? getStudentSession())?.id,
-      isPracticeMode,
-      startTime: examSession.startTime.toISOString(),
-      deadline: deadlineRef.current,
-      tabSwitchCount,
-      state: {
-        currentQuestionIndex: examState.currentQuestionIndex,
-        answers: examState.answers,
-        timeRemaining: examTimer.timeRemaining,
-        isSubmitted: examState.isSubmitted,
-        bookmarkedQuestions: [...examState.bookmarkedQuestions],
-        visitedQuestions: [...examState.visitedQuestions],
-        reviewMode: examState.reviewMode,
-      },
-    });
+    const persist = () => {
+      writeExamSnapshot(testCode, {
+        phase: 'active',
+        test: examSession.test,
+        studentName: examSession.studentName,
+        studentId: (studentIdentity ?? getStudentSession())?.id,
+        isPracticeMode,
+        startTime: examSession.startTime.toISOString(),
+        deadline: deadlineRef.current ?? undefined,
+        tabSwitchCount,
+        state: {
+          currentQuestionIndex: examState.currentQuestionIndex,
+          answers: examState.answers,
+          timeRemaining: examTimer.timeRemaining,
+          isSubmitted: examState.isSubmitted,
+          bookmarkedQuestions: [...examState.bookmarkedQuestions],
+          visitedQuestions: [...examState.visitedQuestions],
+          reviewMode: examState.reviewMode,
+        },
+      });
+    };
+
+    persist();
+    // Heartbeat: keeps tabSwitchCount/visited marks fresh even when the student
+    // idles on one question. 15s is plenty — deadline drives time-restore.
+    const iv = setInterval(persist, 15_000);
+    return () => clearInterval(iv);
+    // NOTE: examTimer.timeRemaining is deliberately NOT a dependency — it
+    // would re-run this effect (and rewrite the snapshot) every second. The
+    // persist closure reads state captured at effect-run time, which is
+    // exactly when any real change lands (answers, bookmarks, navigation,
+    // warnings); the heartbeat only covers idle periods, and time-restore
+    // uses the deadline.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     currentPhase,
     examSession,
@@ -461,7 +487,6 @@ const examState = useExamState();
     examState.isSubmitted,
     examState.reviewMode,
     examState.visitedQuestions,
-    examTimer.timeRemaining,
     isPracticeMode,
     test,
     testCode,
@@ -479,6 +504,8 @@ const examState = useExamState();
       startTime: examSession?.startTime.toISOString() || new Date().toISOString(),
       result: testResult,
     });
+    // studentIdentity is read via the snapshot fallback at write time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPhase, examSession, test, testCode, testResult]);
 
   // Handle student entry
@@ -487,16 +514,22 @@ const examState = useExamState();
 
     try {
       setStudentName(name.trim());
-      const attemptMarker = getAttemptMarkerKey(testCode, name);
       // A test past its window is Practice Mode ONLY — for everyone, including
       // signed-in students who never attempted it. Nothing is saved for credit
-      // after the cut-off. An explicit "Practice" launch (?practice=1) and
-      // students who already attempted the test also land in Practice Mode.
+      // after the cut-off. An explicit "Practice" launch (?practice=1) and a
+      // student who has used up the test's maxAttempts allowance (§3.5,
+      // default 1) also land in Practice Mode.
+      const maxAttempts = Math.max(1, test.maxAttempts ?? test.settings?.maxAttempts ?? 1);
+      const sessionIdentity = studentIdentity ?? getStudentSession();
+      const attemptsUsed = await getStudentAttemptCount(test.id, {
+        studentId: sessionIdentity?.id,
+        studentName: name.trim(),
+        studentEmail: sessionIdentity?.username || sessionIdentity?.email,
+      });
       const practiceMode = Boolean(
         forcePractice ||
         windowClosed ||
-        (attemptMarker && window.localStorage.getItem(attemptMarker)) ||
-        await hasStudentTakenTest(test.id, name)
+        attemptsUsed >= maxAttempts
       );
       setIsPracticeMode(practiceMode);
       setTestResult(null);
@@ -573,12 +606,15 @@ const examState = useExamState();
       };
 
       if (!isPracticeMode) {
-        const savedResult = await saveTestResult({
+        // Preferred: authoritative server-side scoring (§4.1) — the RPC
+        // recomputes the score in Postgres from the test's stored questions
+        // and persists the row itself. The client-side score below remains
+        // the display path and the fallback (graceful degradation when the
+        // RPC is missing or the device is offline).
+        const serverScored = await submitScoredAttempt({
           testId: test.id,
-          studentName: studentName.trim(),
           answers: finalAnswers,
-          score: result.score,
-          totalQuestions: test.questions.length,
+          studentName: studentName.trim(),
           timeTaken: result.timeTaken,
           ...(studentIdentity
             ? {
@@ -588,15 +624,41 @@ const examState = useExamState();
               }
             : {}),
         });
-        // Persisted row column arrives untyped — assert the ISO string.
-        finalResult.completedAt = new Date(savedResult.completed_at as string);
-        const attemptMarker = getAttemptMarkerKey(testCode, studentName);
-        if (attemptMarker) {
-          window.localStorage.setItem(attemptMarker, '1');
+
+        if (serverScored) {
+          // Server is the score authority: overwrite the display values.
+          finalResult.score = serverScored.score;
+          finalResult.totalMarks = serverScored.totalMarks;
+          finalResult.correctAnswers = serverScored.correctAnswers;
+          finalResult.incorrectAnswers = serverScored.incorrectAnswers;
+          finalResult.unansweredQuestions = serverScored.unansweredQuestions;
+          finalResult.percentage = serverScored.percentage;
+          finalResult.grade = serverScored.grade;
+          finalResult.passed = serverScored.passed;
+          finalResult.completedAt = new Date(serverScored.completedAt);
+        } else {
+          const savedResult = await saveTestResult({
+            testId: test.id,
+            studentName: studentName.trim(),
+            answers: finalAnswers,
+            score: result.score,
+            totalQuestions: test.questions.length,
+            timeTaken: result.timeTaken,
+            ...(studentIdentity
+              ? {
+                  studentId: studentIdentity.id,
+                  batchId: studentIdentity.batchId ?? undefined,
+                  studentEmail: studentIdentity.username || studentIdentity.email,
+                }
+              : {}),
+          });
+          // Persisted row column arrives untyped — assert the ISO string.
+          finalResult.completedAt = new Date(savedResult.completed_at as string);
         }
       }
       
       setTestResult(finalResult);
+      setError(''); // any earlier submit failure is resolved now
       examTimer.stop();
       
       // Exit fullscreen
@@ -615,6 +677,9 @@ const examState = useExamState();
   // Single, guarded no-arg entry point for manual + auto submission.
   const submitExam = useCallback((finalAnswers?: StudentAnswer[]) => {
     void handleExamSubmission(finalAnswers || examState.answers);
+    // handleExamSubmission is stable enough via its guards; only the answer
+    // snapshot may change between calls.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [examState.answers]);
 
   // Handle exam timeout - single auto-submit owner, guarded against re-fire.
@@ -627,7 +692,37 @@ const examState = useExamState();
       autoSubmittedRef.current = true;
       void handleExamSubmission(examState.answers);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [examTimer.timeRemaining, currentPhase, examState.answers]);
+
+  // Wall-clock enforcement: if the renderer was frozen or the timer tick was
+  // throttled (mobile OS reclaim, background tab), the countdown display can
+  // lag behind reality. Enforce the persisted wall-clock deadline directly so
+  // the exam ALWAYS ends at its true end time — no free time, ever.
+  useEffect(() => {
+    if (currentPhase !== 'active') return;
+    const deadline = deadlineRef.current;
+    if (!deadline) return;
+
+    const enforce = () => {
+      const deadlineNow = deadlineRef.current;
+      if (
+        !autoSubmittedRef.current &&
+        !submittingRef.current &&
+        typeof deadlineNow === 'number' &&
+        deadlineNow > 0 &&
+        Date.now() >= deadlineNow
+      ) {
+        autoSubmittedRef.current = true;
+        void handleExamSubmission(examState.answers);
+      }
+    };
+
+    enforce();
+    const iv = setInterval(enforce, 1000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPhase, examState.answers]);
 
   // Auto-submit only while a still-open exam is in progress. Expired exams
   // (windowClosed) run in Practice Mode, which is already excluded below, so
@@ -675,6 +770,8 @@ const examState = useExamState();
       examSession ? (Date.now() - examSession.startTime.getTime()) / 1000 : 0,
     );
 
+    const verdict = computeVerdict(percentage, test.passingScore);
+
     return {
       testId: test.id,
       studentName,
@@ -688,7 +785,9 @@ const examState = useExamState();
       percentage,
       timeTaken,
       completedAt: new Date(),
-      topicWiseScore
+      topicWiseScore,
+      grade: verdict.grade,
+      passed: verdict.passed
     };
   };
 
@@ -751,6 +850,11 @@ const examState = useExamState();
               
               <div className="test-info">
                 <h3>{test.title}</h3>
+                {test.startDate ? (
+                  <p className="too-early-zone">
+                    Test starts {formatInLocalZone(test.startDate)}
+                  </p>
+                ) : null}
                 <div className="test-details">
                   <span className="detail">
                     <Shield />
@@ -791,22 +895,41 @@ const examState = useExamState();
 
       case 'active':
         return (test && examSession) ? (
-          <ExamInterface
-            test={test}
-            examSession={examSession}
-            examState={examState}
-            examTimer={examTimer}
-            onSubmitExam={submitExam}
-            isPracticeMode={isPracticeMode}
-            tabSwitchCount={tabSwitchCount}
-            integrityWarned={integrityWarned}
-            preventCopy={shouldPreventCopy}
-            onError={(error) => {
-              setError(error);
-            }}
-            isFullscreen={isFullscreen}
-            onToggleFullscreen={isFullscreen ? exitFullscreen : enterFullscreen}
-          />
+          <>
+            {/* Submit-failure must be VISIBLE inside the live exam: the old
+                behavior set the error string but rendered nothing in the
+                active phase, so students believed Submit did nothing. */}
+            {error && (
+              <div className="exam-submit-error-banner" role="alert">
+                <AlertTriangle size={18} />
+                <span>{error}</span>
+                <button
+                  type="button"
+                  className="banner-dismiss"
+                  onClick={() => setError('')}
+                  aria-label="Dismiss"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+            <ExamInterface
+              test={test}
+              examSession={examSession}
+              examState={examState}
+              examTimer={examTimer}
+              onSubmitExam={submitExam}
+              isPracticeMode={isPracticeMode}
+              tabSwitchCount={tabSwitchCount}
+              integrityWarned={integrityWarned}
+              preventCopy={shouldPreventCopy}
+              onError={(error) => {
+                setError(error);
+              }}
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={isFullscreen ? exitFullscreen : enterFullscreen}
+            />
+          </>
         ) : null;
 
       case 'results':
@@ -839,7 +962,7 @@ const examState = useExamState();
               </p>
               {test.endTime ? (
                 <p className="expired-time" style={{ fontSize: 14, color: 'var(--color-text-secondary)', marginTop: 8 }}>
-                  Ended on {new Date(test.endTime).toLocaleString()}
+                  Ended on {formatInLocalZone(test.endTime)}
                 </p>
               ) : null}
               <button

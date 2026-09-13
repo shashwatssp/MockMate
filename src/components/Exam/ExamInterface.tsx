@@ -172,8 +172,38 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
   };
 
   // Timer warnings surface as an in-screen toast (does NOT submit).
-  const timerWarning =
-    examTimer.warnings.oneMinute || examTimer.warnings.fiveMinutes;
+  // Dismissal is per warning level: closing the 5-minute toast does not
+  // suppress the more urgent 1-minute one. (The old close button was wired to
+  // `() => {}` — literally undismissable on the highest-stakes screen.)
+  const [dismissedWarningLevel, setDismissedWarningLevel] = useState<0 | 1 | 2>(0);
+  const warningLevel = examTimer.warnings.oneMinute ? 2 : examTimer.warnings.fiveMinutes ? 1 : 0;
+  const timerToastVisible = warningLevel > 0 && warningLevel > dismissedWarningLevel;
+
+  /** mm:ss — students must never have to interpret raw seconds under stress. */
+  const formatClock = (seconds: number): string => {
+    const safe = Math.max(0, Math.floor(seconds));
+    const mins = Math.floor(safe / 60);
+    const secs = safe % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // The Prev/Next tooltips advertise "Ctrl + Left/Right Arrow" — make the
+  // advertised shortcuts real (they never had a handler).
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePreviousQuestion();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNextQuestion();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canGoNext, canGoPrevious, currentQuestionIndex]);
 
   // Copy-prevention: block text selection, copy/cut, and context menu
   // during proctored exams once the integrity threshold has been crossed.
@@ -283,18 +313,18 @@ export const ExamInterface: React.FC<ExamInterfaceProps> = ({
       )}
 
       {/* ===== Time warning toast (non-blocking, dismissable) ==== */}
-      {timerWarning && (
-        <div className="time-warning-toast">
+      {timerToastVisible && (
+        <div className="time-warning-toast" role="alert">
           <div className="toast-content">
             <AlertTriangle className="toast-icon" size={20} />
             <div className="toast-text">
               <strong>Hurry up!</strong>
-              <p>{examTimer.timeRemaining} seconds remaining</p>
+              <p>{formatClock(examTimer.timeRemaining)} remaining</p>
             </div>
             <button
               type="button"
               className="toast-close"
-              onClick={() => {}}
+              onClick={() => setDismissedWarningLevel(warningLevel as 1 | 2)}
               aria-label="Dismiss warning"
             >
               <X size={14} />

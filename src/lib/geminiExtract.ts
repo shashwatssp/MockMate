@@ -334,7 +334,7 @@ export { extractQuestionsWithGemini } from './spatialExtract';
 // 
 //     return questions;
 //   } catch (err: unknown) {
-//     const msg = err instanceof Error ? err.message : String(err);
+//     const msg = toErrorMessage(err);
 //     console.error(`Gemini extraction failed for page ${pageNum}:`, err);
 //     onProgress?.({
 //       status: 'error',
@@ -421,7 +421,7 @@ export { extractQuestionsWithGemini } from './spatialExtract';
 //         );
 //         allQuestions.push(...questions);
 //       } catch (err: unknown) {
-//         const msg = err instanceof Error ? err.message : String(err);
+//         const msg = toErrorMessage(err);
 //         onProgress?.({
 //           status: 'processing',
 //           currentPage: i,

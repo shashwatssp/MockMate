@@ -1,3 +1,4 @@
+import { toErrorMessage } from '../lib/errors';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getStudentProfile, getBatchById } from '../lib/database';
@@ -29,7 +30,7 @@ export const StudentProfile: React.FC = () => {
       if (profile.batchId) setBatch(await getBatchById(profile.batchId));
       else setBatch(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(toErrorMessage(err));
     } finally {
       setLoading(false);
     }

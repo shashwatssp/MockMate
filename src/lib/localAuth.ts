@@ -218,23 +218,120 @@ export const validateStudentIdentifier = (value: string) => {
   return identifier;
 };
 
-export const hashPassword = async (password: string): Promise<string> => {
-  const payload = `mockmate:v1:${password}`;
-  if (typeof crypto !== 'undefined' && crypto.subtle) {
-    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload));
-    return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+// ---------------------------------------------------------------------------
+// Password hashing (§4.3) — salted PBKDF2 with per-user salt. Legacy formats
+// (unsalted SHA-256, the old FNV fallback) still VERIFY so existing accounts
+// keep working, and are lazily upgraded to the salted format on sign-in.
+//
+// Stored formats:
+//   pbkdf2$<iterations>$<salt-hex>$<hash-hex>   (current, WebCrypto PBKDF2)
+//   fnv2_<salt-hex>_<hash>                       (no-WebCrypto fallback, salted)
+//   <sha-256 hex>                                (legacy v1, unsalted)
+//   fnv_<hash>                                   (legacy v1 fallback, unsalted)
+// ---------------------------------------------------------------------------
+
+const PBKDF2_ITERATIONS = 100_000;
+
+const toHex = (bytes: Uint8Array): string =>
+  Array.from(bytes).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+
+const randomSaltHex = (): string => {
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i += 1) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
   }
+  return toHex(bytes);
+};
+
+/** FNV-1a over a string — the no-WebCrypto last resort. */
+const fnv1a = (payload: string): string => {
   let hash = 2166136261;
   for (let i = 0; i < payload.length; i += 1) {
     hash ^= payload.charCodeAt(i);
     hash = Math.imul(hash, 16777619);
   }
-  return `fnv_${(hash >>> 0).toString(16)}`;
+  return (hash >>> 0).toString(16);
 };
 
-const passwordsMatch = async (password: string, storedHash: string) => {
-  const hashed = await hashPassword(password);
-  return hashed === storedHash;
+/** Legacy v1 hash (UNSALTED — kept strictly for verifying old accounts). */
+const legacyHash = async (password: string): Promise<string> => {
+  const payload = `mockmate:v1:${password}`;
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload));
+    return toHex(new Uint8Array(digest));
+  }
+  return `fnv_${fnv1a(payload)}`;
+};
+
+/** Salted PBKDF2-SHA256. Returns null when WebCrypto is unavailable. */
+const pbkdf2Hash = async (
+  password: string,
+  saltHex: string,
+  iterations: number = PBKDF2_ITERATIONS,
+): Promise<string | null> => {
+  if (typeof crypto === 'undefined' || !crypto.subtle) return null;
+  try {
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
+    const salt = new Uint8Array(saltHex.length / 2);
+    for (let i = 0; i < salt.length; i += 1) {
+      salt[i] = parseInt(saltHex.slice(i * 2, i * 2 + 2), 16);
+    }
+    const bits = await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
+      key,
+      256,
+    );
+    return `pbkdf2$${iterations}$${saltHex}$${toHex(new Uint8Array(bits))}`;
+  } catch {
+    return null;
+  }
+};
+
+export const hashPassword = async (password: string): Promise<string> => {
+  const salt = randomSaltHex();
+  const hashed = await pbkdf2Hash(password, salt);
+  if (hashed) return hashed;
+  // No WebCrypto (very old browsers): a SALTED digest is still a large step
+  // up from the legacy unsalted hash, even below PBKDF2 strength.
+  return `fnv2_${salt}_${fnv1a(`mockmate:v2:${salt}:${password}`)}`;
+};
+
+/** Verify a password against ANY supported stored format. */
+const verifyPasswordHash = async (password: string, storedHash: string): Promise<boolean> => {
+  if (storedHash.startsWith('pbkdf2$')) {
+    const [, iterationsRaw, salt] = storedHash.split('$');
+    const iterations = Number(iterationsRaw);
+    if (!Number.isFinite(iterations) || iterations <= 0 || !salt) return false;
+    const rebuilt = await pbkdf2Hash(password, salt, iterations);
+    return rebuilt === storedHash;
+  }
+  if (storedHash.startsWith('fnv2_')) {
+    const parts = storedHash.split('_');
+    if (parts.length !== 3) return false;
+    const [, salt] = parts;
+    return `fnv2_${salt}_${fnv1a(`mockmate:v2:${salt}:${password}`)}` === storedHash;
+  }
+  // Legacy v1 (unsalted) — still valid, upgraded lazily on next sign-in.
+  return (await legacyHash(password)) === storedHash;
+};
+
+/** True when the stored hash predates the salted scheme and should be
+ *  re-hashed on a successful sign-in (transparent upgrade path, §4.3). */
+const isLegacyPasswordHash = (storedHash: string): boolean =>
+  !storedHash.startsWith('pbkdf2$') && !storedHash.startsWith('fnv2_');
+
+/** Transparently upgrade a legacy (unsalted) hash to the salted scheme after
+ *  a successful sign-in — the moment the raw password is at hand exactly once. */
+const upgradePasswordHash = async (account: LocalAccount, password: string): Promise<void> => {
+  if (!isLegacyPasswordHash(account.passwordHash)) return;
+  const upgraded = await hashPassword(password);
+  account.passwordHash = upgraded;
+  saveAccounts(getAccounts().map(row => (row.id === account.id ? { ...row, passwordHash: upgraded } : row)));
 };
 
 const getAccounts = (): LocalAccount[] => readJson<LocalAccount[]>(KEYS.accounts, []);
@@ -333,7 +430,6 @@ export const generateBatchCode = (): string => {
 
 export const ensureLocalDirectory = async () => {
   const accounts = getAccounts();
-  const demoHash = await hashPassword(DEMO_TEACHER.password);
   const existingDemo = accounts.find((account) => account.id === DEMO_TEACHER.id)
     || accounts.find((account) => normalizeUsername(account.username) === DEMO_TEACHER.username);
 
@@ -342,16 +438,22 @@ export const ensureLocalDirectory = async () => {
       id: DEMO_TEACHER.id,
       role: 'teacher',
       username: DEMO_TEACHER.username,
-      passwordHash: demoHash,
+      passwordHash: await hashPassword(DEMO_TEACHER.password),
       name: DEMO_TEACHER.name,
       createdAt: nowIso(),
     });
     saveAccounts(accounts);
-  } else if (existingDemo.passwordHash !== demoHash) {
-    existingDemo.passwordHash = demoHash;
-    existingDemo.role = 'teacher';
-    existingDemo.name = existingDemo.name || DEMO_TEACHER.name;
-    saveAccounts(accounts);
+  } else if (isLegacyPasswordHash(existingDemo.passwordHash)) {
+    // One-time transparent upgrade of the seeded demo account to the salted
+    // scheme (§4.3). Verify the legacy hash first so a hand-edited store
+    // keeps working; the (cheap) format check keeps the common path free of
+    // PBKDF2 work — this function runs on every local-DB call.
+    if (await verifyPasswordHash(DEMO_TEACHER.password, existingDemo.passwordHash)) {
+      existingDemo.passwordHash = await hashPassword(DEMO_TEACHER.password);
+      existingDemo.role = 'teacher';
+      existingDemo.name = existingDemo.name || DEMO_TEACHER.name;
+      saveAccounts(accounts);
+    }
   }
 
   if (!getStorage().getItem(KEYS.seeded)) {
@@ -450,9 +552,11 @@ export const signInTeacher = async (username: string, password: string): Promise
   if (!account || account.role !== 'teacher') {
     throw new Error('Invalid username or password.');
   }
-  if (!(await passwordsMatch(password, account.passwordHash))) {
+  if (!(await verifyPasswordHash(password, account.passwordHash))) {
     throw new Error('Invalid username or password.');
   }
+  // Lazy upgrade: re-hash legacy unsalted passwords under the salted scheme.
+  await upgradePasswordHash(account, password);
   const identity = toTeacherIdentity(account);
   clearStudentSession();
   setTeacherSession(identity);
@@ -501,9 +605,11 @@ export const signInStudent = async (email: string, password: string): Promise<St
   if (!account || account.role !== 'student') {
     throw new Error('Invalid email or password.');
   }
-  if (!(await passwordsMatch(password, account.passwordHash))) {
+  if (!(await verifyPasswordHash(password, account.passwordHash))) {
     throw new Error('Invalid email or password.');
   }
+  // Lazy upgrade: re-hash legacy unsalted passwords under the salted scheme.
+  await upgradePasswordHash(account, password);
   const identity = toStudentIdentity(account);
   clearTeacherSession();
   setStudentSession(identity);

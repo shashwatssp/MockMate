@@ -1,3 +1,4 @@
+import { toErrorMessage } from '../lib/errors';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Save,
@@ -452,7 +453,7 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
         await finishReview();
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = toErrorMessage(err);
       console.error(err);
       setError(msg);
     } finally {
@@ -637,7 +638,7 @@ export const PdfImportReview: React.FC<PdfImportReviewProps> = ({
           ),
         );
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg = toErrorMessage(err);
         setError(`OCR failed: ${msg}`);
       } finally {
         setOcrLoading(false);

@@ -1,3 +1,4 @@
+import { toErrorMessage } from '../lib/errors';
 import React, { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { FileText, Upload, RefreshCw, AlertCircle, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
@@ -387,7 +388,7 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
           'Extraction job expired (tab was closed too long). Please re-upload the file to restart.',
         );
       } else {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = toErrorMessage(e);
         setExtractError(msg);
       }
       setIsGenerating(false);
@@ -474,7 +475,7 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
       if (e instanceof Error && e.message.includes('404')) {
         runExtractionSse(f);
       } else {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = toErrorMessage(e);
         setExtractError(msg);
         setStep('upload');
         setProgressMessage(null);
@@ -607,7 +608,7 @@ export const PdfImportScreen: React.FC<PdfImportScreenProps> = ({ onBack, return
       },
       (err: unknown) => {
         if (err instanceof DOMException && err.name === 'AbortError') return;
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg = toErrorMessage(err);
         setExtractError(msg);
         setIsGenerating(false);
         setStep('upload');

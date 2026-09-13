@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase'; // Import your supabase client
 import { getOwnedTestIds, getQuestionCount, getTestResults, getLocalResultsForTest } from '../lib/database';
 import { getTeacherSession } from '../lib/localAuth';
 import AssignBatchesModal from './AssignBatchesModal';
 import { 
   Plus, 
-  LogOut, 
   Copy,
   BookOpen,
   Users, 
@@ -15,31 +16,30 @@ import {
   Share2,
   MoreVertical,
   Search,
+  SearchX,
   Filter,
   BarChart3,
   CheckCircle,
   AlertCircle,
   Activity,
-  RefreshCw,
   Zap,
-  Loader2,
   LayoutGrid,
   List,
-  ListPlus,
+  Download,
   Printer
 } from 'lucide-react';
 import type { Test, TestResult } from '../types/exam.types';
 import { TestInsightsModal } from './TestInsightsModal';
+import { Skeleton, SkeletonList, SkeletonStats } from './Skeleton';
+import { EmptyState } from './EmptyState';
+import { downloadCsv } from '../lib/csv';
 import './Dashboard.css';
 
-interface DashboardProps {
-  onCreateTest: () => void;
-  onCreateQuestion: () => void;
-  onLogout: () => void;
-  tests: Test[]; // This will be replaced by fetched data
-}
-
-export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQuestion, onLogout }) => {
+/* Navigation (create/batches/topics/bank/my page), the theme switcher and
+   logout all live in the app sidebar (TeacherShell) — the page header keeps
+   only the refresh control. */
+export const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [copiedTestId, setCopiedTestId] = useState<string | null>(null);
@@ -233,6 +233,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
     setAssigningTest(null);
   };
 
+  // Per-test results export (§5.1): every attempt as a spreadsheet row.
+  const exportTestResults = async (test: Test) => {
+    try {
+      const results = await getTestResults(test.id);
+      downloadCsv(
+        `${(test.name || test.testKey).replace(/[^\w-]+/g, '_')}-results.csv`,
+        results.map(r => ({
+          Student: r.studentName ?? '',
+          Email: r.studentEmail ?? '',
+          Score: r.score,
+          'Total Marks': r.totalMarks ?? '',
+          Percentage: r.percentage,
+          Grade: r.grade ?? '',
+          Passed: r.passed ?? '',
+          Attempted: r.completedAt ? new Date(r.completedAt).toLocaleString() : '',
+          'Time (min)': r.timeTaken ? Math.round(r.timeTaken / 60) : '',
+        })),
+      );
+      toast.success('Results exported');
+    } catch (err) {
+      console.error('Export failed:', err);
+      toast.error('Could not export results.');
+    }
+  };
+
   const copyTestLink = async (testKey: string) => {
     const testLink = `${window.location.origin}/${testKey}`;
     try {
@@ -289,14 +314,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
     return matchesSearch;
   });
 
-  // Handle loading state
+  // Handle loading state — shimmer skeleton mirrors the real layout.
   if (loading) {
     return (
-        <div className="loading-container">
-          <Loader2 className="loading-spinner" />
-          <h2>Loading your tests...</h2>
-          <p>Please wait while we fetch your data</p>
+      <div className="dashboard-wrapper" role="status" aria-busy="true">
+        <span className="skel-sr">Loading your tests…</span>
+        <div className="dashboard-skeleton">
+          <div className="skeleton-card">
+            <Skeleton className="skeleton-line" style={{ width: '35%', height: 24 }} />
+            <Skeleton className="skeleton-line skeleton-line-thin" style={{ width: '55%' }} />
+          </div>
+          <SkeletonStats count={3} />
+          <SkeletonList rows={4} />
         </div>
+      </div>
     );
   }
 
@@ -318,49 +349,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
 
   return (
     <div className="dashboard-wrapper">
-      {/* Header */}
-      <header className="dashboard-header">
-        <div className="header-content">
-          <div className="header-main">
-            <div className="brand-section">
-              <div className="brand-icon">
-                <BookOpen className="icon" />
-              </div>
-              <h1 className="brand-title">
-                Mock<span className="brand-highlight">Mate</span>
-              </h1>
-              <div className="brand-badge">Dashboard</div>
-            </div>
-            
-            <div className="header-actions">
-              <button onClick={fetchTests} className="refresh-btn" title="Refresh" aria-label="Refresh dashboard">
-                <RefreshCw className="btn-icon" aria-hidden="true" />
-                <span className="sr-only">Refresh dashboard</span>
-              </button>
-              
-              <button onClick={onCreateTest} className="create-btn" aria-label="Create test">
-                <Plus className="btn-icon" />
-                <span className="btn-text">Create Test</span>
-              </button>
-              
-              <button onClick={onCreateQuestion} className="create-btn secondary" aria-label="Create question">
-                <ListPlus className="btn-icon" />
-                <span className="btn-text">Create Question</span>
-              </button>
-              
-            <a href="/batches" className="create-btn secondary" aria-label="Manage batches" title="Manage batches">
-                <Users className="btn-icon" />
-                <span className="btn-text">Batches</span>
-              </a>
-              <button onClick={onLogout} className="logout-btn" aria-label="Log out">
-                <LogOut className="btn-icon" />
-                <span className="btn-text">Logout</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
+      {/* The old sticky header (with its refresh strip) is gone — the sidebar
+         owns navigation and the browser reload refreshes data. */}
       <main className="dashboard-main">
         {/* Welcome Section */}
         <section className={`welcome-section ${isLoaded ? 'loaded' : ''}`}>
@@ -472,32 +462,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
           </div>
           
           {tests.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-visual">
-                <div className="empty-icon">
-                  <BookOpen className="icon" />
-                </div>
-                <div className="empty-decoration">
-                  <div className="decoration-circle"></div>
-                  <div className="decoration-circle"></div>
-                  <div className="decoration-circle"></div>
-                </div>
-              </div>
-              
-              <div className="empty-content">
-                <h3 className="empty-title">No tests created yet</h3>
-                <p className="empty-description">
-                  Create your first test to get started with MockMate! 
-                  It only takes a few minutes to set up.
-                </p>
-                
-                
-                <button onClick={onCreateTest} className="empty-cta">
-                  <Plus className="cta-icon" />
-                  <span>Create Your First Test</span>
-                </button>
-              </div>
-            </div>
+            <EmptyState
+              icon={BookOpen}
+              title="No tests created yet"
+              description="Create your first test to get started with MockMate! It only takes a few minutes to set up."
+              actionLabel="Create Your First Test"
+              onAction={() => navigate('/create-test')}
+              actionIcon={Plus}
+            />
           ) : (
             viewMode === 'table' ? (
               <div className="tests-table-wrapper">
@@ -559,7 +531,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
                             {copiedTestId === test.testKey ? <CheckCircle className="table-action-icon" /> : <Copy className="table-action-icon" />}
                             <span>{copiedTestId === test.testKey ? 'Copied' : 'Copy link'}</span>
                           </button>
-                          <button
+                  <button
+                            type="button"
+                            onClick={() => void exportTestResults(test)}
+                            className="table-copy-btn"
+                            title="Export results (CSV)"
+                          >
+                            <Download className="table-action-icon" />
+                            <span>Export</span>
+                          </button>
+                  <button
                             type="button"
                             onClick={() => window.open(`/print/${test.testKey}`, '_blank')?.focus()}
                             className="table-print-btn"
@@ -683,6 +664,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
                       )}
                     </button>
                     <button
+                      onClick={() => void exportTestResults(test)}
+                      className="action-btn secondary"
+                      title="Export results (CSV)"
+                    >
+                      <Download className="action-icon" />
+                      <span>Export</span>
+                    </button>
+                    <button
                       onClick={() => window.open(`/print/${test.testKey}`, '_blank')?.focus()}
                       className="action-btn secondary"
                       title="Print test (PDF)"
@@ -710,13 +699,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onCreateTest, onCreateQues
           )}
           
           {filteredTests.length === 0 && tests.length > 0 && (
-            <div className="no-results">
-              <AlertCircle className="no-results-icon" />
-              <h3 className="no-results-title">No tests found</h3>
-              <p className="no-results-description">
-                Try adjusting your search query or filter options.
-              </p>
-            </div>
+            <EmptyState
+              variant="compact"
+              icon={SearchX}
+              title="No tests found"
+              description="Try adjusting your search query or filter options."
+            />
           )}
         </section>
       </main>

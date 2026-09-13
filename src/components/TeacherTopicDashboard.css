@@ -1,0 +1,365 @@
+/* TeacherTopicDashboard (§3.2) — token-based, dark-mode aware, mobile-first.
+   The "heatmap" is linearized into chips/cards so nothing ever scrolls
+   sideways on a phone. */
+
+.topics-shell {
+  min-height: 100vh;
+  width: min(100%, 1180px);
+  margin: 0 auto;
+  padding: clamp(18px, 4vw, 36px);
+  padding-top: max(clamp(18px, 4vw, 36px), env(safe-area-inset-top));
+  padding-bottom: max(clamp(18px, 4vw, 36px), env(safe-area-inset-bottom));
+  background: var(--color-bg);
+  color: var(--color-text);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.topics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.topics-header h1 {
+  margin: 0 0 4px;
+  font-size: clamp(22px, 3vw, 28px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.topics-sub {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--color-text-secondary);
+}
+
+.topics-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.topics-btn-plain {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-10);
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast, 150ms), color var(--transition-fast, 150ms);
+}
+
+.topics-btn-plain:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-accent);
+}
+
+.topics-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-14);
+  box-shadow: var(--shadow-1);
+  padding: 18px;
+}
+
+.topics-card h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.topics-muted {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+}
+
+/* ---- Class topic chips (the heatmap, linearized) ---- */
+.topics-chip-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+.topics-chip {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "name pct"
+    "bar bar"
+    "count count";
+  gap: 4px 10px;
+  align-items: center;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-10);
+  background: var(--color-bg-elevated);
+  cursor: pointer;
+  font: inherit;
+  min-height: 44px;
+  transition: border-color var(--transition-fast, 150ms), transform var(--transition-fast, 150ms);
+}
+
+.topics-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--color-accent);
+}
+
+.topics-chip-name {
+  grid-area: name;
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.topics-chip-pct {
+  grid-area: pct;
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.topics-chip-count {
+  grid-area: count;
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
+}
+
+.topics-chip-bar {
+  grid-area: bar;
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.topics-chip-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+/* Mastery bands — same three tones as the grade ring. */
+.band-good .topics-chip-fill,
+.band-good .topics-mini::before { background: var(--color-success); }
+.band-ok .topics-chip-fill,
+.band-ok .topics-mini::before { background: #f59e0b; }
+.band-poor .topics-chip-fill,
+.band-poor .topics-mini::before { background: var(--color-danger); }
+
+/* ---- Student cards ---- */
+.topics-student-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.topics-student-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-10);
+  background: var(--color-bg-elevated);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.topics-student-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.topics-student-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.topics-student-avg {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--color-text);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+}
+
+.topics-student-extremes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.topics-extreme {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px 6px;
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+}
+
+/* Long topic names may break; the parenthesised score never does —
+   the old `overflow-wrap: anywhere` on the whole line let the closing
+   bracket of "(25%)" drop to its own line. */
+.topics-extreme strong {
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.topics-extreme-pct {
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.topics-mini-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.topics-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+}
+
+.topics-mini::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-muted);
+}
+
+/* ---- Drill-in modal ---- */
+.topics-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgb(15 23 42 / 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.topics-modal {
+  width: min(100%, 640px);
+  max-height: min(86vh, 680px);
+  overflow: auto;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-14);
+  box-shadow: var(--shadow-3);
+  padding: 20px;
+}
+
+.topics-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.topics-modal-head h3 {
+  margin: 0;
+  font-size: 17px;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.topics-drill-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.topics-drill-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--color-border);
+  border-left-width: 4px;
+  border-radius: var(--radius-10);
+  background: var(--color-bg-elevated);
+  padding: 10px 12px;
+}
+
+.topics-drill-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.topics-drill-meta {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.topics-drill-pct {
+  display: block;
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.topics-drill-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+/* Drill-item left border carries the band color. */
+.topics-drill-item.band-good { border-left-color: var(--color-success); }
+.topics-drill-item.band-ok { border-left-color: #f59e0b; }
+.topics-drill-item.band-poor { border-left-color: var(--color-danger); }
+
+@media (max-width: 520px) {
+  .topics-chip-list,
+  .topics-student-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topics-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

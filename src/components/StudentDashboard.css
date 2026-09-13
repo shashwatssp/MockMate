@@ -48,8 +48,9 @@
 .student-shell .student-form-shell label { color: #334155; font-size: .88rem; font-weight: 600; }
 .student-shell .student-error { padding: 10px 12px; border-radius: 10px; background: #fef2f2; color: #b91c1c; }
 .student-shell .student-toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
-.student-shell .student-table-card { overflow-x: auto; }
-.student-shell .student-table-card > * { min-width: 620px; }
+/* NOTE: the old `.student-table-card { min-width: 620px }` horizontal-scroll
+   rule was removed — the class is unused and batch tables already reflow to
+   cards under 768px (BatchDetail.css). */
 @media (max-width: 800px) {
   .student-shell { padding: 20px 12px; }
   .student-shell .student-stat-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
@@ -83,7 +84,6 @@
 }
 .student-error-inline span { color: inherit; }
 .student-loading { padding: 32px 16px; text-align: center; }
-.student-empty-text { color: #64748b; padding: 24px; text-align: center; }
 
 /* Stats summary grid (dashboard quick-stats) */
 .student-stats-summary {
@@ -171,8 +171,16 @@
   border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;
 }
 .student-result-card h2 { margin-top: 0; font-size: 18px; }
+/* Result stat grid: 1-col on phones, 2-col on small tablets, 3-col on desktop.
+   (Mobile-first — never cramped at 360–559px widths.) */
 .student-result-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;
+  display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 16px;
+}
+@media (min-width: 560px) {
+  .student-result-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 768px) {
+  .student-result-grid { grid-template-columns: repeat(3, 1fr); }
 }
 .student-result-stat .stat-label { font-size: 12px; color: #64748b; }
 .student-result-stat .stat-value { font-size: 22px; font-weight: 700; }
@@ -219,7 +227,7 @@
 }
 .student-status-badge .status-icon { flex-shrink: 0; }
 .student-profile-actions {
-  display: flex; gap: 12px; margin-top: 20px;
+  display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px;
 }
 .student-profile-actions .student-btn-plain { flex: 1; }
 .student-profile-actions .student-btn-primary { flex: 1; }
@@ -249,10 +257,6 @@
 .batch-item .batch-code {
   display: inline-flex; align-items: center; gap: 4px;
   background: #f1f5f9; padding: 2px 8px; border-radius: 4px; font-size: 13px;
-}
-.batch-item .batch-manage {
-  padding: 6px 12px; border-radius: 6px; border: 1px solid #2563eb;
-  background: #2563eb; color: #fff; text-decoration: none; font-size: 13px;
 }
 .batch-tabs {
   display: flex; gap: 2px; border-bottom: 1px solid #e2e8f0; margin-bottom: 16px;
@@ -370,8 +374,6 @@
 .batch-meta { font-size: 12px; color: #64748b; margin-top: 2px; margin-bottom: 4px; }
 .batch-code { display: inline-flex; align-items: center; gap: 4px; background: #f1f5f9; padding: 2px 8px; border-radius: 4px; font-size: 13px; }
 .batch-copy { border: none; background: transparent; cursor: pointer; padding: 0; margin-left: 4px; }
-.batch-manage { padding: 6px 12px; border-radius: 6px; border: 1px solid #2563eb; background: #2563eb; color: #fff; text-decoration: none; font-size: 13px; }
-.batch-manage-link { padding: inherit; }
 .student-form-field-label { display: block; font-size: 12px; color: #64748b; margin-bottom: 4px; }
 .student-form-field-input { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; }
 .student-profile-actions .student-btn-plain { flex: 1; }
@@ -450,135 +452,86 @@
 }
 
 /* ===== Dark mode ===== */
-@media (prefers-color-scheme: dark) {
-  .student-shell {
+
+  :where([data-theme="dark"]) .student-shell {
     background: linear-gradient(135deg, #1e293b 0%, #0f1117 100%);
     color: #e4e6eb;
   }
 
-  /* White/light backgrounds \u2192 dark surfaces */
-  .student-shell .student-card,
-  .student-shell .student-stat,
-  .student-shell .student-test,
-  .student-stat-card,
-  .student-test-item,
-  .student-result-card,
-  .student-profile-card,
-  .student-progress-card,
-  .entry-form-panel,
-  .batch-tab-inactive {
+   /* White/light backgrounds \u2192 dark surfaces */
+  :where([data-theme="dark"]) .student-shell .student-card, :where([data-theme="dark"]) .student-shell .student-stat, :where([data-theme="dark"]) .student-shell .student-test, :where([data-theme="dark"]) .student-stat-card, :where([data-theme="dark"]) .student-test-item, :where([data-theme="dark"]) .student-result-card, :where([data-theme="dark"]) .student-profile-card, :where([data-theme="dark"]) .student-progress-card, :where([data-theme="dark"]) .entry-form-panel, :where([data-theme="dark"]) .batch-tab-inactive {
     background: #1f2937;
   }
 
-  /* Button & form-field backgrounds */
-  .student-btn-secondary,
-  .batch-tab-active,
-  .student-form-shell input,
-  .student-form-shell select,
-  .student-form-field input,
-  .student-form-field select,
-  .student-form-field-input {
+   /* Button & form-field backgrounds */
+  :where([data-theme="dark"]) .student-btn-secondary, :where([data-theme="dark"]) .batch-tab-active, :where([data-theme="dark"]) .student-form-shell input, :where([data-theme="dark"]) .student-form-shell select, :where([data-theme="dark"]) .student-form-field input, :where([data-theme="dark"]) .student-form-field select, :where([data-theme="dark"]) .student-form-field-input {
     background: #374151;
   }
 
-  /* Hover backgrounds */
-  .student-btn-plain:hover { background: #4b5563; }
+   /* Hover backgrounds */
+  :where([data-theme="dark"]) .student-btn-plain:hover { background: #4b5563; }
 
-  /* Stat card svg icon bg */
-  .stat-value > svg { background: #3b4251; }
+   /* Stat card svg icon bg */
+  :where([data-theme="dark"]) .stat-value > svg { background: #3b4251; }
 
-  /* Results table & leaderboard */
-  .batch-results-test { background: #1f2937; border-color: #4b5563; }
-  .batch-results-table th { color: #94a3b8; border-color: #4b5563; }
-  .batch-results-summary { color: #94a3b8; }
-  .batch-results-table tbody tr:hover { background: #374151; }
-  .batch-results-top { background: #29251e; border-color: #453a1f; }
-  .batch-results-trophy { color: #fcd34d; }
+   /* Results table & leaderboard */
+  :where([data-theme="dark"]) .batch-results-test { background: #1f2937; border-color: #4b5563; }
+  :where([data-theme="dark"]) .batch-results-table th { color: #94a3b8; }
+  :where([data-theme="dark"]) .batch-results-table td { color: #e4e6eb; }
+  :where([data-theme="dark"]) .batch-results-table th, :where([data-theme="dark"]) .batch-results-table td { border-color: #4b5563; }
+  :where([data-theme="dark"]) .batch-results-summary { color: #94a3b8; }
+  :where([data-theme="dark"]) .batch-results-table tbody tr:hover { background: #374151; }
+  :where([data-theme="dark"]) .batch-results-top { background: #29251e; border-color: #453a1f; }
+  :where([data-theme="dark"]) .batch-results-trophy { color: #fcd34d; }
 
-  /* Error boxes: darken bg, lighten red text */
-  .student-error { background: #7f1d1d; color: #fecaca; }
-  .student-error-inline { color: #fca5a1; }
+   /* Error boxes: darken bg, :where([data-theme="dark"]) lighten red text */
+  :where([data-theme="dark"]) .student-error { background: #7f1d1d; color: #fecaca; }
+  :where([data-theme="dark"]) .student-error-inline { color: #fca5a1; }
 
-  /* Light code/badge backgrounds */
-  .batch-code,
-  .batch-item .batch-code,
-  .batch-toggle-btn.active {
+   /* Light code/badge backgrounds */
+  :where([data-theme="dark"]) .batch-code, :where([data-theme="dark"]) .batch-item .batch-code, :where([data-theme="dark"]) .batch-toggle-btn.active {
     background: #374151;
   }
 
-  /* Borders: light \u2192 dark-subtle */
-  .student-shell .student-card,
-  .student-shell .student-stat,
-  .student-shell .student-test,
-  .student-stat-card,
-  .student-test-item,
-  .student-result-card,
-  .student-profile-card,
-  .batch-item,
-  .batch-detail-row,
-  .batch-tabs,
-  .batch-tab,
-  .batch-row-actions select,
-  .batch-toggle-btn,
-  .student-form-field input,
-  .student-form-field select,
-  .student-form-field-input,
-  .batch-code,
-  .batch-item .batch-code {
+   /* Borders: light \u2192 dark-subtle */
+  :where([data-theme="dark"]) .student-shell .student-card, :where([data-theme="dark"]) .student-shell .student-stat, :where([data-theme="dark"]) .student-shell .student-test, :where([data-theme="dark"]) .student-stat-card, :where([data-theme="dark"]) .student-test-item, :where([data-theme="dark"]) .student-result-card, :where([data-theme="dark"]) .student-profile-card, :where([data-theme="dark"]) .batch-item, :where([data-theme="dark"]) .batch-detail-row, :where([data-theme="dark"]) .batch-tabs, :where([data-theme="dark"]) .batch-tab, :where([data-theme="dark"]) .batch-row-actions select, :where([data-theme="dark"]) .batch-toggle-btn, :where([data-theme="dark"]) .student-form-field input, :where([data-theme="dark"]) .student-form-field select, :where([data-theme="dark"]) .student-form-field-input, :where([data-theme="dark"]) .batch-code, :where([data-theme="dark"]) .batch-item .batch-code {
     border-color: #4b5563;
   }
 
-  /* Primary heading text: dark \u2192 light */
-  .student-header h1,
-  .student-stat strong,
-  .student-test h3,
-  .student-profile-header h1,
-  .student-form-header h1,
-  .batch-header h1 {
+   /* Primary heading text: dark \u2192 light */
+  :where([data-theme="dark"]) .student-header h1, :where([data-theme="dark"]) .student-stat strong, :where([data-theme="dark"]) .student-test h3, :where([data-theme="dark"]) .student-profile-header h1, :where([data-theme="dark"]) .student-form-header h1, :where([data-theme="dark"]) .batch-header h1 {
     color: #e4e6eb;
   }
 
-  /* Secondary / muted text */
-  .student-stat span,
-  .student-stat .stat-label,
-  .student-stat-card .stat-label,
-  .student-muted,
-  .student-page-header .student-muted,
-  .student-empty-text,
-  .student-test-info,
-  .student-test-percentile,
-  .student-profile-label,
-  .student-mini-stat .stat-label,
-  .batch-item .batch-meta,
-  .student-awaiting-text,
-  .batch-detail-sub,
-  .batch-header-sub,
-  .batch-footer-stats,
-  .input-icon,
-  .profile-item-icon {
+   /* Secondary / muted text */
+  :where([data-theme="dark"]) .student-stat span, :where([data-theme="dark"]) .student-stat .stat-label, :where([data-theme="dark"]) .student-stat-card .stat-label, :where([data-theme="dark"]) .student-muted, :where([data-theme="dark"]) .student-page-header .student-muted, :where([data-theme="dark"]) .student-test-info, :where([data-theme="dark"]) .student-test-percentile, :where([data-theme="dark"]) .student-profile-label, :where([data-theme="dark"]) .student-mini-stat .stat-label, :where([data-theme="dark"]) .batch-item .batch-meta, :where([data-theme="dark"]) .student-awaiting-text, :where([data-theme="dark"]) .batch-detail-sub, :where([data-theme="dark"]) .batch-header-sub, :where([data-theme="dark"]) .batch-footer-stats, :where([data-theme="dark"]) .input-icon, :where([data-theme="dark"]) .profile-item-icon {
     color: #94a3b8;
   }
 
-  /* Form labels */
-  .student-form-field label,
-  .student-form-field-label {
+   /* Form labels */
+  :where([data-theme="dark"]) .student-form-field label, :where([data-theme="dark"]) .student-form-field-label {
     color: #cbd5e1;
   }
 
-  /* Button text: dark \u2192 light */
-  .student-btn-secondary { color: #e4e6eb; }
-  .student-practice-btn { background: transparent; color: #93c5fd; border-color: #4b5563; }
-  .student-practice-btn:hover:not(:disabled) { background: #374151; border-color: #93c5fd; }
+   /* Button text: dark \u2192 light */
+  :where([data-theme="dark"]) .student-btn-secondary { color: #e4e6eb; }
+  :where([data-theme="dark"]) .student-practice-btn { background: transparent; color: #93c5fd; border-color: #4b5563; }
+  :where([data-theme="dark"]) .student-practice-btn:hover:not(:disabled) { background: #374151; border-color: #93c5fd; }
 
-  /* Status icons: keep hue, lighten for dark mode */
-  .status-approved .status-icon { color: #4ade80; }
-  .status-pending .status-icon { color: #fbbf24; }
-}
+   /* Status icons: keep hue, :where([data-theme="dark"]) lighten for dark mode */
+  :where([data-theme="dark"]) .status-approved .status-icon { color: #4ade80; }
+  :where([data-theme="dark"]) .status-pending .status-icon { color: #fbbf24; }
 
 /* Status badges use light-only hexes above; flip them for dark mode. */
-@media (prefers-color-scheme: dark) {
-  .student-status-available { background: #064e35; color: #4ade80; }
-  .student-status-upcoming { background: #1e3a8a; color: #93c5fd; }
-  .student-status-attempted { background: #312e81; color: #a78bfa; }
-  .student-status-expired { background: #7f1d1d; color: #fca5a1; }
+
+  :where([data-theme="dark"]) .student-status-available { background: #064e35; color: #4ade80; }
+  :where([data-theme="dark"]) .student-status-upcoming { background: #1e3a8a; color: #93c5fd; }
+  :where([data-theme="dark"]) .student-status-attempted { background: #312e81; color: #a78bfa; }
+  :where([data-theme="dark"]) .student-status-expired { background: #7f1d1d; color: #fca5a1; }
+
+/* Opt-in AI insight trigger (4.4) — the call fires only on click. */
+.student-insight-optin {
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
 }

@@ -195,18 +195,17 @@
 }
 
 /* Dark mode */
-@media (prefers-color-scheme: dark) {
-  .abm-modal {
+
+  :where([data-theme="dark"]) .abm-modal {
     background: var(--gray-800);
   }
-  .abm-header {
+  :where([data-theme="dark"]) .abm-header {
     border-color: var(--gray-700);
   }
-  .abm-batch-label:hover {
+  :where([data-theme="dark"]) .abm-batch-label:hover {
     background: var(--gray-700);
     border-color: var(--gray-600);
   }
-  .abm-footer {
+  :where([data-theme="dark"]) .abm-footer {
     border-color: var(--gray-700);
   }
-}

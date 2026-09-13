@@ -1,3 +1,4 @@
+import { toErrorMessage } from '../lib/errors';
 import React, { useState, useRef } from 'react';
 import {
   Save,
@@ -307,7 +308,7 @@ export const PdfImportPremiumReview: React.FC<PdfImportPremiumReviewProps> = ({
         onBack();
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = toErrorMessage(err);
       console.error(err);
       setError(msg);
     } finally {

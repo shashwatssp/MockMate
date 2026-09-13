@@ -11,8 +11,7 @@ import {
   Star,
   CheckCircle,
   Play,
-  Sparkles,
-  TrendingUp
+  Sparkles
 } from 'lucide-react';
 import './LandingPage.css';
 
@@ -48,19 +47,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
       icon: Zap,
       title: 'Lightning Fast Setup',
       description: 'Create comprehensive tests in under 2 minutes with our AI-powered question selection',
-      color: 'from-yellow-400 to-orange-500'
+      color: 'grad-amber'
     },
     {
       icon: Target,
       title: 'Smart Topic Mapping',
       description: 'Automatically categorized questions with difficulty levels and learning outcomes',
-      color: 'from-blue-400 to-cyan-500'
+      color: 'grad-blue'
     },
     {
       icon: BarChart3,
       title: 'Advanced Analytics',
       description: 'Deep insights into student performance with personalized improvement suggestions',
-      color: 'from-purple-400 to-pink-500'
+      color: 'grad-violet'
     }
   ];
 
@@ -195,9 +194,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                   </div>
                   
                   <div className="analytics-preview">
-                    <div className="chart-placeholder">
-                      <TrendingUp className="chart-icon" />
-                    </div>
+                    <svg viewBox="0 0 120 48" className="analytics-spark" aria-hidden="true">
+                      <defs>
+                        <linearGradient id="landing-spark" x1="0" y1="0" x2="0" y2="1">
+                          <stop stopColor="var(--primary-color)" stopOpacity="0.35" />
+                          <stop stopColor="var(--primary-color)" stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                      <path d="M4 40 L24 30 L44 34 L64 20 L84 24 L104 10 L116 14 L116 48 L4 48 Z" fill="url(#landing-spark)" />
+                      <path d="M4 40 L24 30 L44 34 L64 20 L84 24 L104 10 L116 14" fill="none" stroke="var(--primary-color)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                   </div>
                 </div>
               </div>
@@ -225,7 +231,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 className={`feature-card ${activeFeature === index ? 'active' : ''}`}
                 onMouseEnter={() => setActiveFeature(index)}
               >
-                <div className={`feature-icon-wrapper bg-gradient-to-br ${feature.color}`}>
+                <div className={`feature-icon-wrapper ${feature.color}`}>
                   <feature.icon className="feature-icon" />
                 </div>
                 

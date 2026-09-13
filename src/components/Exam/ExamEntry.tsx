@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import type { Test } from '../../types/exam.types';
 import type { StudentIdentity } from '../../lib/database';
+import { resolvePassingScore } from '../../lib/score';
+import { getTimeZoneName } from '../../lib/dateTime';
 import './ExamEntry.css';
 
 interface ExamEntryProps {
@@ -163,15 +165,24 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
     }
   };
 
+  /** Same heuristic as ExamWrapper.isMobileDevice: phones/tablets keep the
+   *  normal browser layout, so fullscreen-related checks don't apply. */
+  const isMobileDevice = () =>
+    window.matchMedia('(max-width: 768px)').matches ||
+    navigator.maxTouchPoints > 0 ||
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  // Times always state the viewer's zone explicitly (§4.5) — a student in a
+  // different zone than the teacher must never guess which "9 AM" this is.
   const formatDateTime = (date: Date) => {
-    return date.toLocaleString('en-US', {
+    return `${date.toLocaleString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
-    });
+    })} (${getTimeZoneName()})`;
   };
 
   const calculateDifficulty = () => {
@@ -239,6 +250,25 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
               <p className="test-description">{test.description}</p>
             )}
 
+            {/* Timezone-aware schedule (§4.5): explicit start/end in the
+                viewer's zone — no ambiguous "9 AM". */}
+            {(test.startDate || test.endTime) && (
+              <div className="tz-schedule">
+                {test.startDate ? (
+                  <div className="tz-schedule-item">
+                    <Clock size={14} />
+                    <span>Starts {formatDateTime(new Date(test.startDate))}</span>
+                  </div>
+                ) : null}
+                {test.endTime ? (
+                  <div className="tz-schedule-item">
+                    <Timer size={14} />
+                    <span>Ends {formatDateTime(new Date(test.endTime))}</span>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
             <div className="test-stats-grid">
               <div className="stat-card">
                 <div className="stat-icon">
@@ -265,7 +295,7 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
                   <Award size={20} />
                 </div>
                 <div className="stat-content">
-                  <span className="stat-value">{test.passingScore || 70}%</span>
+                  <span className="stat-value">{resolvePassingScore(test.passingScore)}%</span>
                   <span className="stat-label">Pass Mark</span>
                 </div>
               </div>
@@ -328,11 +358,17 @@ export const ExamEntry: React.FC<ExamEntryProps> = ({
                 {systemCheck.browser ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
               </div>
               
-              <div className={`check-item ${systemCheck.fullscreen ? 'check-pass' : 'check-fail'}`}>
-                <Globe size={16} />
-                <span>Fullscreen Support</span>
-                {systemCheck.fullscreen ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-              </div>
+              {/* Fullscreen is an optional enhancement the exam never requires
+                  (mobile deliberately stays in normal browser layout), so the
+                  pre-flight only surfaces it when the device can actually do
+                  it — phones must not "fail" a check that never applies. */}
+              {(systemCheck.fullscreen || !isMobileDevice()) && (
+                <div className={`check-item ${systemCheck.fullscreen ? 'check-pass' : 'check-fail'}`}>
+                  <Globe size={16} />
+                  <span>Fullscreen Support</span>
+                  {systemCheck.fullscreen ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+                </div>
+              )}
 
               {test.isProctored && (
                 <>

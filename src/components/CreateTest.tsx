@@ -1,3 +1,4 @@
+import { toErrorMessage } from '../lib/errors';
 import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import { 
   Home, 
@@ -387,7 +388,7 @@ Rules:
       }
 
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
+      const errMsg = toErrorMessage(error);
       if (errMsg.includes('404')) {
         notifyError('AI model not available. Please try again later.');
       } else if (errMsg.includes('API key')) {
@@ -896,19 +897,19 @@ showCorrectAnswers={showCorrectAnswers}
                   isLoaded={isLoaded}
                 />
 
-                <section style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-                  <h2 style={{ marginTop: 0, fontSize: 16 }}>Assign to batches (optional)</h2>
-                  <p style={{ fontSize: 12, color: '#64748b' }}>Share this test with one or more of your batches. Students in those batches must be approved to access it.</p>
+                <section className="batch-assign-panel">
+                  <h2>Assign to batches (optional)</h2>
+                  <p className="batch-assign-sub">Share this test with one or more of your batches. Students in those batches must be approved to access it.</p>
                   {teacherBatches.length === 0 ? (
-                    <p style={{ color: '#64748b' }}>No batches yet. Create one in /batches to assign this test.</p>
+                    <p className="batch-assign-sub">No batches yet. Create one in /batches to assign this test.</p>
                   ) : (
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <div className="batch-assign-chips">
                       {teacherBatches.map(b => {
                         const on = selectedBatchIds.includes(b.id);
                         return (
                           <button key={b.id} type="button"
                             onClick={() => setSelectedBatchIds(on ? selectedBatchIds.filter(x => x !== b.id) : [...selectedBatchIds, b.id])}
-                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid ' + (on ? '#2563eb' : '#cbd5e1'), background: on ? '#eff6ff' : 'transparent', cursor: 'pointer', fontSize: 12 }}>
+                            className={`batch-chip-toggle ${on ? 'is-on' : ''}`}>
                             {b.name} ({b.code})
                           </button>
                         );

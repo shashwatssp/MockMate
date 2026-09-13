@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { toErrorMessage, isMissingRpcError } from './errors';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY!
@@ -9,12 +10,32 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 // Call a PostgREST RPC (app_signin, app_signup, app_session, app_signout, ...).
 // Supabase edge functions are invoked via `supabase.rpc(name, { p_* args })`;
 // any error is thrown so callers can handle it uniformly.
+//
+// IMPORTANT: the thrown value is ALWAYS a real `Error`. Supabase returns a
+// plain PostgrestError object which some catch sites stringified — producing
+// the infamous "[object Object]" in the UI. Wrap here once, so every caller
+// gets a `.message` it can show a human.
+export class RpcError extends Error {
+  code?: string;
+  constructor(rpcName: string, original: unknown) {
+    super(toErrorMessage(original, `RPC ${rpcName} failed`));
+    this.name = 'RpcError';
+    const code = (original as { code?: unknown } | null)?.code;
+    if (typeof code === 'string') this.code = code;
+    if (isMissingRpcError(original)) {
+      this.message =
+        `Backend function ${rpcName} is not deployed on the server. ` +
+        'Run the latest files from supabase/migrations/ in the Supabase SQL editor, then retry.';
+    }
+  }
+}
+
 export const callRpc = async <T = unknown>(
   name: string,
   args: Record<string, unknown>,
 ): Promise<T> => {
   const { data, error } = await supabase.rpc(name, args)
-  if (error) throw error
+  if (error) throw new RpcError(name, error)
   return data as T
 }
 

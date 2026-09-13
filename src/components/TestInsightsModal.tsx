@@ -17,7 +17,8 @@ import {
 } from 'lucide-react';
 import { QuestionImage } from './QuestionImage';
 import type { Question, Test, TestResult } from '../types/exam.types';
-import { explainClassInsight, regenerateClassInsight } from '../lib/geminiDashboard';
+import { resolvePassingScore } from '../lib/score';
+import { explainClassInsight, hasGeminiKey, regenerateClassInsight } from '../lib/geminiDashboard';
 import './Dashboard.css';
 
 type InsightsMode = 'preview' | 'analytics';
@@ -106,13 +107,28 @@ export const TestInsightsModal: React.FC<TestInsightsModalProps> = ({
     })
   ), [results, test.questions]);
 
-  const rankedResults = useMemo(() => (
-    [...results].sort((a, b) =>
+  // Ranked rows for the student table: tie-aware competition ranks (equal
+  // percentages share a rank, next distinct skips forward) with rank-derived
+  // percentile — round(((N - rank + 1) / N) * 100), clamped 0..100.
+  const rankedResults = useMemo(() => {
+    const sorted = [...results].sort((a, b) =>
       b.percentage - a.percentage ||
       b.score - a.score ||
       a.timeTaken - b.timeTaken
-    )
-  ), [results]);
+    );
+    const n = sorted.length;
+    let prevPct = Number.NaN;
+    let prevRank = 0;
+    return sorted.map((result, index) => {
+      const rank = result.percentage === prevPct ? prevRank : index + 1;
+      prevPct = result.percentage;
+      prevRank = rank;
+      const percentile = n > 0
+        ? Math.min(100, Math.max(0, Math.round(((n - rank + 1) / n) * 100)))
+        : 0;
+      return { result, rank, percentile };
+    });
+  }, [results]);
 
   const averagePercentage = results.length
     ? Math.round(results.reduce((sum, result) => sum + result.percentage, 0) / results.length)
@@ -151,23 +167,25 @@ export const TestInsightsModal: React.FC<TestInsightsModalProps> = ({
     if (mode !== 'analytics' || !results.length || classInsightLoaded) return;
     setClassInsightLoaded(true);
     setClassInsightLoading(true);
-    void explainClassInsight(test.id, results, test.questions, test.passingScore ?? 50)
+    void explainClassInsight(test.id, results, test.questions, resolvePassingScore(test.passingScore))
       .then((insight) => setClassInsight(insight))
       .catch(() => setClassInsight(null))
       .finally(() => setClassInsightLoading(false));
-  }, [mode, results, test.id, test.passingScore, classInsightLoaded]);
+    // test.questions is a dep for the API payload; the classInsightLoaded
+    // guard still ensures this fires only once per analytics session.
+  }, [mode, results, test.id, test.passingScore, test.questions, classInsightLoaded]);
 
   const handleRegenerateClassInsight = () => {
     setClassInsightLoading(true);
-    void regenerateClassInsight(test.id, results, test.questions, test.passingScore ?? 50)
+    void regenerateClassInsight(test.id, results, test.questions, resolvePassingScore(test.passingScore))
       .then((insight) => setClassInsight(insight))
       .catch(() => setClassInsight(null))
       .finally(() => setClassInsightLoading(false));
   };
 
-  // At-risk students: below passingScore - 10 (or no tab-switch data available
+  // At-risk students: below the pass mark - 10 (or no tab-switch data available
   // in the persisted result set, so percentage-based only).
-  const passing = test.passingScore ?? 50;
+  const passing = resolvePassingScore(test.passingScore);
   const atRiskThreshold = passing - 10;
   // At-risk students (latest attempt below passingScore - 10).
   const atRisk = useMemo<AtRiskStudent[]>(() => {
@@ -315,6 +333,26 @@ export const TestInsightsModal: React.FC<TestInsightsModalProps> = ({
                       <span className="insight-banner-text">Generating class summary…</span>
                     </div>
                   )}
+                  {!classInsight && !classInsightLoading && results.length > 0 && !hasGeminiKey() && (
+                    <div className="insight-banner insight-unconfigured">
+                      <Sparkles size={16} className="insight-banner-icon" />
+                      <span className="insight-banner-text">AI class summary isn't enabled (no Gemini API key configured).</span>
+                    </div>
+                  )}
+                  {!classInsight && !classInsightLoading && classInsightLoaded && results.length > 0 && hasGeminiKey() && (
+                    <div className="insight-banner insight-unconfigured">
+                      <Sparkles size={16} className="insight-banner-icon" />
+                      <span className="insight-banner-text">Couldn't generate the class summary.</span>
+                      <button
+                        type="button"
+                        className="insight-regenerate-btn"
+                        onClick={handleRegenerateClassInsight}
+                        title="Retry"
+                      >
+                        <RefreshCw size={12} />
+                      </button>
+                    </div>
+                  )}
 
                   <div className="analytics-summary-grid">
                     <div><Users size={18} /><strong>{results.length}</strong><span>Students</span></div>
@@ -341,26 +379,27 @@ export const TestInsightsModal: React.FC<TestInsightsModalProps> = ({
                         <div className="analytics-table-wrap">
                           <table className="analytics-table">
                             <thead>
-                              <tr><th>Rank</th><th>Student</th><th>Score</th><th>Accuracy</th><th>Time</th></tr>
+                              <tr><th>Rank</th><th>Student</th><th>Score</th><th>Accuracy</th><th>Percentile</th><th>Time</th></tr>
                             </thead>
                             <tbody>
-                              {rankedResults.map((result, index) => {
+                              {rankedResults.map(({ result, rank, percentile }, index) => {
                                 const isAtRisk = atRiskNames.has(result.studentName);
                                 return (
                                   <tr
                                     key={result.id || `${result.studentName}-${index}`}
                                     className={isAtRisk ? 'at-risk' : undefined}
                                   >
-                                    <td><span className={`rank-badge rank-${index + 1}`}>{index < 3 ? <Medal size={14} /> : index + 1}</span></td>
-                                    <td>
+                                    <td data-label="Rank"><span className={`rank-badge rank-${rank}`}>{rank <= 3 ? <Medal size={14} /> : rank}</span></td>
+                                    <td data-label="Student">
                                       {result.studentName}
                                       {isAtRisk && (
                                         <span className="at-risk-badge" title={`Below ${atRiskThreshold}%`}>At-risk</span>
                                       )}
                                     </td>
-                                    <td>{result.score}/{result.totalMarks ?? result.totalQuestions}</td>
-                                    <td>{result.percentage}%</td>
-                                    <td>{formatSeconds(result.timeTaken)}</td>
+                                    <td data-label="Score">{result.score}/{result.totalMarks ?? result.totalQuestions}</td>
+                                    <td data-label="Accuracy">{result.percentage}%</td>
+                                    <td data-label="Percentile"><span className="analytics-percentile">{percentile}th</span></td>
+                                    <td data-label="Time">{formatSeconds(result.timeTaken)}</td>
                                   </tr>
                                 );
                               })}

@@ -5,9 +5,13 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color-scheme: light dark;
+  color-scheme: light;
 
-  /* ===== Shared color tokens (OS-driven light/dark via prefers-color-scheme) ===== */
+  /* ===== Shared color tokens =====
+     Light values live on :root; dark values on :root[data-theme="dark"].
+     The JS theme controller (src/lib/theme.ts) always sets data-theme on
+     <html> (resolved from the saved light/dark/system preference), so every
+     dark rule below is conditional on the attribute instead of the OS. ===== */
   --color-bg: #f6f8fc;
   --color-bg-card: #ffffff;
   --color-bg-field: #f8fafc;
@@ -30,10 +34,25 @@
   --color-ink: #1b2b4b;
   --color-ink-secondary: #33415b;
   --color-muted: #cbd5e1;
+
+  /* ===== Shared scales (radius / shadow) — the app's 3 canonical radii and
+     3 elevation levels. New styles use these instead of ad-hoc values. ===== */
+  --radius-10: 10px;
+  --radius-14: 14px;
+  --radius-18: 18px;
+  --shadow-1: 0 1px 2px 0 rgb(15 23 42 / 0.08);
+  --shadow-2: 0 4px 12px -2px rgb(15 23 42 / 0.12);
+  --shadow-3: 0 12px 28px -8px rgb(15 23 42 / 0.18);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+
+  /* (0,2,0) specificity on purpose: component stylesheets re-declare the
+     legacy light tokens (--white/--gray-*) on plain :root, and Vite may
+     inject those AFTER this file — a (0,1,0) flip would lose that race.
+     The attribute selector (without :where) keeps dark mode order-proof. */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+
     --color-bg: #0f1117;
     --color-bg-card: #171b26;
     --color-bg-field: #1e2330;
@@ -56,8 +75,24 @@
     --color-ink: #cbd5e6;
     --color-ink-secondary: #94a3b8;
     --color-muted: #475569;
+
+    /* Legacy tokens many older stylesheets read directly. Flipping them HERE
+       (authoritative, app-wide) fixes pages whose own dark flip is missing,
+       incomplete (--white on the Dashboard) or swallowed by a broken comment
+       (CreateTest) — text/surfaces can no longer stay light on the dark canvas. */
+    --white: #0f1117;
+    --black: #e4e6eb;
+    --gray-50: #0f1117;
+    --gray-100: #171b26;
+    --gray-200: #1f2330;
+    --gray-300: #9ca3af;
+    --gray-400: #6b7280;
+    --gray-500: #7b8794;
+    --gray-600: #94a3b8;
+    --gray-700: #cbd5e1;
+    --gray-800: #e2e5ea;
+    --gray-900: #e4e6eb;
   }
-}
 
 *,
 *::before,
@@ -104,4 +139,40 @@ a {
 ::selection {
   color: #fff;
   background: var(--color-accent);
+}
+
+/* ===== Manual theme toggle (light / dark / system) ===== */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg-card);
+}
+
+.theme-toggle-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: background var(--transition-fast, 150ms), color var(--transition-fast, 150ms);
+}
+
+.theme-toggle-option:hover {
+  color: var(--color-text);
+  background: var(--color-bg-elevated);
+}
+
+.theme-toggle-option.is-active {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
 }

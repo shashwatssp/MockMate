@@ -77,8 +77,11 @@
 }
 
 /* ========== DARK MODE ========== */
-@media (prefers-color-scheme: dark) {
-  :root {
+
+  /* (0,2,0) specificity on purpose: component stylesheets re-declare the
+     light tokens on plain :root and Vite may inject those AFTER this file —
+     a (0,1,0) flip would lose that race. Keeps dark mode order-proof. */
+  :root[data-theme="dark"] {
     --primary-blue: #3b82f6;
     --primary-blue-light: #60a5fa;
     --primary-blue-dark: #2563eb;
@@ -102,9 +105,8 @@
     --gray-900: #e4e6eb;
   }
 
-  .exam-header, .exam-sidebar, .entry-card { background: #111827; }
-  .practice-mode-pill { background: #1e2330; border-color: #33415b; color: #fbbf24; }
-}
+  :where([data-theme="dark"]) .exam-header, :where([data-theme="dark"]) .exam-sidebar, :where([data-theme="dark"]) .entry-card { background: #111827; }
+  :where([data-theme="dark"]) .practice-mode-pill { background: #1e2330; border-color: #33415b; color: #fbbf24; }
 
 /* ========== GLOBAL UTILITIES ========== */
 .container {
@@ -781,6 +783,25 @@
   gap: 16px;
 }
 
+/* The real radio input behind each option: visually hidden but focusable and
+   announced by assistive tech (switch access / screen readers operate it). */
+.visually-hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.option-item:has(.visually-hidden-input:focus-visible) {
+  outline: 2px solid var(--primary-blue);
+  outline-offset: 2px;
+}
+
 .option-item {
   display: flex;
   align-items: center;
@@ -1032,6 +1053,36 @@
   font-size: 18px;
 }
 
+/* Pass/fail verdict pill — explicit answer to "did I pass?" */
+.verdict-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px auto 0;
+  padding: 10px 22px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.verdict-pill.verdict-pass {
+  background: var(--success-light);
+  color: var(--success-green);
+  border: 1px solid var(--success-green);
+}
+
+.verdict-pill.verdict-fail {
+  background: var(--error-light);
+  color: var(--error-red);
+  border: 1px solid var(--error-red);
+}
+
+/* Failed-state icon: supportive trend, not a trophy. */
+.results-icon-failed {
+  background: linear-gradient(135deg, var(--error-red), var(--error-light));
+}
+
 .score-display {
   display: flex;
   justify-content: center;
@@ -1069,19 +1120,37 @@
   margin: 32px 0;
 }
 
+/* Grade ring (Phase 2.5): the ring fills with the percentage (via --ring-value)
+   in the grade's color (via --grade-color); the letter sits on a chip that
+   matches the card surface (--results-surface) so it reads in dark mode. */
 .grade-circle {
-  width: 120px;
-  height: 120px;
+  --results-surface: #ffffff;
+  width: 132px;
+  height: 132px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--success-green), var(--success-light));
+  background: conic-gradient(
+    var(--grade-color, var(--success-green)) calc(var(--ring-value, 0) * 1%),
+    var(--gray-200) 0
+  );
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 16px;
-  color: white;
-  font-size: 36px;
-  font-weight: 800;
+  padding: 10px;
   box-shadow: var(--shadow-lg);
+}
+
+.grade-letter {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--results-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--grade-color, var(--gray-900));
+  font-size: 38px;
+  font-weight: 800;
 }
 
 .grade-text {
@@ -1481,8 +1550,9 @@
 }
 
 /* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-  :root {
+
+  /* (0,2,0) specificity — same rationale as the top dark block. */
+  :root[data-theme="dark"] {
     --gray-50: #1f2937;
     --gray-100: #374151;
     --gray-200: #4b5563;
@@ -1495,19 +1565,15 @@
     --gray-900: #f9fafb;
   }
   
-  body {
+  :where([data-theme="dark"]) body {
     background: #111827;
     color: #f9fafb;
   }
   
-  .entry-card,
-  .modal-content,
-  .results-container,
-  .question-container {
+  :where([data-theme="dark"]) .entry-card, :where([data-theme="dark"]) .modal-content, :where([data-theme="dark"]) .results-container, :where([data-theme="dark"]) .question-container {
     background: #1f2937 !important;
     border-color: #4b5563 !important;
   }
-}
 
 /* Focus Styles for Accessibility */
 .btn:focus-visible,
@@ -1747,6 +1813,36 @@
   color: var(--gray-700);
   text-align: center;
   margin-bottom: 8px;
+}
+
+/* Submit-failure banner (visible inside the live exam) */
+.exam-submit-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--error-light, #fef2f2);
+  color: var(--error-red, #dc2626);
+  border: 1px solid var(--error-red, #dc2626);
+  border-radius: var(--border-radius, 10px);
+  margin: 12px 16px 0;
+  font-weight: 600;
+  font-size: 14px;
+  z-index: 5;
+}
+
+.exam-submit-error-banner .banner-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  min-width: 28px;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Time Warning Toast */
@@ -2633,8 +2729,12 @@
     padding-bottom: calc(12px + env(safe-area-inset-bottom));
     box-shadow: 0 -6px 18px rgba(24, 47, 87, 0.1);
   }
+  /* Mobile deliberately stays in normal browser layout (the native
+     fullscreen-exit banner covers the fixed exam controls), so the toggle is
+     a dead control here — hide it instead of advertising a button that does
+     nothing. */
   .fullscreen-toggle {
-    display: inline-flex !important;
+    display: none !important;
   }
 
   .exam-header {
@@ -3316,9 +3416,13 @@
   }
 
   .grade-circle {
-    width: 94px;
-    height: 94px;
+    width: 108px;
+    height: 108px;
     margin-bottom: 12px;
+    padding: 8px;
+  }
+
+  .grade-letter {
     font-size: 30px;
   }
 
@@ -3545,77 +3649,112 @@
    The "Reference-aligned" section above uses hard-coded light-mode
    colors (#16233b, #1b2b4b, #24334d, #1c2d4c, #51617b, #67758d) that become
    invisible on dark backgrounds. This block runs last in the cascade. */
-@media (prefers-color-scheme: dark) {
-  /* Overall exam surface */
-  .exam-app {
+
+   /* Overall exam surface */
+  :where([data-theme="dark"]) .exam-app {
     background: #111827;
     color: #e4e6eb;
   }
-  .exam-active-screen { background: #111827; }
-  .exam-header {
+  :where([data-theme="dark"]) .exam-active-screen { background: #111827; }
+  :where([data-theme="dark"]) .exam-header {
     border-bottom-color: #33415b;
     box-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
   }
-  .exam-content { background: #171b26; }
-  .exam-main { background: #171b26; }
-  .exam-sidebar {
+  :where([data-theme="dark"]) .exam-content { background: #171b26; }
+  :where([data-theme="dark"]) .exam-main { background: #171b26; }
+  :where([data-theme="dark"]) .exam-sidebar {
     background: #171b26;
     border-left-color: #33415b;
   }
 
-  /* Timer & progress displays */
-  .timer-display,
-  .progress-indicator {
+   /* Timer & progress displays */
+  :where([data-theme="dark"]) .timer-display, :where([data-theme="dark"]) .progress-indicator {
     background: #374151;
     border-color: #4b5563;
   }
 
-  /* Question text & options */
-  .question-text { color: #e4e6eb; }
-  .option-text { color: #e4e6eb; }
-  .option-label { color: #cbd5e1; }
-  .option-item {
+   /* Question text & options */
+  :where([data-theme="dark"]) .question-text { color: #e4e6eb; }
+  :where([data-theme="dark"]) .option-text { color: #e4e6eb; }
+  :where([data-theme="dark"]) .option-label { color: #cbd5e1; }
+  :where([data-theme="dark"]) .option-item {
     border-color: #4b5563;
     background: #374151;
   }
-  .option-item:hover,
-  .option-item.selected {
+  :where([data-theme="dark"]) .option-item:hover, :where([data-theme="dark"]) .option-item.selected {
     border-color: #60a5fa;
     background: #25324f;
   }
 
-  /* Headers & navigation */
-  .exam-title { color: #e4e6eb; }
-  .exam-subtitle { color: #94a3b8; }
-  .nav-title { color: #e4e6eb; }
-  .exam-meta { color: #94a3b8; }
-  .question-topic {
+   /* Headers & navigation */
+  :where([data-theme="dark"]) .exam-title { color: #e4e6eb; }
+  :where([data-theme="dark"]) .exam-subtitle { color: #94a3b8; }
+  :where([data-theme="dark"]) .nav-title { color: #e4e6eb; }
+  :where([data-theme="dark"]) .exam-meta { color: #94a3b8; }
+  :where([data-theme="dark"]) .question-topic {
     background: #374151;
     color: #cbd5e1;
   }
-  .question-number {
+  :where([data-theme="dark"]) .question-number {
     background: #3b82f6;
     color: #fff;
   }
 
-  /* Controls area */
-  .exam-controls-below {
+   /* Controls area */
+  :where([data-theme="dark"]) .exam-controls-below {
     border-top-color: #33415b;
     background: #1f2937;
   }
-  .nav-btn {
+  :where([data-theme="dark"]) .nav-btn {
     background: #374151;
     border-color: #4b5563;
     color: #e4e6eb;
   }
-  .nav-btn-primary {
+  :where([data-theme="dark"]) .nav-btn-primary {
     background: #3b82f6;
     border-color: #3b82f6;
   }
 
-  /* Results table rows */
-  .results-table .table-row {
+   /* Results table rows */
+  :where([data-theme="dark"]) .results-table .table-row {
     border-color: #4b5563;
     background: #374151;
   }
+
+   /* ===== Results finale: dark-mode-first (Phase 2.2/2.5) =====
+     The old finale flashed a bright light-mode gradient right after a dark
+     exam. Keep the celebration but on the app's dark canvas. */
+  :where([data-theme="dark"]) .results-screen {
+    background: linear-gradient(160deg, #0f1117 0%, #052e26 100%);
+  }
+  :where([data-theme="dark"]) .results-container {
+    background: #171b26 !important;
+    border-color: #33415b;
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5);
+    --results-surface: #171b26;
+  }
+  :where([data-theme="dark"]) .results-icon {
+    background: linear-gradient(135deg, #064e35, #34d399);
+  }
+  :where([data-theme="dark"]) .results-icon.results-icon-failed {
+    background: linear-gradient(135deg, #450a0a, #f87171);
+  }
+  :where([data-theme="dark"]) .score-display { background: #1f2937; border-color: #33415b; }
+  :where([data-theme="dark"]) .grade-circle {
+    /* ring track must read on the dark card */
+    background: conic-gradient(
+      var(--grade-color, #34d399) calc(var(--ring-value, 0) * 1%),
+      #33415b 0
+    );
+  }
+  :where([data-theme="dark"]) .performance-summary .summary-item, :where([data-theme="dark"]) .insight-item {
+    background: #1f2937;
+    border-color: #33415b;
+  }
+
+/* Too-early screen: explicit start time in the viewer zone (4.5). */
+.too-early-zone {
+  margin: 6px 0 10px;
+  font-size: 13.5px;
+  color: var(--color-text-secondary);
 }

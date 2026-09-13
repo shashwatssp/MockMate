@@ -23,21 +23,6 @@
 .student-error-inline span { color: inherit; }
 .student-loading { padding: 32px 16px; text-align: center; }
 
-/* Empty / error state card */
-.student-empty-state {
-  margin: 28px auto;
-  max-width: 520px;
-  padding: 36px 28px;
-  text-align: center;
-  border: 1px solid #dbe3ef;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 10px 15px -3px rgb(15 23 42 / 0.06);
-}
-.student-empty-state svg { color: #6366f1; margin-bottom: 10px; }
-.student-empty-state h2 { margin: 0 0 8px; font-size: 19px; color: #1e293b; }
-.student-empty-state p { margin: 0 auto 20px; max-width: 40ch; font-size: 14px; line-height: 1.55; color: #64748b; }
-
 .sr-primary-btn {
   display: inline-flex; align-items: center; gap: 7px;
   border: none; cursor: pointer;
@@ -225,6 +210,46 @@
 
 .sr-skip-note { margin: 10px 0 0; font-size: 12.5px; color: #64748b; font-style: italic; }
 
+/* ── Topic buckets / report card (§3.1) ───────────────────── */
+.sr-topics { margin-top: 22px; }
+.sr-topics h2 { margin: 0 0 12px; font-size: 16px; color: #1e293b; }
+.sr-topic-list { display: grid; gap: 10px; }
+.sr-topic {
+  border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px 16px;
+  background: #ffffff; box-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+}
+.sr-topic-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.sr-topic-name { font-weight: 700; font-size: 14px; color: #1e293b; overflow-wrap: anywhere; }
+.sr-topic-score { font-size: 12.5px; font-weight: 600; color: #475569; white-space: nowrap; }
+.sr-topic-bar {
+  margin-top: 8px; height: 8px; border-radius: 999px;
+  background: #e9edf5; overflow: hidden;
+}
+.sr-topic-fill { display: block; height: 100%; border-radius: 999px; }
+.sr-topic.tone-good .sr-topic-fill { background: #10b981; }
+.sr-topic.tone-ok .sr-topic-fill { background: #f59e0b; }
+.sr-topic.tone-poor .sr-topic-fill { background: #ef4444; }
+.sr-topic-tip { margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; color: #64748b; }
+
+/* Pass/fail verdict chip (from the persisted grade/passed fields) */
+.sr-chip-verdict-good { color: #047857; background: #d1fae5; border: 1px solid #86efac; }
+.sr-chip-verdict-bad { color: #b91c1c; background: #fee2e2; border: 1px solid #fca5a5; }
+
+/* ── Attempt history (§3.5) ─────────────────────────────────── */
+.sr-history {
+  margin-top: 22px;
+  border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px;
+  background: #ffffff; box-shadow: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+}
+.sr-history h2 { margin: 0 0 10px; font-size: 16px; color: #1e293b; }
+.sr-attempt-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.sr-attempt-chip {
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  background: #e2e8f0; color: #334155;
+}
+.sr-attempt-chip.is-best { background: #d1fae5; color: #047857; }
+
 /* Save-time AI explanation (§3.1) — legacy classes retained */
 .student-explanation { margin-top: 10px; }
 .explanation-card { margin-top: 8px; }
@@ -263,69 +288,74 @@
 }
 
 /* ── Dark mode ──────────────────────────────────────────────── */
-@media (prefers-color-scheme: dark) {
-  .student-shell {
+
+  :where([data-theme="dark"]) .student-shell {
     background: linear-gradient(135deg, #171b26 0%, #0f1117 100%);
     color: #e4e6eb;
   }
-  .student-btn-plain { border-color: #4b5563; color: #cbd5e1; }
-  .student-btn-plain:hover { background: #374151; }
-  .student-error-inline { color: #fca5a5; }
+  :where([data-theme="dark"]) .student-btn-plain { border-color: #4b5563; color: #cbd5e1; }
+  :where([data-theme="dark"]) .student-btn-plain:hover { background: #374151; }
+  :where([data-theme="dark"]) .student-error-inline { color: #fca5a5; }
 
-  .student-empty-state {
-    background: #1f2330;
-    border-color: #374151;
-    box-shadow: none;
-  }
-  .student-empty-state h2 { color: #e4e6eb; }
-  .student-empty-state p { color: #94a3b8; }
+  :where([data-theme="dark"]) .sr-primary-btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
 
-  .sr-primary-btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+  :where([data-theme="dark"]) .sr-hero { background: #1f2330; border-color: #374151; box-shadow: none; }
+  :where([data-theme="dark"]) .sr-hero-meta h1 { color: #f3f4f6; }
+  :where([data-theme="dark"]) .sr-hero-sub { color: #9ca3af; }
+  :where([data-theme="dark"]) .sr-hero-sub b { color: #e4e6eb; }
+  :where([data-theme="dark"]) .sr-ring { background: conic-gradient(currentColor calc(var(--ring-value, 0) * 1%), #2b3040 0); }
+  :where([data-theme="dark"]) .sr-ring::before { background: #1f2330; }
+  :where([data-theme="dark"]) .sr-ring-inner { background: #1f2330; }
+  :where([data-theme="dark"]) .is-good .sr-ring-pct { color: #34d399; }
+  :where([data-theme="dark"]) .is-ok .sr-ring-pct { color: #fbbf24; }
+  :where([data-theme="dark"]) .is-poor .sr-ring-pct { color: #f87171; }
+  :where([data-theme="dark"]) .sr-ring-label { color: #6b7280; }
 
-  .sr-hero { background: #1f2330; border-color: #374151; box-shadow: none; }
-  .sr-hero-meta h1 { color: #f3f4f6; }
-  .sr-hero-sub { color: #9ca3af; }
-  .sr-hero-sub b { color: #e4e6eb; }
-  .sr-ring { background: conic-gradient(currentColor calc(var(--ring-value, 0) * 1%), #2b3040 0); }
-  .sr-ring::before { background: #1f2330; }
-  .sr-ring-inner { background: #1f2330; }
-  .is-good .sr-ring-pct { color: #34d399; }
-  .is-ok .sr-ring-pct { color: #fbbf24; }
-  .is-poor .sr-ring-pct { color: #f87171; }
-  .sr-ring-label { color: #6b7280; }
+  :where([data-theme="dark"]) .sr-chip-good { color: #6ee7b7; background: #064e35; }
+  :where([data-theme="dark"]) .sr-chip-bad { color: #fca5a5; background: #450a0a; }
+  :where([data-theme="dark"]) .sr-chip-skip { color: #cbd5e1; background: #374151; }
+  :where([data-theme="dark"]) .sr-chip-time { color: #c7d2fe; background: #312e81; }
 
-  .sr-chip-good { color: #6ee7b7; background: #064e35; }
-  .sr-chip-bad { color: #fca5a5; background: #450a0a; }
-  .sr-chip-skip { color: #cbd5e1; background: #374151; }
-  .sr-chip-time { color: #c7d2fe; background: #312e81; }
+  :where([data-theme="dark"]) .sr-filter-bar { background: #1f2330; border-color: #374151; }
+  :where([data-theme="dark"]) .sr-filter { color: #9ca3af; }
+  :where([data-theme="dark"]) .sr-filter:hover { background: #374151; }
+  :where([data-theme="dark"]) .sr-filter.is-active { background: #6366f1; color: #ffffff; }
+  :where([data-theme="dark"]) .sr-filter-count { background: #374151; color: #cbd5e1; }
+  :where([data-theme="dark"]) .sr-filter.is-active .sr-filter-count { background: rgb(255 255 255 / 0.22); color: #ffffff; }
 
-  .sr-filter-bar { background: #1f2330; border-color: #374151; }
-  .sr-filter { color: #9ca3af; }
-  .sr-filter:hover { background: #374151; }
-  .sr-filter.is-active { background: #6366f1; color: #ffffff; }
-  .sr-filter-count { background: #374151; color: #cbd5e1; }
-  .sr-filter.is-active .sr-filter-count { background: rgb(255 255 255 / 0.22); color: #ffffff; }
+  :where([data-theme="dark"]) .sr-question-card { background: #1f2330; border-color: #374151; box-shadow: none; }
+  :where([data-theme="dark"]) .sr-question-num { color: #cbd5e1; }
+  :where([data-theme="dark"]) .sr-question-outcome.tone-good { color: #6ee7b7; background: #064e35; }
+  :where([data-theme="dark"]) .sr-question-outcome.tone-bad { color: #fca5a5; background: #450a0a; }
+  :where([data-theme="dark"]) .sr-question-outcome.tone-skip { color: #cbd5e1; background: #374151; }
+  :where([data-theme="dark"]) .sr-question-text { color: #e2e5ea; }
 
-  .sr-question-card { background: #1f2330; border-color: #374151; box-shadow: none; }
-  .sr-question-num { color: #cbd5e1; }
-  .sr-question-outcome.tone-good { color: #6ee7b7; background: #064e35; }
-  .sr-question-outcome.tone-bad { color: #fca5a5; background: #450a0a; }
-  .sr-question-outcome.tone-skip { color: #cbd5e1; background: #374151; }
-  .sr-question-text { color: #e2e5ea; }
+  :where([data-theme="dark"]) .sr-option { background: #171b26; border-color: #2b3040; }
+  :where([data-theme="dark"]) .sr-option-letter { background: #2b3040; color: #9ca3af; }
+  :where([data-theme="dark"]) .sr-option-text { color: #cbd5e1; }
+  :where([data-theme="dark"]) .flag-good { color: #6ee7b7; background: #064e35; }
+  :where([data-theme="dark"]) .flag-bad { color: #fca5a5; background: #450a0a; }
+  :where([data-theme="dark"]) .sr-option.is-key { border-color: #065f46; }
+  :where([data-theme="dark"]) .sr-option.is-pick-good { background: #052e21; border-color: #10b981; box-shadow: inset 3px 0 0 #10b981; }
+  :where([data-theme="dark"]) .sr-option.is-pick-good .sr-option-letter { background: #10b981; color: #052e21; }
+  :where([data-theme="dark"]) .sr-option.is-pick-good .sr-option-text { color: #a7f3d0; }
+  :where([data-theme="dark"]) .sr-option.is-pick-bad { background: #450a0a; border-color: #ef4444; box-shadow: inset 3px 0 0 #ef4444; }
+  :where([data-theme="dark"]) .sr-option.is-pick-bad .sr-option-letter { background: #ef4444; color: #450a0a; }
+  :where([data-theme="dark"]) .sr-option.is-pick-bad .sr-option-text { color: #fecaca; }
 
-  .sr-option { background: #171b26; border-color: #2b3040; }
-  .sr-option-letter { background: #2b3040; color: #9ca3af; }
-  .sr-option-text { color: #cbd5e1; }
-  .flag-good { color: #6ee7b7; background: #064e35; }
-  .flag-bad { color: #fca5a5; background: #450a0a; }
-  .sr-option.is-key { border-color: #065f46; }
-  .sr-option.is-pick-good { background: #052e21; border-color: #10b981; box-shadow: inset 3px 0 0 #10b981; }
-  .sr-option.is-pick-good .sr-option-letter { background: #10b981; color: #052e21; }
-  .sr-option.is-pick-good .sr-option-text { color: #a7f3d0; }
-  .sr-option.is-pick-bad { background: #450a0a; border-color: #ef4444; box-shadow: inset 3px 0 0 #ef4444; }
-  .sr-option.is-pick-bad .sr-option-letter { background: #ef4444; color: #450a0a; }
-  .sr-option.is-pick-bad .sr-option-text { color: #fecaca; }
+  :where([data-theme="dark"]) .sr-skip-note { color: #94a3b8; }
+  :where([data-theme="dark"]) .explanation-text { background: #111827; color: #cbd5e1; }
 
-  .sr-skip-note { color: #94a3b8; }
-  .explanation-text { background: #111827; color: #cbd5e1; }
-}
+   /* Topic buckets / report card */
+  :where([data-theme="dark"]) .sr-topics h2 { color: #e4e6eb; }
+  :where([data-theme="dark"]) .sr-topic { background: #1f2330; border-color: #374151; box-shadow: none; }
+  :where([data-theme="dark"]) .sr-topic-name { color: #e2e5ea; }
+  :where([data-theme="dark"]) .sr-topic-bar { background: #2b3040; }
+  :where([data-theme="dark"]) .sr-chip-verdict-good { color: #6ee7b7; background: #064e35; border-color: #10b981; }
+  :where([data-theme="dark"]) .sr-chip-verdict-bad { color: #fca5a5; background: #450a0a; border-color: #ef4444; }
+
+   /* Attempt history */
+  :where([data-theme="dark"]) .sr-history { background: #1f2330; border-color: #374151; box-shadow: none; }
+  :where([data-theme="dark"]) .sr-history h2 { color: #e4e6eb; }
+  :where([data-theme="dark"]) .sr-attempt-chip { background: #374151; color: #cbd5e1; }
+  :where([data-theme="dark"]) .sr-attempt-chip.is-best { background: #064e35; color: #6ee7b7; }

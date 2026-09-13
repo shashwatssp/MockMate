@@ -57,7 +57,7 @@ describe('rowToQuestion', () => {
     });
   });
 
-  it('coerces null/missing columns to undefined', () => {
+  it('coerces optional columns to undefined and required columns to safe defaults', () => {
     const q = rowToQuestion({
       text: 'hi',
       options: [],
@@ -67,7 +67,9 @@ describe('rowToQuestion', () => {
     });
     expect(q.explanation).toBeUndefined();
     expect(q.imageUrl).toBeUndefined();
-    expect(q.id).toBeUndefined();
+    // Required fields fall back to safe defaults ('' for id), per the
+    // documented mapper contract — never undefined.
+    expect(q.id).toBe('');
     expect(q.text).toBe('hi');
   });
 

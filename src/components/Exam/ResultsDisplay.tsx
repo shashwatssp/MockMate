@@ -19,6 +19,7 @@ import {
 import { jsPDF } from 'jspdf';
 import type { Test, TestResult } from '../../types/exam.types';
 import { LatexText } from '../LatexText';
+import { resolvePassingScore, computeGrade } from '../../lib/score';
 
 /** A question diagram rasterized for embedding into the PDF report. */
 interface ReportImage {
@@ -484,18 +485,34 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
     }
   };
 
+  // Pass/fail verdict — the single most-asked student question ("did I
+  // pass?") now has an explicit answer. Prefers the populated result fields;
+  // falls back to computing from the test's pass mark for legacy rows.
+  const passMark = resolvePassingScore(test.passingScore);
+  const passed = result.passed ?? result.percentage >= passMark;
+  const gradeLetter = result.grade ?? computeGrade(result.percentage);
+
   return (
     <div className="results-screen">
       <div className="results-container">
-        {/* Results Header */}
+        {/* Results Header — honest by outcome: a 12% paper must not greet you
+            like a victory (audit §5.1). */}
         <div className="results-header">
-          <div className="results-icon">
-            <Trophy size={48} />
+          <div className={`results-icon${passed ? '' : ' results-icon-failed'}`}>
+            {passed ? <Trophy size={48} /> : <TrendingUp size={48} />}
           </div>
           <h1 className="results-title">Test Complete!</h1>
           <p className="results-subtitle">
-            Congratulations, <strong>{result.studentName}</strong>!
+            {passed ? 'Congratulations' : 'Keep pushing'}, <strong>{result.studentName}</strong>!
           </p>
+          <div
+            className={`verdict-pill ${passed ? 'verdict-pass' : 'verdict-fail'}`}
+            role="status"
+          >
+            {passed
+              ? <><CheckCircle size={16} /> PASSED — Grade {gradeLetter}</>
+              : <><XCircle size={16} /> NOT PASSED — needed {passMark}%</>}
+          </div>
         </div>
 
         {result.isPractice && (
@@ -504,12 +521,15 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
           </div>
         )}
 
-        {/* Grade Display */}
+        {/* Grade ring — fills with the accuracy %, tinted by the grade. */}
         <div className="grade-display">
-          <div className="grade-circle" style={{ borderColor: gradeInfo.color }}>
-            <span className="grade-letter" style={{ color: gradeInfo.color }}>
-              {gradeInfo.grade}
-            </span>
+          <div
+            className="grade-circle"
+            style={{ '--ring-value': result.percentage, '--grade-color': gradeInfo.color } as React.CSSProperties}
+            role="img"
+            aria-label={`Grade ${gradeInfo.grade}, ${result.percentage} percent`}
+          >
+            <span className="grade-letter">{gradeInfo.grade}</span>
           </div>
           <div className="grade-text" style={{ color: gradeInfo.color }}>
             {gradeInfo.message}

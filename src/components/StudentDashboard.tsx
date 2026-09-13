@@ -1,12 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { toErrorMessage } from '../lib/errors';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getStudentProfile, getTestsForBatch, getStudentResults, batchLeaderboard, getBatchById, syncPendingLocalResults } from '../lib/database';
+import { getStudentProfile, getTestsForBatch, getStudentResults, getStudentAttemptCountsByTest, batchLeaderboard, getBatchById, syncPendingLocalResults } from '../lib/database';
 import { ProgressChart } from './ProgressChart';
 import type { StudentIdentity, BatchRow } from '../lib/database';
 import type { Test, TestResult } from '../types/exam.types';
-import { BookOpen, BarChart3, Users, Percent, Loader2, RefreshCw, AlertCircle, Eye, Sparkles, RotateCcw } from 'lucide-react';
+import { BookOpen, BarChart3, Users, Percent, RefreshCw, AlertCircle, Eye, Sparkles, RotateCcw } from 'lucide-react';
+import { Skeleton, SkeletonList, SkeletonStats } from './Skeleton';
+import { EmptyState } from './EmptyState';
+import { ThemeToggle } from './ThemeToggle';
 import type { BatchLeaderboardEntry } from '../lib/database';
-import { explainStudentInsight } from '../lib/geminiDashboard';
+import { explainStudentInsight, hasGeminiKey } from '../lib/geminiDashboard';
 import './StudentDashboard.css';
 
 interface Props {
@@ -21,11 +25,19 @@ export const StudentDashboard: React.FC<Props> = ({ batch: initialBatch }) => {
   const [results, setResults] = useState<TestResult[]>([]);
   const [batch, setBatch] = useState<BatchRow | null>(initialBatch);
   const [leaderboardByTest, setLeaderboardByTest] = useState<Record<string, BatchLeaderboardEntry[]>>({});
+  // Attempts used per test — decides Retake (credited) vs Practice (unsaved).
+  const [attemptsByTest, setAttemptsByTest] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [insight, setInsight] = useState<string | null>(null);
-  const [insightLoaded, setInsightLoaded] = useState(false);
+  const [insightLoading, setInsightLoading] = useState(false);
+  const [insightRequested, setInsightRequested] = useState(false);
+  // True when the last request came back empty (no key / API failure) — without
+  // this the button just appeared to do nothing.
+  const [insightFailed, setInsightFailed] = useState(false);
 
-  const load = async () => {
+  // Stable identity (only navigate) so the mount effect can depend on it
+  // without re-firing, while remaining a valid exhaustive-deps member.
+  const load = useCallback(async () => {
     setError(null);
     try {
       const profile = await getStudentProfile();
@@ -68,15 +80,22 @@ export const StudentDashboard: React.FC<Props> = ({ batch: initialBatch }) => {
         ]);
         setTests(assigned);
         setResults(prior);
+        // Per-test attempt counts power the Retake vs Practice split (§3.5).
+        getStudentAttemptCountsByTest(profile.id, {
+          studentEmail: profile.email,
+          studentName: profile.name ?? undefined,
+        })
+          .then(counts => setAttemptsByTest(counts))
+          .catch(() => setAttemptsByTest({}));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(toErrorMessage(err));
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [load]);
 
   // True batch percentile (rank-derived standing), not the raw score %.
   const percentile = (testId: string) => {
@@ -178,18 +197,39 @@ export const StudentDashboard: React.FC<Props> = ({ batch: initialBatch }) => {
     void fetch();
   }, [me, results]);
 
-  // Lazy, once-per-session load of the cached/fresh student insight nudge.
-  useEffect(() => {
-    if (!me || !me.id || !results.length || insightLoaded) return;
-    setInsightLoaded(true);
+  // AI insight is OPT-IN (§4.4): no Gemini call fires until the student asks
+  // for it. The old behavior spent tokens (and shared API quota) on every
+  // dashboard load whether the student wanted it or not.
+  const requestInsight = () => {
+    if (!me || !me.id || !results.length || insightLoading) return;
+    setInsightRequested(true);
+    setInsightLoading(true);
+    setInsightFailed(false);
     const context = { batchPercentile: studentPercentile, ...bestTopicInfo };
     void explainStudentInsight(me.id, results, context)
-      .then((insight) => setInsight(insight))
-      .catch(() => setInsight(null));
-  }, [me, results.length, insightLoaded, studentPercentile, bestTopicInfo]);
+      .then((value) => {
+        setInsight(value);
+        if (!value) setInsightFailed(true);
+      })
+      .catch(() => {
+        setInsight(null);
+        setInsightFailed(true);
+      })
+      .finally(() => setInsightLoading(false));
+  };
 
   if (loading) {
-    return <div className="student-loading"><Loader2 className="animate-spin" /> Loading dashboard…</div>;
+    return (
+      <div className="student-shell student-content" role="status" aria-busy="true">
+        <span className="skel-sr">Loading dashboard…</span>
+        <SkeletonStats count={4} />
+        <div className="skeleton-card skel-progress">
+          <Skeleton className="skeleton-line" style={{ width: '40%', height: 18 }} />
+          <Skeleton style={{ width: '100%', height: 120 }} />
+        </div>
+        <SkeletonList rows={4} />
+      </div>
+    );
   }
 
   if (!me) {
@@ -223,6 +263,7 @@ export const StudentDashboard: React.FC<Props> = ({ batch: initialBatch }) => {
           </p>
         </div>
         <div className="student-header-actions">
+          <ThemeToggle />
           <button onClick={load} className="student-btn-plain">
             <RefreshCw size={14} /> Refresh
           </button>
@@ -268,6 +309,25 @@ export const StudentDashboard: React.FC<Props> = ({ batch: initialBatch }) => {
             <Sparkles size={14} className="student-insight-icon" />
             <span>{insight}</span>
           </div>
+        ) : results.length > 0 && !hasGeminiKey() ? (
+          <p className="student-muted student-insight-disabled">
+            AI study tips aren't enabled yet — a Gemini API key (VITE_GEMINI_API_KEY) is needed on the server.
+          </p>
+        ) : results.length > 0 ? (
+          <div className="student-insight-optin">
+            {insightFailed ? (
+              <p className="student-muted">Couldn't generate a tip right now — try again in a moment.</p>
+            ) : null}
+            <button
+              onClick={requestInsight}
+              disabled={insightLoading}
+              className="student-btn-plain"
+              title="Optional: generate a short AI tip from your results"
+            >
+              <Sparkles size={14} />
+              {insightLoading ? 'Thinking…' : insightRequested ? 'Retry AI tip' : 'Get an AI study tip'}
+            </button>
+          </div>
         ) : null}
       </section>
 
@@ -275,7 +335,11 @@ export const StudentDashboard: React.FC<Props> = ({ batch: initialBatch }) => {
       <section className="student-tests-section">
         <h2>Your tests</h2>
         {tests.length === 0 ? (
-          <p className="student-empty-text">No tests have been assigned to your batch yet.</p>
+          <EmptyState
+            icon={BookOpen}
+            title="No tests yet"
+            description="Nothing has been assigned to your batch yet. Check back once your teacher schedules a test."
+          />
         ) : (
           <div className="student-test-list">
             {tests.map(test => {
@@ -320,15 +384,32 @@ export const StudentDashboard: React.FC<Props> = ({ batch: initialBatch }) => {
                     {' '}
                     {attempted ? 'Review' : t === 'expired' ? 'Practice' : 'Take test'}
                   </button>
-                  {attempted && t !== 'upcoming' && t !== 'expired' && (
-                    <button
-                      onClick={() => navigate(`/exam/${test.testKey}/entry?practice=1`)}
-                      className="student-test-btn student-practice-btn"
-                      title="Retake this test in Practice Mode — your score is shown to you but never saved for credit"
-                    >
-                      <RotateCcw size={14} /> Practice
-                    </button>
-                  )}
+                  {attempted && t !== 'upcoming' && t !== 'expired' && (() => {
+                    const used = attemptsByTest[test.id] ?? 1;
+                    const max = Math.max(1, test.maxAttempts ?? test.settings?.maxAttempts ?? 1);
+                    // Attempts left in the allowance → a credited retake;
+                    // allowance used up → the unsaved Practice button (§3.5).
+                    if (used < max) {
+                      return (
+                        <button
+                          onClick={() => navigate(`/exam/${test.testKey}/entry`)}
+                          className="student-test-btn student-practice-btn"
+                          title={`Retake this test — attempt ${used + 1} of ${max}, saved for credit`}
+                        >
+                          <RotateCcw size={14} /> Retake ({max - used} left)
+                        </button>
+                      );
+                    }
+                    return (
+                      <button
+                        onClick={() => navigate(`/exam/${test.testKey}/entry?practice=1`)}
+                        className="student-test-btn student-practice-btn"
+                        title="Retake this test in Practice Mode — your score is shown to you but never saved for credit"
+                      >
+                        <RotateCcw size={14} /> Practice
+                      </button>
+                    );
+                  })()}
                 </div>
               );
             })}

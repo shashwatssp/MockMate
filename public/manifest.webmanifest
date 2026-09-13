@@ -1,0 +1,25 @@
+{
+  "name": "MockMate — Mock Tests & Assessment",
+  "short_name": "MockMate",
+  "description": "Create mock tests, manage batches, and take exams on any phone.",
+  "start_url": "/student/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117",
+  "icons": [
+    {
+      "src": "/mockmate-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/mockmate-icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

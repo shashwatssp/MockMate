@@ -39,6 +39,11 @@ function getApiKey(): string | undefined {
   return typeof key === 'string' && key.length > 0 ? key : undefined;
 }
 
+/** True when a Gemini key is configured. Without one every AI insight silently
+ *  no-ops (fail-open); callers use this to show an honest "not enabled" state
+ *  instead of a button that appears to do nothing. */
+export const hasGeminiKey = (): boolean => Boolean(getApiKey());
+
 // ---------------------------------------------------------------------------
 // Cache row shapes (snake_case as returned by Supabase).
 // ---------------------------------------------------------------------------

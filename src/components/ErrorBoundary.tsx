@@ -1,3 +1,4 @@
+import { toErrorMessage } from '../lib/errors';
 import { Component } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 
@@ -21,7 +22,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state = initialState
 
   static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = toErrorMessage(error)
     return { hasError: true, message }
   }
 
